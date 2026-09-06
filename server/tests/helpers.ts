@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.js';
 import { prisma } from '../src/db.js';
@@ -21,23 +22,50 @@ export async function resetDatabase(): Promise<void> {
   // Truncate rather than delete so the tables come back in a known state, and
   // cascade so ordering between them stops mattering.
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "AuditLog", "EmailToken", "Session", "User" RESTART IDENTITY CASCADE',
+    'TRUNCATE TABLE "AuditLog", "EmailToken", "Session", "Device", "User" RESTART IDENTITY CASCADE',
   );
 }
 
-export const validPassword = 'correct-horse-battery-staple';
+/// Base64 of 32 random bytes - the shape of every digest and key crossing the
+/// API boundary.
+///
+/// Note what these tests deliberately do NOT do: derive an authHash from a
+/// password with real Argon2id. The server has no idea how the value was
+/// produced and must not care, so treating it as an opaque token here keeps the
+/// suite testing the server's actual contract (and keeps it fast). The
+/// end-to-end derivation is exercised by scripts/smoke.ts and by the client's
+/// own suite.
+export function base64Bytes(): string {
+  return randomBytes(32).toString('base64');
+}
 
 export interface RegisteredUser {
   email: string;
   username: string;
-  password: string;
+  /// Stands in for the password: the client-derived value login must reproduce.
+  authHash: string;
+  recoveryCodeHash: string;
+  device: {
+    label: string;
+    publicKey: string;
+    wrappedPrivateKey: string;
+    wrappedPrivateKeyRecovery: string;
+  };
 }
 
 export function newUser(suffix = Date.now().toString(36)): RegisteredUser {
   return {
     email: `user-${suffix}@example.test`,
     username: `user-${suffix}`,
-    password: validPassword,
+    authHash: base64Bytes(),
+    recoveryCodeHash: base64Bytes(),
+    device: {
+      label: 'Test Runner',
+      publicKey: base64Bytes(),
+      // Opaque to the server. Real ones are JSON from packages/crypto.
+      wrappedPrivateKey: `wrapped-a-${suffix}`,
+      wrappedPrivateKeyRecovery: `wrapped-b-${suffix}`,
+    },
   };
 }
 
@@ -97,13 +125,13 @@ export async function login(
   const response = await ctx.app.inject({
     method: 'POST',
     url: '/auth/login',
-    payload: { identifier: user.email, password: user.password },
+    payload: { email: user.email, authHash: user.authHash },
   });
 
   if (response.statusCode !== 200) {
     throw new Error(`Login failed: ${response.body}`);
   }
 
-  const body = response.json();
-  return { accessToken: body.accessToken, refreshToken: body.refreshToken };
+  const { tokens } = response.json();
+  return { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken };
 }

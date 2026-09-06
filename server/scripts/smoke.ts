@@ -1,12 +1,31 @@
 import 'dotenv/config';
 import { readdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import {
+  DOMAIN,
+  deriveAuthHash,
+  generateKeyPair,
+  generateRecoveryCode,
+  publicKeyToBase64,
+  recoveryCodeHash,
+  serializeWrappedKey,
+  unwrapPrivateKey,
+  parseWrappedKey,
+  toBase64,
+  wrapPrivateKey,
+} from '@cipher/crypto';
 
 /// Drives a full account lifecycle against a running server over real HTTP -
-/// the same calls the client will make. Stands in for the frontend while it
-/// does not exist yet.
+/// the same calls the client makes, through the same crypto the client uses.
 ///
 ///   npm run smoke
+///
+/// This is the only place the server workspace touches @cipher/crypto, and it
+/// does so as a *client*, not as a server: it derives the authHash and wraps
+/// the private key exactly as the browser would, so a passing run proves the
+/// two halves genuinely agree rather than that the server agrees with itself.
+/// The server code itself must never import that package for anything that
+/// decrypts (packages/crypto/AGENTS.md).
 ///
 /// Requires MAIL_TRANSPORT=file, because the verification token exists only in
 /// the email (the database stores a hash of it).
@@ -108,16 +127,46 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // Everything below happens on the device. The server sees none of it: not
+  // PASSWORD, not the recovery code, not the private key.
+  const keyPair = await generateKeyPair();
+  const recoveryCode = await generateRecoveryCode();
+  const authHash = await deriveAuthHash(email, PASSWORD);
+  const device = {
+    label: 'Smoke Runner',
+    publicKey: await publicKeyToBase64(keyPair.publicKey),
+    wrappedPrivateKey: serializeWrappedKey(
+      await wrapPrivateKey(keyPair.privateKey, PASSWORD, DOMAIN.keywrap),
+    ),
+    wrappedPrivateKeyRecovery: serializeWrappedKey(
+      await wrapPrivateKey(keyPair.privateKey, recoveryCode, DOMAIN.recovery),
+    ),
+  };
+
   const registered = await call('POST', '/auth/register', {
-    body: { email, username, password: PASSWORD },
+    body: {
+      email,
+      username,
+      authHash,
+      recoveryCodeHash: await recoveryCodeHash(recoveryCode),
+      device,
+    },
   });
-  report('register', registered.status === 202, `${registered.status} ${registered.body.message ?? ''}`);
+  report('register', registered.status === 202, `${registered.status}`);
+
+  report(
+    'request carried no password, code or private key',
+    !JSON.stringify({ email, username, authHash, device }).includes(PASSWORD) &&
+      !JSON.stringify(device).includes(recoveryCode.replace(/-/g, '')) &&
+      !JSON.stringify(device).includes(await toBase64(keyPair.privateKey)),
+    'authHash + opaque blobs only',
+  );
 
   const token = tokenFrom(await latestEmail(email));
   report('verification email received', true, `token ${token.slice(0, 12)}...`);
 
   const beforeVerify = await call('POST', '/auth/login', {
-    body: { identifier: email, password: PASSWORD },
+    body: { email, authHash },
   });
   report(
     'login blocked before verifying',
@@ -136,7 +185,7 @@ async function main(): Promise<void> {
   );
 
   const wrongPassword = await call('POST', '/auth/login', {
-    body: { identifier: email, password: 'definitely-not-the-password' },
+    body: { email, authHash: await deriveAuthHash(email, 'definitely-not-it') },
   });
   report(
     'wrong password rejected',
@@ -144,20 +193,54 @@ async function main(): Promise<void> {
     `${wrongPassword.status} ${wrongPassword.body.error?.code ?? ''}`,
   );
 
-  const login = await call('POST', '/auth/login', {
-    body: { identifier: email, password: PASSWORD },
-  });
+  const login = await call('POST', '/auth/login', { body: { email, authHash } });
   report('login', login.status === 200, `${login.status} user ${login.body.user?.id ?? '-'}`);
 
-  const { accessToken, refreshToken } = login.body;
+  const { accessToken, refreshToken } = login.body.tokens ?? {};
+
+  // The point of the whole exercise: the blob the server just handed back
+  // opens with the password, and yields the key generated before registering.
+  let unwrapped = 'no device returned';
+  try {
+    const privateKey = await unwrapPrivateKey(
+      parseWrappedKey(login.body.device.wrappedPrivateKey),
+      PASSWORD,
+      DOMAIN.keywrap,
+    );
+    unwrapped =
+      (await toBase64(privateKey)) === (await toBase64(keyPair.privateKey))
+        ? 'same private key came back'
+        : 'WRONG KEY';
+  } catch (error) {
+    unwrapped = `unwrap failed: ${(error as Error).message}`;
+  }
+  report('private key survives a round trip', unwrapped === 'same private key came back', unwrapped);
+
+  // And the recovery code opens the other copy, which is what makes a
+  // forgotten password survivable.
+  let recovered = 'not attempted';
+  try {
+    const viaCode = await unwrapPrivateKey(
+      parseWrappedKey(login.body.device.wrappedPrivateKeyRecovery),
+      recoveryCode,
+      DOMAIN.recovery,
+    );
+    recovered =
+      (await toBase64(viaCode)) === (await toBase64(keyPair.privateKey))
+        ? 'recovery code opens blob_B'
+        : 'WRONG KEY';
+  } catch (error) {
+    recovered = `unwrap failed: ${(error as Error).message}`;
+  }
+  report('recovery code opens the second copy', recovered === 'recovery code opens blob_B', recovered);
 
   const me = await call('GET', '/account/me', { token: accessToken });
-  report('GET /account/me', me.status === 200 && me.body.user?.email === email, `${me.status} ${me.body.user?.username ?? ''}`);
+  report('GET /account/me', me.status === 200 && me.body?.email === email, `${me.status} ${me.body?.username ?? ''}`);
 
   const refreshed = await call('POST', '/auth/refresh', { body: { refreshToken } });
   report(
     'refresh rotates the token',
-    refreshed.status === 200 && refreshed.body.refreshToken !== refreshToken,
+    refreshed.status === 200 && refreshed.body.tokens?.refreshToken !== refreshToken,
     `${refreshed.status}`,
   );
 
@@ -171,7 +254,7 @@ async function main(): Promise<void> {
   // Reuse detection just revoked the whole family, so the rotated token is
   // dead too. That is the intended behaviour, not a failure.
   const afterReuse = await call('POST', '/auth/refresh', {
-    body: { refreshToken: refreshed.body.refreshToken },
+    body: { refreshToken: refreshed.body.tokens?.refreshToken },
   });
   report(
     'reuse revoked the whole session family',
@@ -179,7 +262,7 @@ async function main(): Promise<void> {
     `${afterReuse.status} ${afterReuse.body.error?.code ?? ''}`,
   );
 
-  const staleAccess = await call('GET', '/account/me', { token: refreshed.body.accessToken });
+  const staleAccess = await call('GET', '/account/me', { token: refreshed.body.tokens?.accessToken });
   report(
     'access token dies with its session',
     staleAccess.status === 401,

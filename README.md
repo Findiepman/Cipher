@@ -25,21 +25,21 @@ running `npm install` inside `client/` or `server/` is not what you want:
 npm install
 ```
 
-Then the client alone, which needs no backend at all:
-
-```bash
-npm run dev            # http://localhost:5173, VITE_BACKEND=mock by default
-```
-
-The client talks to local fixtures until you tell it otherwise. To point it at
-the real API, copy `client/.env.example` to `client/.env`, set
-`VITE_BACKEND=http`, and start the server as described in
-[`server/README.md`](server/README.md) — it needs Postgres and a `.env` of its
-own.
+You need both halves running to sign in. Start the server first — it needs
+Postgres and a `.env`, both covered in [`server/README.md`](server/README.md):
 
 ```bash
 npm run dev:server     # http://localhost:3000
+npm run dev            # http://localhost:5173
 ```
+
+Open http://localhost:5173 and create an account. With `MAIL_TRANSPORT=file`,
+the verification email lands as a file in `server/.mail/` — open the
+`/verify-email?token=…` link inside it.
+
+To work on the UI without a server at all, copy `client/.env.example` to
+`client/.env` and set `VITE_BACKEND=mock`. That skips auth entirely and renders
+the chat off local fixtures; nothing signs in.
 
 ## Checks
 
@@ -68,19 +68,54 @@ See [`packages/crypto/AGENTS.md`](packages/crypto/AGENTS.md) for what phase 2
 adds and [`client/AGENTS.md`](client/AGENTS.md) for the rules around the key on
 the device.
 
-## Known gap: the client and server do not speak the same protocol yet
+## Signing in
 
-`client/` and `server/` were built in parallel against different assumptions and
-have not been reconciled. Two things to settle before `VITE_BACKEND=http` can
-work end to end:
+The client and server speak one protocol, and the password is not part of it.
 
-- **Auth model.** The client never sends a password: it derives an `authHash`
-  locally and uploads that plus two wrapped copies of the private key. The
-  server's `/auth/register` and `/auth/login` currently take a plaintext
-  password and hash it themselves, and store no key material.
-- **Surface.** The client calls password reset, email change, session listing,
-  recovery-code rotation, a device key registry and an admin API. The server
-  implements register, verify-email, resend-verification, login, refresh,
-  logout, logout-all and `/account/me`.
+1. **Create account.** A keypair is generated on the device. The password is
+   stretched into an `authHash` (which goes to the server) and, separately, into
+   a key that wraps the private key (which does not). The wrapped key is
+   uploaded twice — once under the password, once under a recovery code shown
+   on screen exactly once.
+2. **Verify email.** The link is `/verify-email?token=…`. Running locally with
+   `MAIL_TRANSPORT=file`, the email is a file in `server/.mail/`.
+3. **Sign in.** The server compares the `authHash` and hands back the wrapped
+   key, which is opened locally with the password.
+4. **Unlock.** After a reload you are signed in but *locked*: the private key
+   lives in memory only, so it has to be re-derived from your password. That
+   screen is the visible form of "the server cannot read your messages".
 
-Neither side is wrong; they are two halves of a decision nobody has made yet.
+What the server stores: an argon2id hash of the `authHash`, the SHA-256 of the
+recovery code, a public key, and two opaque blobs it cannot open. What it never
+receives: the password, the recovery code, or the private key.
+
+One consequence worth knowing: **password strength is enforced client-side
+only**, in `client/src/lib/session/passwordPolicy.ts`. The server cannot judge a
+password it never sees, so a hostile client can register a weak one.
+
+### Checking it end to end
+
+With Postgres up and the server running:
+
+```bash
+cd server && npm run smoke
+```
+
+That drives register → verify → login → refresh → reuse-detection over real
+HTTP, using the same `@cipher/crypto` calls the browser makes, and asserts the
+private key it generated comes back out of the server's blob unchanged.
+
+## Still to build
+
+- **Account flows the client already implements but the server does not**:
+  password reset, the recovery-code reset path, email change, the session list,
+  recovery-code rotation, account deletion, the device key registry
+  (`/keys/*`), and the admin API. `client/src/lib/api/endpoints.ts` calls all of
+  them; they 404 today.
+- **Messaging.** There are no message or channel tables yet, and no socket
+  layer. The chat UI behind the login screen still renders `data/mockData.ts`.
+- **CSRF.** The client sends `x-csrf-token` from a `csrf_token` cookie in cookie
+  mode; the server never sets one, so the header is simply absent. Cross-site
+  POSTs are currently blocked by `SameSite=Lax` plus a CORS allowlist rather
+  than by a token.
+- **Phase 2 encryption**, per `packages/crypto/AGENTS.md`.

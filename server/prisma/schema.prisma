@@ -34,7 +34,15 @@ model User {
   email    String @unique
   username String @unique
 
-  passwordHash String
+  /// argon2id of the *authHash* the client sends - which is itself argon2id of
+  /// the password, derived on the device. The server never receives, and can
+  /// therefore never leak, the password itself. Hashed again here so a database
+  /// dump does not hand out working login credentials.
+  authVerifier String
+
+  /// SHA-256 of the account recovery code. The code itself exists only on paper
+  /// wherever the user wrote it down; losing it costs the message history.
+  recoveryCodeHash String?
 
   role   UserRole   @default(USER)
   status UserStatus @default(ACTIVE)
@@ -51,6 +59,7 @@ model User {
 
   sessions    Session[]
   emailTokens EmailToken[]
+  devices     Device[]
 
   auditActions AuditLog[] @relation("AuditActor")
   auditTargets AuditLog[] @relation("AuditTarget")
@@ -104,6 +113,37 @@ model EmailToken {
 
   @@index([userId, purpose])
   @@index([expiresAt])
+}
+
+/// A device's key material. The public key is the registry other users look up
+/// to send this account a message; the two wrapped blobs are the same private
+/// key sealed under two different secrets, and the server can open neither.
+///
+/// Storing them here is what lets someone sign in on a new machine: the blob
+/// comes down with the login response and is unwrapped locally.
+model Device {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Human-readable, for the user's own device list. e.g. "Firefox on Windows".
+  label String
+
+  /// base64 X25519 public key. The only field here that is meant to be shared.
+  publicKey String
+
+  /// blob_A - the private key wrapped under the account password.
+  wrappedPrivateKey String
+
+  /// blob_B - the same private key wrapped under the recovery code.
+  wrappedPrivateKeyRecovery String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  revokedAt DateTime?
+
+  @@index([userId])
+  @@index([publicKey])
 }
 
 model AuditLog {

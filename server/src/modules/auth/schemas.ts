@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { MAX_PASSWORD_LENGTH } from '../../lib/password.js';
 
 /// Usernames are the handle other people see and search for. Deliberately
 /// narrow: no leading/trailing separators, no consecutive separators, so
@@ -21,21 +20,51 @@ export const emailSchema = z
   .email('Enter a valid email address.')
   .max(254);
 
-/// Length bounds only - real strength rules live in checkPasswordStrength so
-/// the message can explain *why* a password was rejected.
-export const passwordSchema = z.string().min(1).max(MAX_PASSWORD_LENGTH);
+/// Standard base64 of 32 bytes. Used for every digest and public key crossing
+/// this boundary - the authHash, the recovery code hash, an X25519 public key.
+/// Exact-length on purpose: these are fixed-size outputs, so anything else is a
+/// malformed client, not a user mistake.
+const base64_32 = z
+  .string()
+  .length(44)
+  .regex(/^[A-Za-z0-9+/]{43}=$/, 'Expected base64 of a 32-byte value.');
 
+/// A wrapped private key, as serialized by packages/crypto. Opaque here: the
+/// server stores and returns it without ever being able to open it, so it is
+/// checked for size and nothing else.
+const wrappedKeySchema = z.string().min(1).max(4096);
+
+/// What a device registers. No password, no private key, no recovery code -
+/// see the note on `authVerifier` in prisma/schema.prisma.
+export const deviceRegistrationSchema = z.object({
+  label: z.string().trim().min(1).max(64),
+  publicKey: base64_32,
+  wrappedPrivateKey: wrappedKeySchema,
+  wrappedPrivateKeyRecovery: wrappedKeySchema,
+});
+
+/// Note what is absent: `password`. The client derives `authHash` from it
+/// locally and sends only that, so password strength can no longer be judged
+/// here - the server cannot see the thing it would be judging. That rule now
+/// lives in client/src/lib/session/passwordPolicy.ts, and it is genuinely
+/// client-side-only enforcement: a hostile client can register a weak password
+/// and there is no way for this process to know. That is the cost of the server
+/// never holding a password, and it is the trade this project has chosen.
 export const registerSchema = z.object({
   email: emailSchema,
   username: usernameSchema,
-  password: passwordSchema,
+  authHash: base64_32,
+  recoveryCodeHash: base64_32,
+  device: deviceRegistrationSchema,
 });
 
+/// Email only, not "email or username": the auth salt is derived from the email
+/// address, so the client cannot compute an authHash without knowing which
+/// address the account uses. Letting people sign in by username would mean
+/// telling an anonymous caller the email behind a handle.
 export const loginSchema = z.object({
-  /// Accepts either, because making the user remember which one they signed
-  /// up with is a pointless failure mode.
-  identifier: z.string().trim().min(1).max(254),
-  password: passwordSchema,
+  email: emailSchema,
+  authHash: base64_32,
   deviceLabel: z.string().trim().max(64).optional(),
 });
 
@@ -49,3 +78,4 @@ export const resendVerificationSchema = z.object({
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type DeviceRegistrationInput = z.infer<typeof deviceRegistrationSchema>;

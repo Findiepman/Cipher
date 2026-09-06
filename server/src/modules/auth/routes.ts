@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { prisma } from '../../db.js';
+import { env } from '../../env.js';
 import { clearAuthCookies, REFRESH_COOKIE, setAuthCookies } from '../../lib/cookies.js';
 import { recordAudit } from '../../lib/audit.js';
 import { unauthorized } from '../../lib/errors.js';
@@ -15,7 +16,8 @@ import {
   authenticate,
   register,
   resendVerification,
-  toPublicUser,
+  toAccountDto,
+  toDeviceDto,
   verifyEmail,
 } from './service.js';
 import {
@@ -53,11 +55,9 @@ export const authRoutes: FastifyPluginAsync<{ mailer: Mailer }> = async (
     await register(input, contextOf(request), mailer);
 
     // Identical response whether or not the account was created - see the
-    // note on register() in service.ts.
-    return reply.status(202).send({
-      message:
-        'If that email address can be registered, a verification link is on its way.',
-    });
+    // note on register() in service.ts. `{ ok: true }` and nothing else: an
+    // account id here would undo the whole point of the generic response.
+    return reply.status(202).send({ ok: true });
   });
 
   fastify.post('/verify-email', strictLimit, async (request, reply) => {
@@ -65,7 +65,7 @@ export const authRoutes: FastifyPluginAsync<{ mailer: Mailer }> = async (
 
     await verifyEmail(token, contextOf(request));
 
-    return reply.send({ message: 'Email address verified. You can sign in now.' });
+    return reply.send({ ok: true });
   });
 
   fastify.post('/resend-verification', strictLimit, async (request, reply) => {
@@ -73,16 +73,14 @@ export const authRoutes: FastifyPluginAsync<{ mailer: Mailer }> = async (
 
     await resendVerification(email, contextOf(request), mailer);
 
-    return reply.status(202).send({
-      message: 'If that account needs verifying, a new link is on its way.',
-    });
+    return reply.status(202).send({ ok: true });
   });
 
   fastify.post('/login', strictLimit, async (request, reply) => {
     const input = parseBody(loginSchema, request.body);
     const ctx = contextOf(request);
 
-    const user = await authenticate(input, ctx);
+    const { user, device } = await authenticate(input, ctx);
     const session = await issueSession(user.id, ctx);
 
     if (input.deviceLabel) {
@@ -107,11 +105,14 @@ export const authRoutes: FastifyPluginAsync<{ mailer: Mailer }> = async (
     // Tokens are returned in the body as well as set as cookies: the web
     // client can ignore them and rely on the cookies, the desktop shell reads
     // them and sends Bearer headers instead.
+    //
+    // The device rides along so the client can unwrap its private key
+    // immediately. It is the caller's own blob and useless without their
+    // password, but it is still the reason this response must never be cached.
     return reply.send({
-      user: toPublicUser(user),
-      accessToken,
-      refreshToken: session.refreshToken,
-      expiresAt: session.expiresAt.toISOString(),
+      user: toAccountDto(user),
+      tokens: tokenPair(accessToken, session.refreshToken),
+      device: device ? toDeviceDto(device) : null,
     });
   });
 
@@ -141,10 +142,8 @@ export const authRoutes: FastifyPluginAsync<{ mailer: Mailer }> = async (
     });
 
     return reply.send({
-      user: toPublicUser(user),
-      accessToken,
-      refreshToken: session.refreshToken,
-      expiresAt: session.expiresAt.toISOString(),
+      user: toAccountDto(user),
+      tokens: tokenPair(accessToken, session.refreshToken),
     });
   });
 
@@ -159,7 +158,7 @@ export const authRoutes: FastifyPluginAsync<{ mailer: Mailer }> = async (
 
     // Unconditionally successful: a caller with no session is already in the
     // state they asked for, and reporting otherwise just leaks information.
-    return reply.send({ message: 'Signed out.' });
+    return reply.send({ ok: true });
   });
 
   fastify.post(
@@ -179,10 +178,23 @@ export const authRoutes: FastifyPluginAsync<{ mailer: Mailer }> = async (
         meta: { revoked },
       });
 
-      return reply.send({ message: 'Signed out on all devices.', revoked });
+      return reply.send({ ok: true, revoked });
     },
   );
 };
+
+/// The client refreshes proactively off `accessTokenExpiresAt` rather than
+/// waiting for a 401, so this has to be the *access* token's expiry - not the
+/// session's, which outlives it by weeks.
+function tokenPair(accessToken: string, refreshToken: string) {
+  return {
+    accessToken,
+    accessTokenExpiresAt: new Date(
+      Date.now() + env.ACCESS_TOKEN_TTL_MINUTES * 60_000,
+    ).toISOString(),
+    refreshToken,
+  };
+}
 
 function tryReadRefreshToken(request: FastifyRequest): string | null {
   const fromCookie = request.cookies[REFRESH_COOKIE];

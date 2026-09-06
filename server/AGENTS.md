@@ -30,7 +30,14 @@ Once phase 2 (real encryption) lands, the server's job for message bodies is: ac
 
 ## Auth
 
-- Standard email/password or OAuth, JWT or session cookies for API auth. This is entirely separate from the E2E keypair; a user can reset their login credentials without that touching their encryption keys, and vice versa.
+The server never receives a password. This is the one thing to understand before changing anything under `modules/auth/`.
+
+- The client derives `authHash = argon2id(password, salt from email, domain "auth")` on the device and sends only that. The server hashes it again and stores the result as `User.authVerifier`, so a database dump is not a set of working credentials. `/auth/register` and `/auth/login` take `authHash`; neither has a `password` field, and neither should ever grow one.
+- Because of that, **the server cannot judge password strength** — a weak password and a strong one produce indistinguishable base64. That rule lives in `client/src/lib/session/passwordPolicy.ts` and is advisory only; a hostile client can ignore it. Don't "fix" this by asking for the password.
+- Login is by email, not "email or username". The auth salt is derived from the email address, so a client holding only a handle cannot compute an authHash — and accepting one would mean telling an anonymous caller which address sits behind a username.
+- `Device` holds the account keypair: the public key (the registry other users look up) and the same private key wrapped twice, under the password and under the recovery code. Both blobs are opaque here. Registration creates the user and the device in one transaction — an account that can sign in but decrypt nothing is worse than one that does not exist.
+- Login returns the caller's own device inline so the client can unwrap without a second round trip. Never return anyone else's wrapped blobs from any endpoint; the public registry hands out `publicKey` only.
+- Credentials and encryption keys are still separate concerns in one respect: JWT/session cookies handle API auth, and rotating a session touches no key material. But a password change is no longer purely a credentials operation — it re-wraps blob_A, so the client sends a new wrapped key with it.
 
 ## Testing
 

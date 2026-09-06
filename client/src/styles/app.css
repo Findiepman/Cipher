@@ -44,3 +44,17 @@
     display: none;
   }
 }
+
+/* The signed-in shell: the account strip sits above the app, which keeps its
+ * own full height below it. */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.app-shell > .app {
+  flex: 1;
+  min-height: 0;
+}

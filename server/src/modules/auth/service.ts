@@ -1,4 +1,4 @@
-import type { User } from '../../generated/prisma/client.js';
+import type { Device, User } from '../../generated/prisma/client.js';
 import { prisma } from '../../db.js';
 import { env } from '../../env.js';
 import { recordAudit } from '../../lib/audit.js';
@@ -10,7 +10,6 @@ import {
 } from '../../lib/mailer.js';
 import {
   burnPasswordTime,
-  checkPasswordStrength,
   hashPassword,
   verifyPassword,
 } from '../../lib/password.js';
@@ -24,23 +23,54 @@ import type { LoginInput, RegisterInput } from './schemas.js';
 
 const VERIFY_TOKEN_TTL_MINUTES = 60 * 24;
 
-export interface PublicUser {
+/// Mirrors AccountDto in client/src/lib/api/types.ts. Lowercased role and
+/// status because the enum casing is a database detail, and `emailVerifiedAt`
+/// rather than a boolean because the UI shows when, not just whether.
+export interface AccountDto {
   id: string;
   email: string;
   username: string;
-  role: 'USER' | 'ADMIN';
-  emailVerified: boolean;
+  role: 'user' | 'admin';
+  status: 'active' | 'disabled' | 'deleted';
+  emailVerifiedAt: string | null;
   createdAt: string;
+  lastLoginAt: string | null;
 }
 
-export function toPublicUser(user: User): PublicUser {
+export function toAccountDto(user: User): AccountDto {
   return {
     id: user.id,
     email: user.email,
     username: user.username,
-    role: user.role,
-    emailVerified: user.emailVerifiedAt !== null,
+    role: user.role.toLowerCase() as 'user' | 'admin',
+    status: user.status.toLowerCase() as 'active' | 'disabled' | 'deleted',
+    emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
     createdAt: user.createdAt.toISOString(),
+    lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
+  };
+}
+
+/// A device as its *owner* sees it, wrapped blobs included. Never hand this
+/// shape to anyone else - the public registry returns publicKey only.
+export interface DeviceDto {
+  id: string;
+  label: string;
+  publicKey: string;
+  wrappedPrivateKey: string;
+  wrappedPrivateKeyRecovery: string;
+  createdAt: string;
+  revokedAt: string | null;
+}
+
+export function toDeviceDto(device: Device): DeviceDto {
+  return {
+    id: device.id,
+    label: device.label,
+    publicKey: device.publicKey,
+    wrappedPrivateKey: device.wrappedPrivateKey,
+    wrappedPrivateKeyRecovery: device.wrappedPrivateKeyRecovery,
+    createdAt: device.createdAt.toISOString(),
+    revokedAt: device.revokedAt?.toISOString() ?? null,
   };
 }
 
@@ -73,17 +103,6 @@ export async function register(
   ctx: RequestContext,
   mailer: Mailer,
 ): Promise<void> {
-  const problem = checkPasswordStrength(input.password, {
-    email: input.email,
-    username: input.username,
-  });
-
-  if (problem) {
-    // Safe to report: it is about the password the caller just typed, and
-    // reveals nothing about who else exists.
-    throw badRequest(problem.code, problem.message);
-  }
-
   const existing = await prisma.user.findFirst({
     where: {
       OR: [{ email: input.email }, { username: input.username }],
@@ -94,7 +113,7 @@ export async function register(
   if (existing) {
     // Spend roughly the time a real signup would, then tell the address owner
     // (not the caller) what happened.
-    await hashPassword(input.password);
+    await hashPassword(input.authHash);
 
     await recordAudit({
       action: 'user.register_blocked_duplicate',
@@ -113,15 +132,29 @@ export async function register(
     return;
   }
 
-  const passwordHash = await hashPassword(input.password);
+  // The authHash is already an argon2id output from the client; hashing it
+  // again is what stops a database dump from being a pile of working
+  // credentials, since the stored value is not what login sends.
+  const authVerifier = await hashPassword(input.authHash);
 
   let user: User;
   try {
+    // One transaction: an account without its device would be able to sign in
+    // and then have nothing to decrypt with, which is worse than not existing.
     user = await prisma.user.create({
       data: {
         email: input.email,
         username: input.username,
-        passwordHash,
+        authVerifier,
+        recoveryCodeHash: input.recoveryCodeHash,
+        devices: {
+          create: {
+            label: input.device.label,
+            publicKey: input.device.publicKey,
+            wrappedPrivateKey: input.device.wrappedPrivateKey,
+            wrappedPrivateKeyRecovery: input.device.wrappedPrivateKeyRecovery,
+          },
+        },
       },
     });
   } catch (error) {
@@ -203,21 +236,23 @@ export async function resendVerification(
   });
 }
 
+export interface AuthenticatedLogin {
+  user: User;
+  /// The caller's own device, returned inline so the client can unwrap its
+  /// private key without a second round trip. Null for an account registered
+  /// before devices existed, or one whose device was revoked.
+  device: Device | null;
+}
+
 export async function authenticate(
   input: LoginInput,
   ctx: RequestContext,
-): Promise<User> {
-  const identifier = input.identifier.toLowerCase();
-
-  const user = await prisma.user.findFirst({
-    where: {
-      OR: [{ email: identifier }, { username: input.identifier }],
-    },
-  });
+): Promise<AuthenticatedLogin> {
+  const user = await prisma.user.findUnique({ where: { email: input.email } });
 
   const invalidCredentials = unauthorized(
     'invalid_credentials',
-    'Incorrect username or password.',
+    'Incorrect email or password.',
   );
 
   if (!user) {
@@ -244,9 +279,9 @@ export async function authenticate(
     throw invalidCredentials;
   }
 
-  const passwordOk = await verifyPassword(user.passwordHash, input.password);
+  const authOk = await verifyPassword(user.authVerifier, input.authHash);
 
-  if (!passwordOk) {
+  if (!authOk) {
     await registerFailedLogin(user, ctx);
     throw invalidCredentials;
   }
@@ -273,14 +308,20 @@ export async function authenticate(
     );
   }
 
-  const updated = await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      failedLoginCount: 0,
-      lockedUntil: null,
-      lastLoginAt: new Date(),
-    },
-  });
+  const [updated, device] = await Promise.all([
+    prisma.user.update({
+      where: { id: user.id },
+      data: {
+        failedLoginCount: 0,
+        lockedUntil: null,
+        lastLoginAt: new Date(),
+      },
+    }),
+    prisma.device.findFirst({
+      where: { userId: user.id, revokedAt: null },
+      orderBy: { createdAt: 'asc' },
+    }),
+  ]);
 
   await recordAudit({
     action: 'auth.login_succeeded',
@@ -289,7 +330,7 @@ export async function authenticate(
     ip: ctx.ip,
   });
 
-  return updated;
+  return { user: updated, device };
 }
 
 async function registerFailedLogin(

@@ -7,8 +7,8 @@ import {
   newUser,
   registerAndVerify,
   resetDatabase,
+  base64Bytes,
   tokenFromEmail,
-  validPassword,
   type TestContext,
 } from './helpers.js';
 
@@ -69,30 +69,55 @@ describe('registration', () => {
     expect(created).not.toBeNull();
   });
 
-  it('rejects a password that is too short', async () => {
-    const response = await app.inject({
-      method: 'POST',
-      url: '/auth/register',
-      payload: { ...newUser('shortpw'), password: 'short' },
-    });
+  it('stores the key material without being able to read it', async () => {
+    const user = newUser('keymaterial');
 
-    expect(response.statusCode).toBe(400);
-    expect(response.json().error.code).toBe('password_too_short');
+    await app.inject({ method: 'POST', url: '/auth/register', payload: user });
+
+    const device = await prisma.device.findFirstOrThrow({
+      where: { user: { email: user.email } },
+    });
+    expect(device.publicKey).toBe(user.device.publicKey);
+    expect(device.wrappedPrivateKey).toBe(user.device.wrappedPrivateKey);
+    expect(device.wrappedPrivateKeyRecovery).toBe(
+      user.device.wrappedPrivateKeyRecovery,
+    );
+
+    const stored = await prisma.user.findUniqueOrThrow({
+      where: { email: user.email },
+    });
+    expect(stored.recoveryCodeHash).toBe(user.recoveryCodeHash);
   });
 
-  it('rejects a password containing the username', async () => {
+  it('will not create an account without a device to decrypt with', async () => {
+    // An account with no key material could sign in and then read nothing,
+    // which is a worse state to be in than not existing. The two are created
+    // in one transaction; this is the guard on the way in.
+    const { device: _device, ...withoutDevice } = newUser('nodevice');
+
     const response = await app.inject({
       method: 'POST',
       url: '/auth/register',
-      payload: {
-        email: 'contains@example.test',
-        username: 'bartholomew',
-        password: 'bartholomew-99',
-      },
+      payload: withoutDevice,
     });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json().error.code).toBe('password_contains_identity');
+    expect(response.json().error.code).toBe('validation_failed');
+    expect(await prisma.user.count()).toBe(0);
+  });
+
+  it('rejects a malformed authHash', async () => {
+    // Not a user error - a real client always sends base64 of 32 bytes. This
+    // is the only judgement left to make about the value, since password
+    // strength is now unknowable here (see lib/password.ts).
+    const response = await app.inject({
+      method: 'POST',
+      url: '/auth/register',
+      payload: { ...newUser('badhash'), authHash: 'not-base64' },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('validation_failed');
   });
 
   it('rejects an invalid username', async () => {
@@ -255,18 +280,18 @@ describe('login', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/auth/login',
-      payload: { identifier: user.email, password: user.password },
+      payload: { email: user.email, authHash: user.authHash },
     });
 
     expect(response.statusCode).toBe(200);
 
     const body = response.json();
     expect(body.user.email).toBe(user.email);
-    expect(body.user.emailVerified).toBe(true);
-    expect(body.accessToken).toBeTruthy();
+    expect(body.user.emailVerifiedAt).not.toBeNull();
+    expect(body.tokens.accessToken).toBeTruthy();
 
-    // The password hash must never reach the client.
-    expect(response.body).not.toContain('passwordHash');
+    // The stored verifier must never reach the client.
+    expect(response.body).not.toContain('authVerifier');
     expect(response.body).not.toContain('$argon2');
 
     const cookieNames = response.cookies.map((c) => c.name);
@@ -281,17 +306,40 @@ describe('login', () => {
     expect(refreshCookie?.path).toBe('/auth');
   });
 
-  it('signs in with the username too', async () => {
+  it('will not sign in by username', async () => {
+    // Not an oversight. The auth salt is derived from the email address, so a
+    // client given only a handle cannot compute an authHash at all - and
+    // accepting one would mean this endpoint telling an anonymous caller which
+    // email sits behind a username.
     const user = newUser('byname');
     await registerAndVerify(ctx, user);
 
     const response = await app.inject({
       method: 'POST',
       url: '/auth/login',
-      payload: { identifier: user.username, password: user.password },
+      payload: { email: user.username, authHash: user.authHash },
     });
 
-    expect(response.statusCode).toBe(200);
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('validation_failed');
+  });
+
+  it('returns the caller’s own wrapped key so it can be unlocked at once', async () => {
+    const user = newUser('withdevice');
+    await registerAndVerify(ctx, user);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { email: user.email, authHash: user.authHash },
+    });
+
+    const { device } = response.json();
+    expect(device.publicKey).toBe(user.device.publicKey);
+    expect(device.wrappedPrivateKey).toBe(user.device.wrappedPrivateKey);
+    expect(device.wrappedPrivateKeyRecovery).toBe(
+      user.device.wrappedPrivateKeyRecovery,
+    );
   });
 
   it('rejects a wrong password', async () => {
@@ -301,7 +349,7 @@ describe('login', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/auth/login',
-      payload: { identifier: user.email, password: 'not-the-password-here' },
+      payload: { email: user.email, authHash: base64Bytes() },
     });
 
     expect(response.statusCode).toBe(401);
@@ -315,13 +363,13 @@ describe('login', () => {
     const wrongPassword = await app.inject({
       method: 'POST',
       url: '/auth/login',
-      payload: { identifier: user.email, password: 'not-the-password-here' },
+      payload: { email: user.email, authHash: base64Bytes() },
     });
 
     const noSuchUser = await app.inject({
       method: 'POST',
       url: '/auth/login',
-      payload: { identifier: 'ghost@example.test', password: 'anything-at-all' },
+      payload: { email: 'ghost@example.test', authHash: base64Bytes() },
     });
 
     expect(noSuchUser.statusCode).toBe(wrongPassword.statusCode);
@@ -335,7 +383,7 @@ describe('login', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/auth/login',
-      payload: { identifier: user.email, password: user.password },
+      payload: { email: user.email, authHash: user.authHash },
     });
 
     expect(response.statusCode).toBe(401);
@@ -353,7 +401,7 @@ describe('login', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/auth/login',
-      payload: { identifier: user.email, password: user.password },
+      payload: { email: user.email, authHash: user.authHash },
     });
 
     expect(response.statusCode).toBe(401);
@@ -369,7 +417,7 @@ describe('login', () => {
       await app.inject({
         method: 'POST',
         url: '/auth/login',
-        payload: { identifier: user.email, password: 'definitely-wrong-pw' },
+        payload: { email: user.email, authHash: base64Bytes() },
       });
     }
 
@@ -381,7 +429,7 @@ describe('login', () => {
     const withCorrectPassword = await app.inject({
       method: 'POST',
       url: '/auth/login',
-      payload: { identifier: user.email, password: user.password },
+      payload: { email: user.email, authHash: user.authHash },
     });
 
     expect(withCorrectPassword.statusCode).toBe(401);
@@ -397,7 +445,7 @@ describe('login', () => {
     await app.inject({
       method: 'POST',
       url: '/auth/login',
-      payload: { identifier: user.email, password: 'definitely-wrong-pw' },
+      payload: { email: user.email, authHash: base64Bytes() },
     });
     await login(ctx, user);
 
@@ -421,8 +469,11 @@ describe('refresh', () => {
 
     expect(response.statusCode).toBe(200);
 
-    const second = response.json();
+    const second = response.json().tokens;
     expect(second.refreshToken).not.toBe(first.refreshToken);
+    // The client refreshes ahead of this, so it has to be the access token's
+    // expiry rather than the session's.
+    expect(Date.parse(second.accessTokenExpiresAt)).toBeGreaterThan(Date.now());
 
     const me = await app.inject({
       method: 'GET',
@@ -430,7 +481,7 @@ describe('refresh', () => {
       headers: { authorization: `Bearer ${second.accessToken}` },
     });
     expect(me.statusCode).toBe(200);
-    expect(me.json().user.email).toBe(user.email);
+    expect(me.json().email).toBe(user.email);
   });
 
   it('revokes the whole session family when a spent token is replayed', async () => {
@@ -443,7 +494,7 @@ describe('refresh', () => {
       url: '/auth/refresh',
       payload: { refreshToken: first.refreshToken },
     });
-    const second = rotated.json();
+    const second = rotated.json().tokens;
 
     // Replaying the spent token is the signal that one of the two copies was
     // stolen. We cannot tell which, so both must die.
@@ -635,8 +686,10 @@ describe('storage guarantees', () => {
     const stored = await prisma.user.findUniqueOrThrow({
       where: { email: user.email },
     });
-    expect(stored.passwordHash).not.toContain(validPassword);
-    expect(stored.passwordHash.startsWith('$argon2id$')).toBe(true);
+    // The authHash the client sends is not what is stored: it is hashed again,
+    // so a database dump is not a pile of working credentials.
+    expect(stored.authVerifier).not.toContain(user.authHash);
+    expect(stored.authVerifier.startsWith('$argon2id$')).toBe(true);
 
     // Sessions and email tokens are stored as hashes; the raw value should
     // appear nowhere in the database.
@@ -665,7 +718,7 @@ describe('rate limiting', () => {
         const response = await limited.app.inject({
           method: 'POST',
           url: '/auth/login',
-          payload: { identifier: 'someone@example.test', password: 'guessing-away' },
+          payload: { email: 'someone@example.test', authHash: base64Bytes() },
         });
         statuses.push(response.statusCode);
       }
@@ -675,7 +728,7 @@ describe('rate limiting', () => {
       const blocked = await limited.app.inject({
         method: 'POST',
         url: '/auth/login',
-        payload: { identifier: 'someone@example.test', password: 'guessing-away' },
+        payload: { email: 'someone@example.test', authHash: base64Bytes() },
       });
       expect(blocked.json().error.code).toBe('rate_limited');
     } finally {

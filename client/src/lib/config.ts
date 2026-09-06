@@ -1,9 +1,10 @@
 /**
  * Runtime configuration, read once from Vite's env.
  *
- * `backend: "mock"` is the default so the UI runs with no server at all — the
- * frontend and the backend are being built in parallel and neither should block
- * the other. Flip VITE_BACKEND=http (see .env.example) to talk to server/.
+ * `backend: "http"` is the default: the client and server now speak the same
+ * protocol, so talking to server/ is the normal case. Set VITE_BACKEND=mock
+ * (see .env.example) to run the chat UI off local fixtures with no server —
+ * useful for pure design work, but nothing signs in in that mode.
  */
 
 export type AuthMode = 'cookie' | 'bearer';
@@ -20,7 +21,7 @@ const env = readEnv();
 export const config = {
   apiUrl: (env.VITE_API_URL ?? 'http://localhost:3000').replace(/\/+$/, ''),
   authMode: (env.VITE_AUTH_MODE ?? 'cookie') as AuthMode,
-  backend: (env.VITE_BACKEND ?? 'mock') as BackendMode,
+  backend: (env.VITE_BACKEND ?? 'http') as BackendMode,
 } as const;
 
 export const isMockBackend = config.backend === 'mock';

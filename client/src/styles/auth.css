@@ -1,0 +1,327 @@
+/* Auth screens.
+ *
+ * Same Ember rules as the app: one floating panel on the backdrop, --ember for
+ * the single action that matters, --sage only ever for encryption, mono for
+ * machine facts. The recovery code is the one place a whole block is mono,
+ * because it is the most machine-shaped thing a user of this app ever has to
+ * hold onto.
+ */
+
+.auth {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding: 32px 20px;
+  background: var(--bg-app);
+  overflow-y: auto;
+}
+
+.auth-panel {
+  width: 100%;
+  max-width: 420px;
+  padding: 32px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--bg-panel);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+
+.auth-panel--wide {
+  max-width: 520px;
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.auth-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-sm);
+  background: var(--ember);
+  color: var(--ember-ink);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.auth-brand-name {
+  color: var(--text-hi);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.auth-title {
+  margin: 0 0 6px;
+  color: var(--text-hi);
+  font-size: 21px;
+  font-weight: 600;
+}
+
+.auth-lede {
+  margin: 0 0 22px;
+  color: var(--text-mute);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.auth-field {
+  display: block;
+  margin-bottom: 16px;
+}
+
+.auth-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-mute);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.auth-input {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg-raised);
+  color: var(--text-hi);
+  font: inherit;
+  font-size: 14.5px;
+}
+
+.auth-input:focus {
+  outline: none;
+  border-color: var(--ember);
+}
+
+.auth-input::placeholder {
+  color: var(--text-faint);
+}
+
+.auth-input:disabled {
+  opacity: 0.55;
+}
+
+.auth-hint {
+  margin: 6px 0 0;
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* Password strength. Deliberately unlabelled beyond a word: it is a nudge, not
+ * a security claim (see passwordPolicy.ts). */
+.auth-meter {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.auth-meter-seg {
+  height: 3px;
+  flex: 1;
+  border-radius: 2px;
+  background: var(--line);
+  transition: background 120ms ease;
+}
+
+.auth-meter-seg[data-on='true'] {
+  background: var(--sand);
+}
+
+.auth-meter-seg[data-on='true'][data-strong='true'] {
+  background: var(--sage);
+}
+
+.auth-problems {
+  margin: 8px 0 0;
+  padding-left: 16px;
+  color: var(--sand);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.auth-submit {
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px;
+  border-radius: var(--r-sm);
+  background: var(--ember);
+  color: var(--ember-ink);
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.auth-submit:hover:not(:disabled) {
+  background: var(--ember-hover);
+}
+
+.auth-submit:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.auth-secondary {
+  width: 100%;
+  margin-top: 10px;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.auth-secondary:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.auth-switch {
+  margin: 20px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--text-mute);
+  font-size: 13px;
+  text-align: center;
+}
+
+.auth-switch button {
+  color: var(--text-link);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.auth-switch button:hover {
+  text-decoration: underline;
+}
+
+.auth-error {
+  margin: 0 0 18px;
+  padding: 11px 13px;
+  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--red) 10%, transparent);
+  color: var(--text-hi);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.auth-note {
+  margin: 0 0 18px;
+  padding: 11px 13px;
+  border: 1px solid var(--sage-line);
+  border-radius: var(--r-sm);
+  background: var(--sage-bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* --- the recovery code ------------------------------------------------- */
+
+.auth-code {
+  margin: 4px 0 18px;
+  padding: 18px;
+  border: 1px solid var(--sage-line);
+  border-radius: var(--r-md);
+  background: var(--sage-bg);
+  color: var(--text-hi);
+  font-family: var(--font-mono);
+  font-size: 17px;
+  letter-spacing: 0.06em;
+  text-align: center;
+  word-break: break-all;
+}
+
+.auth-warn {
+  margin: 0 0 18px;
+  color: var(--text-mute);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.auth-warn strong {
+  color: var(--text-hi);
+  font-weight: 600;
+}
+
+.auth-confirm {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  margin: 0 0 18px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.auth-confirm input {
+  margin: 2px 0 0;
+  accent-color: var(--ember);
+}
+
+/* --- the signed-in account strip --------------------------------------- */
+
+.account-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-panel);
+  font-size: 12.5px;
+}
+
+.account-strip-who {
+  color: var(--text-mute);
+}
+
+.account-strip-who strong {
+  color: var(--text-hi);
+  font-weight: 600;
+}
+
+.account-strip-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--sage-line);
+  border-radius: var(--r-pill);
+  background: var(--sage-bg);
+  color: var(--sage);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.account-strip-spacer {
+  flex: 1;
+}
+
+.account-strip button {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text-mute);
+  font-size: 12px;
+}
+
+.account-strip button:hover {
+  color: var(--text-hi);
+  background: var(--hover);
+}
+
+.auth-centered {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  color: var(--text-mute);
+  font-size: 14px;
+  background: var(--bg-app);
+}

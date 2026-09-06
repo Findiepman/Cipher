@@ -44,7 +44,7 @@ export function createAuthApi(client: ApiClient) {
       return client.post<AcknowledgedResponse>('/auth/verify-email', body);
     },
     resendVerification(body: ResendVerificationRequest) {
-      return client.post<AcknowledgedResponse>('/auth/resend-verify', body);
+      return client.post<AcknowledgedResponse>('/auth/resend-verification', body);
     },
     login(body: LoginRequest) {
       return client.post<LoginResponse>('/auth/login', body);

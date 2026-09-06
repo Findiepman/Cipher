@@ -14,9 +14,6 @@ const OPTIONS = {
   parallelism: 1,
 } as const;
 
-export const MIN_PASSWORD_LENGTH = 12;
-export const MAX_PASSWORD_LENGTH = 256;
-
 export function hashPassword(password: string): Promise<string> {
   return hash(password, OPTIONS);
 }
@@ -47,68 +44,14 @@ export async function burnPasswordTime(): Promise<void> {
   await verifyPassword(await dummyHash(), 'wrong');
 }
 
-const COMMON_PASSWORDS = new Set([
-  'password', 'passw0rd', 'password1', 'password123', 'passwordpassword',
-  '123456789012', '1234567890123', 'qwertyuiop123', 'qwertyuiopasd',
-  'letmeinplease', 'iloveyou1234', 'administrator', 'welcome12345',
-  'changeme1234', 'trustno1trust', 'monkeymonkey', 'football1234',
-  'baseball1234', 'dragondragon', 'sunshine1234', 'princess1234',
-  'qazwsxedcrfv', 'zaq12wsxcde3', 'abcd1234abcd', 'aaaaaaaaaaaa',
-]);
-
-export interface PasswordProblem {
-  code: string;
-  message: string;
-}
-
-/// Deliberately lightweight: length is what actually matters, plus a few
-/// checks for the passwords people pick when a form says "12 characters".
-export function checkPasswordStrength(
-  password: string,
-  context: { email: string; username: string },
-): PasswordProblem | null {
-  if (password.length < MIN_PASSWORD_LENGTH) {
-    return {
-      code: 'password_too_short',
-      message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
-    };
-  }
-
-  if (password.length > MAX_PASSWORD_LENGTH) {
-    return {
-      code: 'password_too_long',
-      message: `Password must be at most ${MAX_PASSWORD_LENGTH} characters.`,
-    };
-  }
-
-  const lowered = password.toLowerCase();
-
-  if (COMMON_PASSWORDS.has(lowered)) {
-    return {
-      code: 'password_too_common',
-      message: 'That password is too common. Pick something less guessable.',
-    };
-  }
-
-  const localPart = context.email.split('@')[0]?.toLowerCase() ?? '';
-  const username = context.username.toLowerCase();
-
-  if (
-    (username.length >= 4 && lowered.includes(username)) ||
-    (localPart.length >= 4 && lowered.includes(localPart))
-  ) {
-    return {
-      code: 'password_contains_identity',
-      message: 'Password must not contain your username or email address.',
-    };
-  }
-
-  if (new Set(lowered).size < 5) {
-    return {
-      code: 'password_not_varied',
-      message: 'Password must use a wider variety of characters.',
-    };
-  }
-
-  return null;
-}
+/// Password *strength* is deliberately not checked here any more.
+///
+/// Registration receives an authHash, never a password, so this process has no
+/// input to judge - a weak password and a strong one produce base64 blobs that
+/// are indistinguishable. Enforcement moved to
+/// client/src/lib/session/passwordPolicy.ts, which means it is advisory: a
+/// hostile client can skip it and this server cannot tell.
+///
+/// That is a real weakening, and it is the price of the server never holding a
+/// password. It is worth stating plainly rather than leaving a dead
+/// checkPasswordStrength() here implying a guarantee that no longer exists.

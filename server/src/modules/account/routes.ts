@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { prisma } from '../../db.js';
 import { notFound } from '../../lib/errors.js';
-import { toPublicUser } from '../auth/service.js';
+import { toAccountDto } from '../auth/service.js';
 
 /// Only the pieces the sign-in flow needs. Profile edits, email changes,
 /// session management and account deletion arrive with their own step.
@@ -15,6 +15,6 @@ export const accountRoutes: FastifyPluginAsync = async (fastify) => {
       throw notFound('user_not_found', 'Account no longer exists.');
     }
 
-    return { user: toPublicUser(user) };
+    return toAccountDto(user);
   });
 };

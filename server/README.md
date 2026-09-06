@@ -9,7 +9,7 @@ Read [`AGENTS.md`](AGENTS.md) before changing anything here.
 ## Running it
 
 ```bash
-npm install
+npm install                   # from the repo root: this is an npm workspace
 cp .env.example .env          # then set JWT_SECRET
 npm run db:migrate            # creates the schema
 npm run dev

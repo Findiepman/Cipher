@@ -10,7 +10,9 @@ interface Call {
 }
 
 /** A fetch stand-in that records calls and replays queued responses. */
-function fakeFetch(handler: (call: Call, index: number) => Response) {
+// Handlers may be async: the single-flight test needs one that stalls mid
+// refresh so the concurrent 401s actually overlap.
+function fakeFetch(handler: (call: Call, index: number) => Response | Promise<Response>) {
   const calls: Call[] = [];
   const impl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const call: Call = {

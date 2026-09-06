@@ -4,6 +4,10 @@ Scope: the messaging half of the app, the friend graph it needs, and getting it
 onto a machine you own. Decided 2026-09-06, after `STATUS.md` listed messaging
 as the biggest remaining gap.
 
+> **Status: stages 0–7 are done.** DMs work end to end, proved by
+> `cd server && npm run smoke:messaging`. Stage 8 (self-hosting) is not started.
+> `STATUS.md` is the authority on what is true; this file is the plan.
+
 Follows [`AGENTS.md`](AGENTS.md) and [`stack.md`](stack.md).
 [`backend-plan.md`](backend-plan.md) covers accounts; this covers everything
 after sign-in.
@@ -302,15 +306,15 @@ Each stage is one or two commits, scoped to one workspace where possible.
 
 | # | Stage | Why here |
 |---|---|---|
-| 0 | Transport contract: envelopes | Touches both sides; doing it first stops a second rewrite |
-| 1 | Prisma schema + migrations (both DBs) | Everything server-side blocks on it |
-| 2 | Friends API + `/keys/user/:id` + tests | The graph gates conversations |
-| 3 | Conversations + messages HTTP + tests | Works fully without a socket |
-| 4 | Socket.io layer + tests | Now it is real-time |
-| 5 | Client: socketTransport, API wrappers, outbox persistence | Plumbing, no UI yet |
-| 6 | Client: ChatProvider, friends screens, de-mock `App.tsx` | The visible payoff |
-| 7 | Two-account smoke test + docs (`STATUS.md`, both `AGENTS.md`, `server/README.md`) | Keeps the handoff docs true |
-| 8 | Hosting: Docker, Caddy, tunnel, deploy script, backups | Ship it |
+| 0 ✅ | Transport contract: envelopes | Touches both sides; doing it first stops a second rewrite |
+| 1 ✅ | Prisma schema + migrations (both DBs) | Everything server-side blocks on it |
+| 2 ✅ | Friends API + `/keys/user/:id` + tests | The graph gates conversations |
+| 3 ✅ | Conversations + messages HTTP + tests | Works fully without a socket |
+| 4 ✅ | Socket.io layer + tests | Now it is real-time |
+| 5 ✅ | Client: socketTransport, API wrappers, outbox persistence | Plumbing, no UI yet |
+| 6 ✅ | Client: ChatProvider, friends screens, de-mock `App.tsx` | The visible payoff |
+| 7 ✅ | Two-account smoke test + docs (`STATUS.md`, both `AGENTS.md`, `server/README.md`) | Keeps the handoff docs true |
+| 8 ⬜ | Hosting: Docker, Caddy, tunnel, deploy script, backups | Ship it |
 
 Stages 2–4 are server-only and 5–6 are client-only, so they can be split between
 two people if you want.

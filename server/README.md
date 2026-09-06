@@ -1,8 +1,8 @@
 # server
 
-Node/Fastify backend for the messenger. This directory currently covers
-**accounts and auth only** — see [`../backend-plan.md`](../backend-plan.md) for
-the full plan and which steps are done.
+Node/Fastify backend for the messenger: accounts and auth
+([`../backend-plan.md`](../backend-plan.md)), plus the friend graph and DM
+messaging ([`../messaging-plan.md`](../messaging-plan.md)).
 
 Read [`AGENTS.md`](AGENTS.md) before changing anything here.
 
@@ -58,8 +58,8 @@ npm run dev      # in one terminal
 npm run smoke    # in another
 ```
 
-`npm run smoke` drives a whole account lifecycle against the running server
-over real HTTP — the same calls the client will make — and prints a pass/fail
+There are two. `npm run smoke` drives a whole account lifecycle against the
+running server over real HTTP — the same calls the client will make — and prints a pass/fail
 line per step:
 
 ```
@@ -72,7 +72,12 @@ ok    refresh rotates the token              200
 ok    replaying old refresh token is refused 401 refresh_token_reused
 ```
 
-It needs `MAIL_TRANSPORT=file` (the default in `.env.example`), because the
+`npm run smoke:messaging` does the same for the messaging half: two accounts
+befriend each other, open a DM, send over a websocket, receive it live, and
+page the backlog. Its last check is the one the envelope model exists for —
+the sender reads their own message back off the server.
+
+Both need `MAIL_TRANSPORT=file` (the default in `.env.example`), because the
 verification token exists **only** in the email — the database stores a hash of
 it, so there is no way to recover it from Postgres. Messages land in `.mail/`,
 which the script reads and then cleans up (`SMOKE_KEEP_MAIL=1` keeps them).
@@ -84,8 +89,8 @@ with:
 DELETE FROM "User" WHERE email LIKE 'smoke-%@example.test';
 ```
 
-One run spends **6 of the 10** requests `/auth/*` allows per 15 minutes per IP,
-so two back-to-back runs will trip the limiter. The script says so plainly if
+Each script spends **6 of the 10** requests `/auth/*` allows per 15 minutes per
+IP, so running both back to back will trip the limiter. The script says so plainly if
 it happens; restarting `npm run dev` resets the counter.
 
 ## Tests
@@ -94,7 +99,7 @@ it happens; restarting `npm run dev` resets the counter.
 npm test
 ```
 
-34 integration tests against a real Postgres — they use `TEST_DATABASE_URL`
+90 integration tests against a real Postgres — they use `TEST_DATABASE_URL`
 (`messenger_test`) and truncate every table between cases. `tests/setup.ts`
 refuses to run if that URL doesn't name a test database, so a mistyped env var
 can't wipe your dev data.
@@ -133,6 +138,45 @@ naming the method it does accept.
 | `POST` | `/auth/logout` | refresh token | Revoke this session |
 | `POST` | `/auth/logout-all` | access token | Revoke every session for the user |
 | `GET` | `/account/me` | access token | The signed-in user |
+| `GET` | `/friends` | access token | Accepted friends, with their public keys |
+| `GET` | `/friends/requests` | access token | Pending, split incoming/outgoing |
+| `POST` | `/friends/requests` | access token | Add by **exact** username |
+| `POST` | `/friends/requests/:id/accept` \| `decline` | access token | Answer one |
+| `DELETE` | `/friends/:userId` | access token | Unfriend |
+| `POST\|DELETE` | `/friends/:userId/block` | access token | Block / unblock |
+| `GET` | `/keys/user/:userId` | access token | Public keys. Friends (or self) only |
+| `GET` | `/conversations` | access token | Your DMs |
+| `POST` | `/conversations/dm` | access token | Get-or-create a DM with a friend |
+| `GET` | `/conversations/:id/messages` | access token | Backlog, `?after=&limit=` |
+| `POST` | `/conversations/:id/messages` | access token | Send (HTTP fallback) |
+
+### Sockets
+
+Socket.io is attached to the same HTTP server, authenticated with the same
+access token (cookie, or `auth.token` in the handshake).
+
+| Direction | Event | Payload |
+|---|---|---|
+| → server | `message:send` | `{ conversationId, clientId, envelopes[] }`, acked |
+| → server | `typing` | `{ conversationId }` |
+| → client | `message:new` | one message, carrying **only your** envelope |
+| → client | `typing` | `{ conversationId, userId }` |
+| → client | `presence` | `{ userId, online }` — friends only |
+
+### Messages are envelopes
+
+A message is a header plus **one sealed copy per participant, the author
+included**. `crypto_box` seals to exactly one recipient, so without a
+self-addressed copy a sender on a new device could not read their own history.
+
+The server checks the recipient set equals the participant set — too few and
+somebody in the conversation holds a message they cannot open, too many and the
+sender is using this server to store a blob for a third party — and then stores
+blobs it never reads. Every read hands a caller only the envelope addressed to
+them.
+
+Sends are idempotent on `(conversationId, clientId)`, so a retry across a flaky
+reconnect, or a socket send racing the HTTP fallback, is one message.
 
 ### Errors
 

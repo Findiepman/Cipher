@@ -8,7 +8,7 @@ Subdirectories have their own more specific AGENTS.md: `client/AGENTS.md`, `serv
 
 ## What this project is
 
-A Discord-like chat app (servers/channels or DMs, real-time messaging) where message content is end-to-end encrypted: encrypted on the sender's device, stored as ciphertext, decrypted only on the recipient's device. The backend and database must never see plaintext message content once phase 2 lands (see below).
+A Discord-like chat app (DMs today, servers/channels later) where message content is end-to-end encrypted: encrypted on the sender's device, stored as ciphertext, decrypted only on the recipient's device. The backend and database must never see plaintext message content once phase 2 lands (see below).
 
 ## Repo layout
 

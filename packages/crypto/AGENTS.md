@@ -4,7 +4,7 @@ Read the root `AGENTS.md` first. This package is the only place in the codebase 
 
 ## Current phase
 
-**Phase 1 (default until this line is updated): `encryptMessage()` and `decryptMessage()` are no-ops that return the input unchanged.** This lets the rest of the app be built and tested against a stable interface before real crypto is wired in. When phase 2 work starts, update this line and the two functions together in the same change, don't let the interface and the implementation drift.
+**Phase 1 (still current as of 2026-09-06): `encryptMessage()` and `decryptMessage()` are no-ops that return the input unchanged.** DMs now work end to end in phase 1, which is the precondition `AGENTS.md` sets for starting phase 2 - and everything phase 2 needs on the other side of this package is already built: the public-key registry (`GET /keys/user/:userId`), and the per-recipient envelope model. So the phase 2 change really is these two functions plus this line, with no schema change and no data migration. This lets the rest of the app be built and tested against a stable interface before real crypto is wired in. When phase 2 work starts, update this line and the two functions together in the same change, don't let the interface and the implementation drift.
 
 This applies to the *message* functions and nothing else. The credential half of this package below — keypair generation, Argon2id key wrapping, the auth hash, recovery codes — is real today, because the client's guarantee that a password never leaves the device does not depend on which phase the message pipeline is in. Do not treat a failure there as "it's a stub".
 

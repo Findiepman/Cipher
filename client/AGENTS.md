@@ -12,7 +12,9 @@ Read the root `AGENTS.md` first. This file covers the React app in `client/`, wh
 ## What lives here vs. what doesn't
 
 - All chat UI, auth screens, message composition, and rendering.
-- All calls to `packages/crypto`'s `encryptMessage()` / `decryptMessage()` — this is the only place in the frontend that should touch those functions directly. Components should work with already-decrypted message objects; don't spread decryption calls throughout the component tree.
+- All calls to `packages/crypto`'s `encryptMessage()` / `decryptMessage()` — this is the only place in the frontend that should touch those functions directly, and in practice it is one file: `state/chatController.ts`. Components receive already-decrypted `Message` objects; don't spread decryption calls throughout the component tree.
+- Sending seals **once per participant, the sender included** — see `lib/transport/types.ts`. That self-addressed copy is what keeps a sender's own history readable on a second device, so don't drop it as a duplicate just because phase 1 makes every envelope identical.
+- `state/ChatProvider.tsx` is the seam between the session (who you are, your unwrapped key) and the transport. Components read from `useChat()`; none of them should call the API, the socket, or the crypto module directly.
 - Nothing platform-specific (file system access, OS keychain, native menus) belongs directly in `client/`. If a feature needs that, it goes behind a small adapter interface that `client/` calls and that `desktop/` (or a web-specific stub) implements. This is what keeps one codebase working for both targets.
 
 ## Encryption touch points (client is where the private key lives)
@@ -24,10 +26,12 @@ Read the root `AGENTS.md` first. This file covers the React app in `client/`, wh
 
 ## Real-time and offline behavior
 
-- Messages sent while offline should queue locally and flush on reconnect, not get silently dropped.
+- Messages sent while offline should queue locally and flush on reconnect, not get silently dropped. The queue is `lib/transport/outbox.ts`, backed by the same secure store that holds the wrapped key — an in-memory-only queue would keep that promise just until the tab closed.
+- The UI must say when it is not connected and how much is waiting. Silence is the one answer a messenger cannot give.
 - On reconnect, pull any backlog from the server (which will be ciphertext once phase 2 lands) and decrypt client-side before rendering.
 
 ## Testing
 
+- There is no fixture render of the chat any more. `VITE_BACKEND=mock` short-circuits auth but does not draw a fake conversation: the UI has a real server now, and a parallel fixture render would mean making every change twice — which is what "don't fork UI code" in the root `AGENTS.md` is about.
 - Component tests can and should run against phase 1 (plaintext) behavior without needing real libsodium keys; that's the point of isolating crypto behind the two functions.
 - Add a couple of tests that specifically assert the app never sends a request containing the raw private key, once phase 2 lands.

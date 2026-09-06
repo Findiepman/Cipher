@@ -18,7 +18,10 @@ Once phase 2 (real encryption) lands, the server's job for message bodies is: ac
 
 ## Data model notes
 
-- `messages` table: store the body as `bytea` (or equivalent), plus whatever metadata the crypto scheme needs (nonce, sender key id, recipient key id). Don't add a plaintext fallback column "just in case."
+- A message is a **header** (`Message`: who, when, which conversation, the sender's `clientId`) plus **one sealed envelope per participant** (`MessageEnvelope`), the author included. The author's own copy is not redundancy: `crypto_box` seals to one recipient, so without it a sender on a new device could not read their own history. Don't collapse the envelopes back into a body column on `Message`.
+- The server validates that a message's recipient set equals the conversation's participant set, and hands each caller only the envelope addressed to them. Never `include: { envelopes: true }` without a `where` on the caller.
+- Don't add a plaintext fallback column "just in case."
+- Message order is `seq` (autoincrement), not `sentAt`: several sends land in the same millisecond and a timestamp cannot break that tie. Cursors are message ids.
 - `users`/`devices`/`keys`: track public keys per user (and per device, if/when multi-device is supported — see root AGENTS.md on deferring that). Rotating or revoking a key should be possible without a schema change; don't hardcode "one key per user forever."
 - During phase 1, the body column holds plaintext (since `encryptMessage()` is a no-op upstream). Don't let that tempt you into building server-side features that read it — see above.
 
@@ -26,6 +29,8 @@ Once phase 2 (real encryption) lands, the server's job for message bodies is: ac
 
 - Online recipients get pushed the (ciphertext, once phase 2 lands) message over their socket connection.
 - Offline recipients just have it sitting in the `messages` table; on reconnect the client requests the backlog since its last-seen message/cursor.
+- Sends are idempotent on `(conversationId, clientId)`. The socket and the HTTP fallback both go through `postMessage()`, so a message that takes both paths is stored once.
+- A socket outlives its 15-minute access token, so the session behind it is re-checked before every send and on a periodic sweep (`realtime/index.ts`). Don't remove that: without it, logout would stop the HTTP API and leave the socket delivering.
 - Don't build delivery-receipt or read-receipt features that require the server to correlate content, only message IDs/timestamps.
 
 ## Auth

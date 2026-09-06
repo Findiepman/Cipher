@@ -126,11 +126,17 @@ so there is nothing to expose — this is a property of the design, not a policy
 
 ## Build order
 
-0. Scaffold — env, docker-compose, Prisma, health check, error handling, tests
-1. Register -> email verify -> login -> refresh / logout
-2. Password reset + change password + recovery code
-3. Account management — profile, change email, session list, delete account
-4. Admin routes + audit log
-5. Device / public-key registry (frontend integration point)
-6. Hardening — rate limits, security headers, CORS lockdown, seed-admin script,
-   test coverage
+> Numbered **steps**, not phases. The repo-wide `AGENTS.md` uses "phase 1 /
+> phase 2" for plaintext-then-encrypted messaging; these steps are a separate
+> axis and the two numbers are unrelated.
+
+- **Step 0** — Scaffold: env, docker-compose, Prisma, health check, error
+  handling, tests. *(done)*
+- **Step 1** — Register -> email verify -> login -> refresh / logout. *(done)*
+- **Step 2** — Password reset + change password + recovery code.
+- **Step 3** — Account management: profile, change email, session list,
+  delete account.
+- **Step 4** — Admin routes + audit log.
+- **Step 5** — Device / public-key registry (frontend integration point).
+- **Step 6** — Hardening: CSRF tokens on cookie auth, CORS lockdown,
+  seed-admin script, wider test coverage.

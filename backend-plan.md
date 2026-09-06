@@ -6,6 +6,11 @@ public-key registry the messaging layer builds on.
 
 Decided 2026-09-06. Follows the stack in [stack.md](stack.md).
 
+> **This is the plan, not the state.** Step 1 shipped and drifted from it in four
+> small ways (a renamed column, a dropped table, an endpoint name, and where
+> password-strength checking lives). [`STATUS.md`](STATUS.md) lists them and says
+> what is actually built. Check there before trusting a detail here.
+
 ## Locked decisions
 
 | Question | Decision |

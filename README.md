@@ -12,7 +12,9 @@ One npm workspace, four packages:
 | `packages/crypto/` | `@cipher/crypto`. The only place in the repo that calls libsodium. |
 | `desktop/` | The Tauri/Electron shell around `client/`'s build output. Not started. |
 
-Read [`AGENTS.md`](AGENTS.md) before changing anything, then the one in the
+Read [`AGENTS.md`](AGENTS.md) before changing anything, then
+[`STATUS.md`](STATUS.md) for where the project actually is — what works, what is
+missing, and the decisions worth not undoing — then the `AGENTS.md` in the
 directory you are working in. [`stack.md`](stack.md) records why the stack is
 what it is.
 

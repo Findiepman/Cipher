@@ -4,6 +4,8 @@ This file gives AI coding agents (Claude, Codex, Cursor, etc.) the context they 
 
 Subdirectories have their own more specific AGENTS.md: `client/AGENTS.md`, `server/AGENTS.md`, `packages/crypto/AGENTS.md`, `desktop/AGENTS.md`. Read the one for the area you're touching in addition to this one.
 
+**Read [`STATUS.md`](STATUS.md) next.** This file is the rules, which change rarely; STATUS.md is the current state — what works, what is missing, which decisions are load-bearing, and the gotchas that have already cost someone an afternoon. It is the fastest way to be useful here without reading the whole codebase. If you change what is true in it, update it in the same commit.
+
 ## What this project is
 
 A Discord-like chat app (servers/channels or DMs, real-time messaging) where message content is end-to-end encrypted: encrypted on the sender's device, stored as ciphertext, decrypted only on the recipient's device. The backend and database must never see plaintext message content once phase 2 lands (see below).

@@ -69,6 +69,12 @@ export interface TransportEvents {
   message: IncomingMessage;
   state: ConnectionState;
   typing: { channelId: string; userId: string };
+  /**
+   * Derived from live connections and sent to friends only. It says whether
+   * someone has a client connected, which is all the server can know — it is
+   * not a claim that they are reading anything.
+   */
+  presence: { userId: string; online: boolean };
 }
 
 export type TransportEventName = keyof TransportEvents;

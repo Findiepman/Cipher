@@ -13,15 +13,20 @@ import type {
   AdminUserDto,
   AdminUserListQuery,
   AuditLogEntry,
+  BacklogResponse,
   ChangeEmailRequest,
   ChangePasswordRequest,
   ConfirmEmailChangeRequest,
+  ConversationDto,
   DeleteAccountRequest,
   DeviceDto,
   DeviceRegistration,
   ForgotPasswordRequest,
+  FriendDto,
+  FriendRequestsResponse,
   LoginRequest,
   LoginResponse,
+  MessageDto,
   Paginated,
   PublicDeviceDto,
   RegenerateRecoveryCodeRequest,
@@ -30,6 +35,9 @@ import type {
   ResetContextRequest,
   ResetContextResponse,
   ResetPasswordRequest,
+  SendFriendRequestRequest,
+  SendFriendRequestResponse,
+  SendMessageRequest,
   SessionDto,
   UpdateProfileRequest,
   VerifyEmailRequest,
@@ -122,6 +130,69 @@ export function createKeysApi(client: ApiClient) {
   };
 }
 
+export function createFriendsApi(client: ApiClient) {
+  return {
+    list() {
+      return client.get<{ friends: FriendDto[] }>('/friends');
+    },
+    requests() {
+      return client.get<FriendRequestsResponse>('/friends/requests');
+    },
+    /** Exact username. The server caps this per account, not per address. */
+    sendRequest(body: SendFriendRequestRequest) {
+      return client.post<SendFriendRequestResponse>('/friends/requests', body);
+    },
+    accept(id: string) {
+      return client.post<AcknowledgedResponse>(
+        `/friends/requests/${encodeURIComponent(id)}/accept`,
+      );
+    },
+    decline(id: string) {
+      return client.post<AcknowledgedResponse>(
+        `/friends/requests/${encodeURIComponent(id)}/decline`,
+      );
+    },
+    remove(userId: string) {
+      return client.delete<AcknowledgedResponse>(`/friends/${encodeURIComponent(userId)}`);
+    },
+    block(userId: string) {
+      return client.post<AcknowledgedResponse>(`/friends/${encodeURIComponent(userId)}/block`);
+    },
+    unblock(userId: string) {
+      return client.delete<AcknowledgedResponse>(`/friends/${encodeURIComponent(userId)}/block`);
+    },
+  };
+}
+
+export function createConversationsApi(client: ApiClient) {
+  return {
+    list() {
+      return client.get<{ conversations: ConversationDto[] }>('/conversations');
+    },
+    /** Get-or-create. Opening the same DM twice returns the same conversation. */
+    openDm(userId: string) {
+      return client.post<ConversationDto>('/conversations/dm', { userId });
+    },
+    /**
+     * `after` is this client's own last-seen message id. The server cannot say
+     * what is new in a conversation it cannot read, so the cursor is ours.
+     */
+    messages(conversationId: string, after?: string, limit?: number) {
+      return client.get<BacklogResponse>(
+        `/conversations/${encodeURIComponent(conversationId)}/messages`,
+        { query: { after, limit } },
+      );
+    },
+    /** The fallback for when the socket is down; the socket is the normal path. */
+    send(conversationId: string, body: SendMessageRequest) {
+      return client.post<MessageDto>(
+        `/conversations/${encodeURIComponent(conversationId)}/messages`,
+        body,
+      );
+    },
+  };
+}
+
 export function createAdminApi(client: ApiClient) {
   return {
     listUsers(query: AdminUserListQuery = {}) {
@@ -155,4 +226,6 @@ export function createAdminApi(client: ApiClient) {
 export const authApi = createAuthApi(api);
 export const accountApi = createAccountApi(api);
 export const keysApi = createKeysApi(api);
+export const friendsApi = createFriendsApi(api);
+export const conversationsApi = createConversationsApi(api);
 export const adminApi = createAdminApi(api);

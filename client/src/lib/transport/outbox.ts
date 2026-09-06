@@ -66,6 +66,30 @@ export class MemoryOutboxStorage implements OutboxStorage {
   }
 }
 
+const STORAGE_KEY = 'outbox/v1';
+
+/**
+ * The real one: the same store that holds the wrapped identity key.
+ *
+ * Persisting matters more than it looks. A queue that only lives in memory
+ * makes "messages sent while offline queue locally and flush on reconnect"
+ * (client/AGENTS.md) true only until the tab is closed — which is exactly when
+ * someone with no signal puts their phone away.
+ *
+ * What is stored is sealed blobs, never plaintext.
+ */
+export class SecureOutboxStorage implements OutboxStorage {
+  constructor(private readonly store: { get(key: string): Promise<string | null>; set(key: string, value: string): Promise<void> }) {}
+
+  read(): Promise<string | null> {
+    return this.store.get(STORAGE_KEY);
+  }
+
+  write(value: string): Promise<void> {
+    return this.store.set(STORAGE_KEY, value);
+  }
+}
+
 export class Outbox {
   private entries: OutboxEntry[] = [];
   private flushing = false;

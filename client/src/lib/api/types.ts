@@ -237,6 +237,96 @@ export interface DeleteAccountRequest {
   authHash: string;
 }
 
+/* --------------------------------------------------------------- friends --- */
+
+/** An accepted friend. `publicKey` rides along so opening a DM is one call. */
+export interface FriendDto {
+  id: string;
+  username: string;
+  /** base64 X25519 public key, or null for an account with no active device. */
+  publicKey: string | null;
+  friendsSince: string;
+}
+
+export interface FriendRequestDto {
+  id: string;
+  direction: 'incoming' | 'outgoing';
+  user: { id: string; username: string };
+  createdAt: string;
+}
+
+export interface FriendRequestsResponse {
+  incoming: FriendRequestDto[];
+  outgoing: FriendRequestDto[];
+}
+
+/**
+ * Adding by exact username, never by email — an email lookup would turn this
+ * into a "does this person have an account here" oracle, which is the one
+ * question the auth design refuses to answer everywhere else.
+ */
+export interface SendFriendRequestRequest {
+  username: string;
+}
+
+/**
+ * `accepted` comes back when the other person had already asked: both parties
+ * saying yes is consent, not a second request. `already_friends` is not an
+ * error either, so the UI does not need a catch for the common cases.
+ */
+export interface SendFriendRequestResponse {
+  status: 'pending' | 'accepted' | 'already_friends';
+  user: { id: string; username: string };
+}
+
+/* --------------------------------------------------- conversations --- */
+
+export interface ConversationParticipantDto {
+  id: string;
+  username: string;
+  publicKey: string | null;
+}
+
+export interface ConversationDto {
+  id: string;
+  kind: 'dm';
+  /** Everyone in it, the caller included. */
+  participants: ConversationParticipantDto[];
+  /**
+   * The newest message's id and time — not a preview. The server holds only
+   * ciphertext, so it has no readable text to summarise; the preview in the
+   * conversation list is rendered from this client's own decrypted history.
+   */
+  lastMessage: { id: string; authorId: string; sentAt: string } | null;
+  createdAt: string;
+}
+
+/** A stored message, carrying the single envelope addressed to this caller. */
+export interface MessageDto {
+  id: string;
+  conversationId: string;
+  authorId: string;
+  clientId: string;
+  sentAt: string;
+  ciphertext: string;
+}
+
+export interface BacklogResponse {
+  messages: MessageDto[];
+  /** The last id in this page, to pass back as `after`. Null when caught up. */
+  cursor: string | null;
+}
+
+/**
+ * One sealed copy per participant, the sender included — see the note on
+ * `Envelope` in lib/transport/types.ts for why the sender's own copy is not
+ * optional.
+ */
+export interface SendMessageRequest {
+  clientId: string;
+  envelopes: { recipientUserId: string; ciphertext: string }[];
+}
+
 /* ----------------------------------------------------------------- admin --- */
 
 export interface Paginated<T> {

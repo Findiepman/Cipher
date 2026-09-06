@@ -38,15 +38,11 @@
 }
 
 .auth-brand-mark {
-  display: grid;
-  place-items: center;
   width: 30px;
   height: 30px;
-  border-radius: var(--r-sm);
-  background: var(--ember);
-  color: var(--ember-ink);
-  font-weight: 700;
-  font-size: 14px;
+  /* No plate behind it: the logo is a shield on transparency, and an ember
+     tile behind a copper shield reads as two competing shapes. */
+  object-fit: contain;
 }
 
 .auth-brand-name {

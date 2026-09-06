@@ -55,7 +55,7 @@ function Shell({ children, wide = false }: { children: React.ReactNode; wide?: b
     <div className="auth">
       <div className={wide ? 'auth-panel auth-panel--wide' : 'auth-panel'}>
         <div className="auth-brand">
-          <span className="auth-brand-mark">C</span>
+          <img className="auth-brand-mark" src="/logo.png" alt="" width={30} height={30} />
           <span className="auth-brand-name">Cipher</span>
         </div>
         {children}

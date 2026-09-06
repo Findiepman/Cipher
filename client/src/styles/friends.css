@@ -1,0 +1,173 @@
+/* The friends pane. It shares the chat panel, so it inherits the panel's
+   background and only has to lay out its own rows. */
+
+.friends {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 22px 26px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.friends__add {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 520px;
+}
+
+.friends__add-row {
+  display: flex;
+  gap: 8px;
+}
+
+.friends__add input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 9px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--text);
+  font: inherit;
+}
+
+.friends__add input:focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: -1px;
+}
+
+.friends__notice {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.friends__notice--ok {
+  color: var(--text-mute);
+}
+
+/* Loud enough to read, not loud enough to feel like a failure — "no such
+   username" is usually a typo, not an error. */
+.friends__notice--bad {
+  color: var(--red);
+}
+
+.friends__section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.friends__heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 8px;
+}
+
+.friends__count {
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+.friends__empty {
+  margin: 0;
+  padding: 4px;
+  color: var(--text-mute);
+  font-size: 13px;
+}
+
+.friends__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: var(--r-md);
+}
+
+.friends__row:hover {
+  background: var(--hover);
+}
+
+.friends__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.friends__name {
+  font-weight: 550;
+}
+
+.friends__key {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.friends__row button {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.friends__row button:hover {
+  border-color: var(--ember);
+}
+
+/* Destructive and reversible-with-a-cost actions sit back rather than
+   competing with the one people actually came to press. */
+.friends__quiet {
+  color: var(--text-faint) !important;
+}
+
+.friends__quiet:hover {
+  border-color: var(--red) !important;
+}
+
+/* Shared by the chat pane's empty and loading states. */
+.app__empty {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 40px;
+  text-align: center;
+}
+
+.app__empty h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.app__empty p {
+  margin: 0;
+  max-width: 42ch;
+  color: var(--text-mute);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* The connection pill in the top bar. Present only when something is wrong,
+   so its absence is the "everything is fine" signal. */
+.top-bar__connection {
+  font-size: 11px;
+  color: var(--text-faint);
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  white-space: nowrap;
+}

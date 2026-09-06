@@ -17,7 +17,7 @@ import { AccountStrip } from './components/AccountStrip';
 import { AuthScreen } from './screens/AuthScreen';
 import { UnlockScreen } from './screens/UnlockScreen';
 import { VerifyEmailScreen } from './screens/VerifyEmailScreen';
-import { isMockBackend } from './lib/config';
+import { ChatProvider } from './state/ChatProvider';
 import { useSession } from './state/SessionProvider';
 import './styles/auth.css';
 
@@ -43,10 +43,6 @@ export function AppRoot() {
     return <VerifyEmailScreen token={verifyToken} onContinue={leaveVerify} />;
   }
 
-  // VITE_BACKEND=mock has no server to sign in against, so the chat UI is
-  // shown straight away off its fixtures. Everything below needs a real one.
-  if (isMockBackend) return <App />;
-
   if (status === 'loading') {
     return <div className="auth-centered">Loading…</div>;
   }
@@ -54,10 +50,15 @@ export function AppRoot() {
   if (status === 'anonymous') return <AuthScreen />;
   if (status === 'locked') return <UnlockScreen />;
 
+  // ChatProvider is mounted only here, inside `authenticated`, because it opens
+  // a socket and needs the unwrapped private key. Mounting it any higher would
+  // mean starting a chat session for someone who cannot read anything yet.
   return (
     <div className="app-shell">
       <AccountStrip />
-      <App />
+      <ChatProvider>
+        <App />
+      </ChatProvider>
     </div>
   );
 }

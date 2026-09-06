@@ -7,13 +7,20 @@ type Props = {
   onSend: (body: string) => void;
   /** Names shown in the "… is typing" line under the box. */
   typing?: string[];
+  /** Fired as the user types, throttled here rather than by the caller. */
+  onTyping?: () => void;
+  /** Replaces the "sealed on this device" line. Used for queue depth. */
+  notice?: string;
 };
 
 const MAX_HEIGHT = 160;
+/** One typing signal per this long, however fast someone types. */
+const TYPING_THROTTLE_MS = 2_500;
 
-export function Composer({ placeholder, onSend, typing = [] }: Props) {
+export function Composer({ placeholder, onSend, typing = [], onTyping, notice }: Props) {
   const [value, setValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lastTypingAt = useRef(0);
 
   useLayoutEffect(() => {
     const el = textareaRef.current;
@@ -29,6 +36,19 @@ export function Composer({ placeholder, onSend, typing = [] }: Props) {
     setValue('');
   }
 
+  /// Throttled here rather than at the call site: a typing signal per keystroke
+  /// would be a socket frame per keystroke, which is a lot of traffic to say
+  /// one thing.
+  function change(next: string) {
+    setValue(next);
+    if (!onTyping || next.length === 0) return;
+
+    const now = Date.now();
+    if (now - lastTypingAt.current < TYPING_THROTTLE_MS) return;
+    lastTypingAt.current = now;
+    onTyping();
+  }
+
   const empty = value.trim().length === 0;
 
   return (
@@ -40,7 +60,7 @@ export function Composer({ placeholder, onSend, typing = [] }: Props) {
           rows={1}
           value={value}
           placeholder={placeholder}
-          onChange={(event) => setValue(event.target.value)}
+          onChange={(event) => change(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
               event.preventDefault();
@@ -96,9 +116,13 @@ export function Composer({ placeholder, onSend, typing = [] }: Props) {
         </span>
         <span
           className="composer__sealed mono"
-          title="Encrypted on this device before sending"
+          title={
+            notice
+              ? 'Queued locally. They will go out as soon as there is a connection.'
+              : 'Encrypted on this device before sending'
+          }
         >
-          sealed on this device · x25519
+          {notice ?? 'sealed on this device · x25519'}
         </span>
       </div>
     </div>

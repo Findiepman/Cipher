@@ -12,7 +12,8 @@ type Props = {
   onSelect: (channelId: string) => void;
   usersById: Map<string, User>;
   previews: Map<string, Preview>;
-  currentUser: User;
+  /** Null on the first paint, before the account and its key have loaded. */
+  currentUser: User | null;
 };
 
 /**
@@ -59,7 +60,9 @@ export function ConversationList({
 
       <div className="key-status">
         <LockIcon size={15} />
-        <span className="mono">key {currentUser.fingerprint} · unlocked</span>
+        <span className="mono">
+          {currentUser ? `key ${currentUser.fingerprint} · unlocked` : 'loading…'}
+        </span>
         <button type="button" className="icon-button" aria-label="Settings">
           <SettingsIcon size={16} />
         </button>

@@ -1,28 +1,27 @@
-import type { Server, User } from '../types';
+import type { User } from '../types';
 import { Avatar } from './Avatar';
-import { KeyholeIcon, PlusIcon, SearchIcon } from './Icons';
+import { KeyholeIcon } from './Icons';
 import '../styles/top-bar.css';
 
+/**
+ * The two places there are to be. Group servers are deliberately absent: they
+ * need a key model that has not been chosen (packages/crypto/AGENTS.md), and a
+ * rail of rooms that cannot be encrypted would be promising something this app
+ * does not do yet.
+ */
+export type View = 'direct' | 'friends';
+
 type Props = {
-  servers: Server[];
-  activeServerId: string;
-  onSelect: (serverId: string) => void;
-  currentUser: User;
-  /** Unread direct conversations, badged on the DM pill. */
-  dmUnread: number;
+  view: View;
+  onSelect: (view: View) => void;
+  currentUser: User | null;
+  /** Pending incoming friend requests, badged on the Friends pill. */
+  requestCount: number;
+  /** Shown when the socket is not up, so silence is never mistaken for calm. */
+  connection: string;
 };
 
-/**
- * Workspaces live up here as text, not as a column of icons down the side.
- * You can read where you are instead of decoding a monogram.
- */
-export function TopBar({
-  servers,
-  activeServerId,
-  onSelect,
-  currentUser,
-  dmUnread,
-}: Props) {
+export function TopBar({ view, onSelect, currentUser, requestCount, connection }: Props) {
   return (
     <header className="top-bar">
       <div className="top-bar__brand">
@@ -30,37 +29,43 @@ export function TopBar({
         <span className="top-bar__wordmark">Cipher</span>
       </div>
 
-      <nav className="top-bar__workspaces" aria-label="Workspaces">
+      <nav className="top-bar__workspaces" aria-label="Views">
         <WorkspacePill
           label="Direct"
-          active={activeServerId === '@me'}
-          badge={dmUnread}
-          onClick={() => onSelect('@me')}
+          active={view === 'direct'}
+          onClick={() => onSelect('direct')}
         />
-        {servers.map((server) => (
-          <WorkspacePill
-            key={server.id}
-            label={server.name}
-            active={activeServerId === server.id}
-            badge={server.mentions}
-            dot={server.unread}
-            onClick={() => onSelect(server.id)}
-          />
-        ))}
-        <button type="button" className="top-bar__add" aria-label="Add a workspace">
-          <PlusIcon size={14} />
-        </button>
+        <WorkspacePill
+          label="Friends"
+          active={view === 'friends'}
+          badge={requestCount}
+          onClick={() => onSelect('friends')}
+        />
       </nav>
 
       <div className="top-bar__right">
-        <button type="button" className="top-bar__search">
-          <SearchIcon size={14} />
-          <span>Search or jump to…</span>
-        </button>
-        <Avatar user={currentUser} size={32} showPresence />
+        {connection !== 'online' && (
+          <span className="top-bar__connection mono" role="status">
+            {connectionLabel(connection)}
+          </span>
+        )}
+        {currentUser && <Avatar user={currentUser} size={32} showPresence />}
       </div>
     </header>
   );
+}
+
+/// Says what is true rather than hiding it. A message typed while this is
+/// showing is queued, not lost, and the composer says so too.
+function connectionLabel(connection: string): string {
+  switch (connection) {
+    case 'connecting':
+      return 'connecting…';
+    case 'offline':
+      return 'offline — messages will queue';
+    default:
+      return 'not connected';
+  }
 }
 
 function WorkspacePill({

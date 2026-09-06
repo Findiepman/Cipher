@@ -80,9 +80,10 @@ class ConsoleMailer implements Mailer {
 }
 
 /// Writes each message to a file instead of sending it, so a script can read
-/// the verification link back out. The token only ever exists in the email -
-/// the database stores a hash - so this is the one way to script the real
-/// signup flow end to end without a mail server.
+/// the verification link back out, and prints the link to the console so a
+/// human can just click it. The token only ever exists in the email - the
+/// database stores a hash - so this is the one way to run the real signup flow
+/// end to end without a mail server.
 class FileMailer implements Mailer {
   async send(mail: OutboundMail): Promise<void> {
     await mkdir(env.MAIL_DIR, { recursive: true });
@@ -96,7 +97,37 @@ class FileMailer implements Mailer {
       [`To: ${mail.to}`, `Subject: ${mail.subject}`, '', mail.text, ''].join('\n'),
       'utf8',
     );
+
+    announce(mail, file);
   }
+}
+
+/// The actionable part of a development email, on the console.
+///
+/// Writing the file is enough for a script, but not for a person signing up
+/// through the UI: they should not have to go hunting through a directory for
+/// the one file that still works. Only the newest verification email for an
+/// address is live - issuing a token deletes the previous one - so an older
+/// file in MAIL_DIR is a dead link and the log is the reliable place to look.
+///
+/// Deliberately console.info and not the Fastify logger: that one redacts
+/// tokens by design, which is right for a request log and useless here. This
+/// only ever runs under MAIL_TRANSPORT=file, which env.ts refuses in production.
+function announce(mail: OutboundMail, file: string): void {
+  const link = mail.text.match(/https?:\/\/\S+/)?.[0];
+
+  console.info(
+    [
+      '',
+      '--- email (not sent: MAIL_TRANSPORT=file) ---',
+      `To:      ${mail.to}`,
+      `Subject: ${mail.subject}`,
+      ...(link ? [`Link:    ${link}`] : []),
+      `File:    ${file}`,
+      '--- end email ---',
+      '',
+    ].join('\n'),
+  );
 }
 
 export function createMailer(): Mailer {

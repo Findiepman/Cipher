@@ -1,6 +1,7 @@
 # STATUS — where this project actually is
 
-Last updated **2026-09-06**, after DM messaging and the friend graph landed.
+Last updated **2026-09-06**, after DM messaging and the friend graph landed and
+were confirmed working by hand in the browser.
 
 This file is the "get up to speed without reading everything" document. It says
 what works, what does not, and which decisions are load-bearing. Keep it
@@ -48,9 +49,17 @@ account-work axis (`backend-plan.md`).
 | DM conversations, message history, cursor paging | `server/src/modules/conversations/` |
 | Live delivery, presence, typing, over Socket.io | `server/src/realtime/index.ts` |
 | Optimistic send, offline queue, reconnect backlog | `client/src/state/`, `client/src/lib/transport/` |
+| The chat UI itself: friends screen, DM list, composer | `client/src/App.tsx`, `client/src/screens/FriendsScreen.tsx` |
 
 195 tests pass: 28 crypto, 77 client, 90 server. `npm run typecheck` and
 `npm run build` are clean across all workspaces.
+
+**Adding a friend and exchanging messages were driven by hand in the browser on
+2026-09-06 and work.** That is worth stating separately from the tests: the
+suites and the smoke scripts cover the protocol, but nothing automated has ever
+clicked the actual UI, so the manual pass is the only evidence the React layer
+behaves. Anything you change in `client/src/state/ChatProvider.tsx` or the
+screens still needs a human to look at it.
 
 Two end-to-end proofs, both against a running server over real HTTP:
 
@@ -69,7 +78,13 @@ Two end-to-end proofs, both against a running server over real HTTP:
   gone; there is a Direct view and a Friends view.
 - **Message editing, deletion, read receipts, attachments, search.** None of
   it. `ConversationParticipant.lastReadMessageId` exists in the schema and is
-  never written.
+  never written, so nothing is ever marked read and the conversation list has
+  no unread state.
+- **Hosting.** It runs on localhost only. `messaging-plan.md` stage 8 covers
+  the Ubuntu mini PC: Dockerfiles, Caddy, a Cloudflare Tunnel, a deploy script
+  and backups. **Real SMTP is the blocker there, not polish** — verification is
+  required before login, so until mail sends, nobody can create an account on
+  the box, including you. A residential IP cannot deliver mail directly.
 - **Most account endpoints.** `client/src/lib/api/endpoints.ts` calls a full
   API; the server implements a slice of it. Everything below 404s today:
   `POST /auth/forgot-password`, `/auth/reset-password`,
@@ -139,7 +154,13 @@ worse for this specific app.
     land in the same millisecond and a timestamp cannot break that tie. Cursors
     are message ids, because the server cannot say what is new in a
     conversation it cannot read.
-11. **`@cipher/crypto` resolves to TypeScript source** (`exports` → `./src/index.ts`),
+11. **The app mark is one file and one component.** `client/public/logo.png`
+    backs the favicon, the apple-touch icon, the manifest and every in-app use
+    via `components/BrandMark.tsx`. Don't add a second copy of the logo or
+    inline an `<img src="/logo.png">` — the point is that swapping the file
+    changes it everywhere. The old `KeyholeIcon` glyph was deleted for the same
+    reason.
+12. **`@cipher/crypto` resolves to TypeScript source** (`exports` → `./src/index.ts`),
    the "internal packages" pattern. No build step; Vite and Vitest transpile it.
 
 ## Deviations from `backend-plan.md`
@@ -175,15 +196,18 @@ Then create an account at http://localhost:5173. **The verification link is
 printed in the server console**, because `MAIL_TRANSPORT=file` writes emails to
 `server/.mail/` instead of sending them.
 
+To try messaging you need two accounts, and both have to be verified. Sign in
+as one, add the other by its exact username under **Friends**, accept from the
+other side, then **Message** them. A second browser profile (or a private
+window) is the easiest way to hold both sessions at once — the identity key
+lives in IndexedDB per origin, so two normal tabs share one account.
+
 ```bash
 npm test               # all workspaces
 npm run typecheck
 npm run build
-cd server && npm run smoke     # end-to-end account lifecycle over real HTTP
-```
-
-```bash
-cd server && npm run smoke:messaging   # two accounts, a DM, over real HTTP + sockets
+cd server && npm run smoke             # account lifecycle over real HTTP
+cd server && npm run smoke:messaging   # two accounts, a DM, over HTTP + sockets
 ```
 
 `VITE_BACKEND=mock` still short-circuits auth, but it no longer renders a chat:

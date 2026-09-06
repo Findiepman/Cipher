@@ -1,0 +1,128 @@
+// Accounts & auth schema. See ../backend-plan.md.
+// Message/channel tables are deliberately absent - they belong to the
+// messaging work, not the account work.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+  DELETED
+}
+
+enum EmailTokenPurpose {
+  VERIFY
+  RESET
+  EMAIL_CHANGE
+}
+
+model User {
+  id       String @id @default(uuid()) @db.Uuid
+  /// Always stored lowercased; normalize on the way in, never compare raw input.
+  email    String @unique
+  username String @unique
+
+  passwordHash String
+
+  role   UserRole   @default(USER)
+  status UserStatus @default(ACTIVE)
+
+  emailVerifiedAt DateTime?
+
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+  lastLoginAt      DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  sessions    Session[]
+  emailTokens EmailToken[]
+
+  auditActions AuditLog[] @relation("AuditActor")
+  auditTargets AuditLog[] @relation("AuditTarget")
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// One row per refresh token. Rotation creates a new row and points the old
+/// one at it via replacedById; every row from one login shares a familyId so
+/// that replaying a spent token can revoke the whole family at once.
+model Session {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// SHA-256 of the refresh token. The raw token only ever lives in the cookie.
+  refreshTokenHash String @unique
+  familyId         String @db.Uuid
+
+  deviceLabel String?
+  ip          String?
+  userAgent   String?
+
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime  @default(now())
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?   @db.Uuid
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+}
+
+/// Single-use, hashed, expiring tokens delivered by email.
+model EmailToken {
+  id     String @db.Uuid @id @default(uuid())
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  purpose   EmailTokenPurpose
+  tokenHash String            @unique
+
+  /// Only set for EMAIL_CHANGE: the address being moved to.
+  newEmail String?
+
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  @@index([userId, purpose])
+  @@index([expiresAt])
+}
+
+model AuditLog {
+  id String @id @default(uuid()) @db.Uuid
+
+  /// Null for unauthenticated actions (a failed login, a reset request).
+  actorUserId String? @db.Uuid
+  actor       User?   @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  targetUserId String? @db.Uuid
+  target       User?   @relation("AuditTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  action String
+  ip     String?
+  meta   Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([actorUserId, createdAt])
+  @@index([targetUserId, createdAt])
+  @@index([action, createdAt])
+}

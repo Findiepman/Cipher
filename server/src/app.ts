@@ -9,9 +9,11 @@ import { createMailer, type Mailer } from './lib/mailer.js';
 import authPlugin from './plugins/auth.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { accountRoutes } from './modules/account/routes.js';
+import { conversationRoutes } from './modules/conversations/routes.js';
 import { friendRoutes } from './modules/friends/routes.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { keysRoutes } from './modules/keys/routes.js';
+import type { PostedMessage } from './modules/conversations/service.js';
 
 export interface BuildOptions {
   /// Swapped for an in-memory implementation in tests.
@@ -21,6 +23,11 @@ export interface BuildOptions {
   /// very busy attacker. Tests turn it off, apart from the one that exists to
   /// prove the limiter still works.
   rateLimits?: boolean;
+
+  /// Pushes a stored message to whoever is connected. Wired to the socket layer
+  /// in index.ts; absent here so the HTTP API can be built and tested with no
+  /// socket at all.
+  deliver?: (message: PostedMessage) => void;
 }
 
 export async function buildApp(
@@ -150,6 +157,10 @@ export async function buildApp(
   await app.register(accountRoutes, { prefix: '/account' });
   await app.register(friendRoutes, { prefix: '/friends' });
   await app.register(keysRoutes, { prefix: '/keys' });
+  await app.register(conversationRoutes, {
+    prefix: '/conversations',
+    deliver: options.deliver,
+  });
 
   return app;
 }

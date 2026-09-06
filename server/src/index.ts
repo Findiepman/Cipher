@@ -1,11 +1,21 @@
 import { buildApp } from './app.js';
 import { prisma } from './db.js';
 import { env } from './env.js';
+import { attachRealtime, type Realtime } from './realtime/index.js';
 
-const app = await buildApp();
+// The HTTP routes need `deliver`, and the socket layer needs the HTTP server
+// that carries it, so one of the two has to be bound late. A closure over this
+// is the smaller of the two knots: the alternative is the socket layer owning
+// route registration.
+let realtime: Realtime | null = null;
+
+const app = await buildApp({ deliver: (message) => realtime?.deliver(message) });
+
+realtime = attachRealtime(app);
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, 'shutting down');
+  await realtime?.close();
   await app.close();
   await prisma.$disconnect();
   process.exit(0);

@@ -1,11 +1,15 @@
-import type { ZodSchema } from 'zod';
+import type { ZodType, ZodTypeDef } from 'zod';
 import { ZodError } from 'zod';
 import { badRequest } from './errors.js';
 
 /// Validates a request body and turns a Zod failure into a 400 the client can
 /// render field-by-field. Routes call this rather than using a Fastify schema
 /// so the same Zod definitions can be shared with the client package later.
-export function parseBody<T>(schema: ZodSchema<T>, body: unknown): T {
+///
+/// The input type is `unknown` rather than `T` so schemas whose parsed output
+/// differs from their input - anything using .default(), .transform() or
+/// .coerce - infer their *output* type here, which is what the caller wants.
+export function parseBody<T>(schema: ZodType<T, ZodTypeDef, unknown>, body: unknown): T {
   try {
     return schema.parse(body ?? {});
   } catch (error) {

@@ -2,10 +2,10 @@ import fastifyCookie from '@fastify/cookie';
 import fastifyJwt from '@fastify/jwt';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
-import { prisma } from '../db.js';
 import { env } from '../env.js';
 import { unauthorized } from '../lib/errors.js';
 import { ACCESS_COOKIE } from '../lib/cookies.js';
+import { loadLiveSession } from '../lib/session-guard.js';
 
 export interface AccessTokenPayload {
   sub: string;
@@ -68,30 +68,15 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
 
       // A valid signature isn't enough: the session behind it may have been
       // revoked (logout-all, admin force-logout, reuse detection) since the
-      // access token was minted.
-      const session = await prisma.session.findUnique({
-        where: { id: sid },
-        select: {
-          revokedAt: true,
-          userId: true,
-          user: { select: { id: true, role: true, status: true } },
-        },
-      });
+      // access token was minted. Shared with the socket handshake so the two
+      // cannot drift - see lib/session-guard.ts.
+      const session = await loadLiveSession(sub, sid);
 
-      if (
-        !session ||
-        session.revokedAt ||
-        session.userId !== sub ||
-        session.user.status !== 'ACTIVE'
-      ) {
+      if (!session) {
         throw unauthorized('session_revoked', 'Session is no longer valid.');
       }
 
-      request.currentUser = {
-        id: session.user.id,
-        role: session.user.role,
-        sessionId: sid,
-      };
+      request.currentUser = session;
     },
   );
 };

@@ -1,8 +1,10 @@
 import { randomBytes } from 'node:crypto';
-import type { FastifyInstance } from 'fastify';
+import type { AddressInfo } from 'node:net';
+import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { buildApp } from '../src/app.js';
 import { prisma } from '../src/db.js';
 import { InMemoryMailer } from '../src/lib/mailer.js';
+import { attachRealtime, type Realtime } from '../src/realtime/index.js';
 
 export interface TestContext {
   app: FastifyInstance;
@@ -16,6 +18,44 @@ export async function createTestApp(
   const app = await buildApp({ mailer, rateLimits: options.rateLimits ?? false });
   await app.ready();
   return { app, mailer };
+}
+
+export interface LiveContext extends TestContext {
+  /// http://127.0.0.1:<port>. Sockets need a real listener; `inject` cannot
+  /// carry a websocket.
+  url: string;
+  realtime: Realtime;
+  close(): Promise<void>;
+}
+
+/// Boots the app on an ephemeral port with the socket layer attached, wired the
+/// same way src/index.ts wires it - including the late-bound `deliver`, so a
+/// message sent over HTTP still arrives in real time here too.
+export async function createLiveApp(): Promise<LiveContext> {
+  const mailer = new InMemoryMailer();
+
+  let realtime: Realtime | null = null;
+  const app = await buildApp({
+    mailer,
+    rateLimits: false,
+    deliver: (message) => realtime?.deliver(message),
+  });
+
+  realtime = attachRealtime(app);
+
+  await app.listen({ port: 0, host: '127.0.0.1' });
+  const { port } = app.server.address() as AddressInfo;
+
+  return {
+    app,
+    mailer,
+    realtime,
+    url: `http://127.0.0.1:${port}`,
+    async close() {
+      await realtime?.close();
+      await app.close();
+    },
+  };
 }
 
 export async function resetDatabase(): Promise<void> {
@@ -149,9 +189,11 @@ export interface Actor extends LoggedIn {
   id: string;
   user: RegisteredUser;
   /// Injects as this account.
-  request(
-    options: { method: 'GET' | 'POST' | 'PATCH' | 'DELETE'; url: string; payload?: unknown },
-  ): ReturnType<FastifyInstance['inject']>;
+  request(options: {
+    method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+    url: string;
+    payload?: unknown;
+  }): Promise<LightMyRequestResponse>;
 }
 
 let actorSequence = 0;

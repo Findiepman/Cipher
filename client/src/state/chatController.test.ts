@@ -2,13 +2,23 @@ import { generateKeyPair } from '@cipher/crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { MockTransport } from '../lib/transport/mockTransport';
 import { Outbox } from '../lib/transport/outbox';
-import { ChatController } from './chatController';
+import { ChatController, type ChatControllerOptions } from './chatController';
 import { messagesForChannel } from './chatStore';
 
-async function setup(options: { offline?: boolean } = {}) {
+async function setup(
+  options: { offline?: boolean; recipients?: ChatControllerOptions['resolveRecipients'] } = {},
+) {
   const keyPair = await generateKeyPair();
-  const transport = new MockTransport({ latencyMs: 0, offline: options.offline });
-  const controller = new ChatController({ transport, outbox: new Outbox() });
+  const transport = new MockTransport({
+    latencyMs: 0,
+    offline: options.offline,
+    selfUserId: 'u-me',
+  });
+  const controller = new ChatController({
+    transport,
+    outbox: new Outbox(),
+    resolveRecipients: options.recipients,
+  });
   controller.setIdentity({
     userId: 'u-me',
     privateKey: keyPair.privateKey,
@@ -41,7 +51,38 @@ describe('sending', () => {
     // Phase 1 seals to base64 and says so. The point of the assertion is that
     // the composer's string is not what travels; in phase 2 the same assertion
     // holds for real.
-    expect(payload.ciphertext).toContain('"alg":"none"');
+    expect(payload.envelopes[0].ciphertext).toContain('"alg":"none"');
+  });
+
+  it('seals a copy for every participant, the sender included', async () => {
+    // The sender's own copy is the whole reason envelopes exist: crypto_box
+    // seals to one recipient, so without it a sender on a new device could not
+    // read anything they had ever written.
+    const nova = await generateKeyPair();
+    const { controller, transport } = await setup({
+      recipients: async () => [{ userId: 'u-nova', publicKey: nova.publicKey }],
+    });
+    const sent = vi.spyOn(transport, 'send');
+
+    await controller.send('d-nova', 'sealed twice');
+
+    const recipients = sent.mock.calls[0][0].envelopes.map((e) => e.recipientUserId);
+    expect(recipients).toEqual(['u-nova', 'u-me']);
+  });
+
+  it('does not seal a second copy when the resolver already includes us', async () => {
+    const nova = await generateKeyPair();
+    const { controller, transport } = await setup({
+      recipients: async () => [
+        { userId: 'u-nova', publicKey: nova.publicKey },
+        { userId: 'u-me', publicKey: nova.publicKey },
+      ],
+    });
+    const sent = vi.spyOn(transport, 'send');
+
+    await controller.send('d-nova', 'sealed twice, not three times');
+
+    expect(sent.mock.calls[0][0].envelopes).toHaveLength(2);
   });
 
   it('refuses to send while locked', async () => {

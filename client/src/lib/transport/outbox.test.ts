@@ -3,7 +3,12 @@ import { MemoryOutboxStorage, Outbox, backoffMs } from './outbox';
 import type { MessageAck, OutgoingMessage } from './types';
 
 function message(clientId: string, channelId = 'c-general'): OutgoingMessage {
-  return { clientId, channelId, ciphertext: `sealed-${clientId}`, sentAt: '2026-09-06T10:00:00.000Z' };
+  return {
+    clientId,
+    channelId,
+    envelopes: [{ recipientUserId: 'u-me', ciphertext: `sealed-${clientId}` }],
+    sentAt: '2026-09-06T10:00:00.000Z',
+  };
 }
 
 function ack(message: OutgoingMessage): MessageAck {

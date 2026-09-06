@@ -20,6 +20,7 @@ import {
 import { Outbox } from '../lib/transport/outbox';
 import type {
   ConnectionState,
+  Envelope,
   IncomingMessage,
   OutgoingMessage,
   Transport,
@@ -33,14 +34,29 @@ export interface ChatIdentity {
   publicKey: Uint8Array;
 }
 
+/** Someone who must be able to open a message: their id and their public key. */
+export interface Recipient {
+  userId: string;
+  publicKey: Uint8Array;
+}
+
 export interface ChatControllerOptions {
   transport: Transport;
   outbox?: Outbox;
   /**
-   * Resolves the public key to seal to for a channel. Phase 1 ignores the
-   * result; phase 2 cannot send without it, which is why the seam exists now.
+   * Everyone a message in this channel has to be sealed for — the sender
+   * included, or they lose their own history on the next device. Phase 1
+   * ignores the keys; phase 2 cannot seal without them, which is why the seam
+   * exists now.
+   *
+   * Defaults to "just me", which is what the tests and the mock transport want.
    */
-  resolveRecipientKey?: (channelId: string) => Promise<Uint8Array | null>;
+  resolveRecipients?: (channelId: string) => Promise<Recipient[]>;
+  /**
+   * The public key to open an incoming message against. Opening needs the
+   * *author's* key, not the channel's — which is why this is keyed on author.
+   */
+  resolveAuthorKey?: (authorId: string) => Promise<Uint8Array | null>;
 }
 
 export class ChatController {
@@ -49,14 +65,16 @@ export class ChatController {
   private readonly listeners = new Set<(state: ChatState) => void>();
   private readonly transport: Transport;
   private readonly outbox: Outbox;
-  private readonly resolveRecipientKey: (channelId: string) => Promise<Uint8Array | null>;
+  private readonly resolveRecipients: ((channelId: string) => Promise<Recipient[]>) | null;
+  private readonly resolveAuthorKey: (authorId: string) => Promise<Uint8Array | null>;
   private unsubscribers: (() => void)[] = [];
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options: ChatControllerOptions) {
     this.transport = options.transport;
     this.outbox = options.outbox ?? new Outbox();
-    this.resolveRecipientKey = options.resolveRecipientKey ?? (async () => null);
+    this.resolveRecipients = options.resolveRecipients ?? null;
+    this.resolveAuthorKey = options.resolveAuthorKey ?? (async () => null);
   }
 
   get snapshot(): ChatState {
@@ -126,10 +144,20 @@ export class ChatController {
     const clientId = newClientId();
     const sentAt = new Date().toISOString();
 
-    const recipientKey = (await this.resolveRecipientKey(channelId)) ?? identity.publicKey;
-    const ciphertext = serializeCiphertext(
-      await encryptMessage(body, recipientKey, identity.privateKey),
+    const recipients = await this.recipientsFor(channelId, identity);
+    // One sealed copy each. The sender's own copy is what makes their history
+    // readable on a device that was not the one they typed it on.
+    const envelopes: Envelope[] = await Promise.all(
+      recipients.map(async (recipient) => ({
+        recipientUserId: recipient.userId,
+        ciphertext: serializeCiphertext(
+          await encryptMessage(body, recipient.publicKey, identity.privateKey),
+        ),
+      })),
     );
+
+    const own =
+      envelopes.find((envelope) => envelope.recipientUserId === identity.userId) ?? envelopes[0];
 
     this.dispatch({
       type: 'sending',
@@ -143,12 +171,28 @@ export class ChatController {
         // Held locally so the sender can read their own message. It is never
         // sent anywhere in this form.
         body,
-        ciphertext,
+        ciphertext: own.ciphertext,
       },
     });
 
-    await this.outbox.enqueue({ clientId, channelId, ciphertext, sentAt });
+    await this.outbox.enqueue({ clientId, channelId, envelopes, sentAt });
     await this.flush();
+  }
+
+  /**
+   * Falls back to sealing only for ourselves. That is right for a channel whose
+   * membership we cannot resolve: the message stays readable to its author and
+   * nobody else, which beats either dropping it or sending it in the clear.
+   */
+  private async recipientsFor(channelId: string, identity: ChatIdentity): Promise<Recipient[]> {
+    const self: Recipient = { userId: identity.userId, publicKey: identity.publicKey };
+    if (!this.resolveRecipients) return [self];
+
+    const resolved = await this.resolveRecipients(channelId);
+    if (resolved.length === 0) return [self];
+    return resolved.some((recipient) => recipient.userId === identity.userId)
+      ? resolved
+      : [...resolved, self];
   }
 
   /** Drains the outbox. Safe to call on reconnect, on a timer, or on send. */
@@ -224,8 +268,12 @@ export class ChatController {
 
     try {
       const ciphertext = parseCiphertext(incoming.ciphertext);
-      const senderKey = (await this.resolveRecipientKey(incoming.channelId)) ?? this.identity.publicKey;
-      const body = await decryptMessage(ciphertext, senderKey, this.identity.privateKey);
+      // Our own echo is sealed with our own key; anyone else's needs theirs.
+      const authorKey =
+        incoming.authorId === this.identity.userId
+          ? this.identity.publicKey
+          : ((await this.resolveAuthorKey(incoming.authorId)) ?? this.identity.publicKey);
+      const body = await decryptMessage(ciphertext, authorKey, this.identity.privateKey);
       return { ...base, state: 'decrypted', body };
     } catch (error) {
       return {

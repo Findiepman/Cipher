@@ -9,7 +9,9 @@ import { createMailer, type Mailer } from './lib/mailer.js';
 import authPlugin from './plugins/auth.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { accountRoutes } from './modules/account/routes.js';
+import { friendRoutes } from './modules/friends/routes.js';
 import { healthRoutes } from './modules/health/routes.js';
+import { keysRoutes } from './modules/keys/routes.js';
 
 export interface BuildOptions {
   /// Swapped for an in-memory implementation in tests.
@@ -146,6 +148,8 @@ export async function buildApp(
   await app.register(healthRoutes);
   await app.register(authRoutes, { prefix: '/auth', mailer });
   await app.register(accountRoutes, { prefix: '/account' });
+  await app.register(friendRoutes, { prefix: '/friends' });
+  await app.register(keysRoutes, { prefix: '/keys' });
 
   return app;
 }

@@ -1,6 +1,5 @@
-// Accounts & auth schema. See ../backend-plan.md.
-// Message/channel tables are deliberately absent - they belong to the
-// messaging work, not the account work.
+// Accounts & auth (../backend-plan.md) plus DM messaging and the friend graph
+// (../messaging-plan.md).
 
 generator client {
   provider = "prisma-client"
@@ -64,8 +63,126 @@ model User {
   auditActions AuditLog[] @relation("AuditActor")
   auditTargets AuditLog[] @relation("AuditTarget")
 
+  friendshipsAsA Friendship[] @relation("FriendshipUserA")
+  friendshipsAsB Friendship[] @relation("FriendshipUserB")
+
+  conversations ConversationParticipant[]
+  messages      Message[]
+  envelopes     MessageEnvelope[]
+
   @@index([status])
   @@index([createdAt])
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  BLOCKED
+}
+
+/// One row per *pair*, not per direction.
+///
+/// userAId and userBId are stored in canonical (sorted) order behind a unique
+/// index, so A->B and B->A cannot both exist as separate pending requests -
+/// which is the bug this shape exists to make unrepresentable. Who asked is
+/// recorded separately, because that is all "incoming" vs "outgoing" means.
+model Friendship {
+  id String @id @default(uuid()) @db.Uuid
+
+  userAId String @db.Uuid
+  userA   User   @relation("FriendshipUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userBId String @db.Uuid
+  userB   User   @relation("FriendshipUserB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  requestedById String @db.Uuid
+
+  /// Set only while status is BLOCKED. A block belongs to whoever applied it -
+  /// without this the other party could lift their own block.
+  blockedById String? @db.Uuid
+
+  status FriendshipStatus @default(PENDING)
+
+  createdAt   DateTime  @default(now())
+  respondedAt DateTime?
+
+  @@unique([userAId, userBId])
+  @@index([userAId, status])
+  @@index([userBId, status])
+}
+
+/// Generic on purpose, but v1 only ever creates two-participant rows.
+/// `dmKey` is what stops opening a DM twice from creating two conversations.
+model Conversation {
+  id String @id @default(uuid()) @db.Uuid
+
+  /// "<smaller uuid>:<larger uuid>" for a DM; null for a future group.
+  dmKey String? @unique
+
+  createdAt DateTime @default(now())
+
+  participants ConversationParticipant[]
+  messages     Message[]
+}
+
+model ConversationParticipant {
+  conversationId String       @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String       @db.Uuid
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// The client's own read position. The server can order messages but cannot
+  /// read them, so "unread" is a count of ids, never of content.
+  lastReadMessageId String? @db.Uuid
+
+  joinedAt DateTime @default(now())
+
+  @@id([conversationId, userId])
+  @@index([userId])
+}
+
+/// The header of a message. The body is not here - see MessageEnvelope.
+model Message {
+  id String @id @default(uuid()) @db.Uuid
+
+  conversationId String       @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  authorId String @db.Uuid
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  /// The sender's own id, echoed back. Unique per conversation, which is what
+  /// makes a send retried across a flaky reconnect one message and not two.
+  clientId String
+
+  sentAt DateTime @default(now())
+
+  /// Monotonic, so a cursor is "everything after this row" rather than a
+  /// timestamp comparison that ties on same-millisecond sends.
+  seq BigInt @default(autoincrement())
+
+  envelopes MessageEnvelope[]
+
+  @@unique([conversationId, clientId])
+  @@index([conversationId, seq])
+}
+
+/// One sealed copy of a message, addressed to one participant - including the
+/// author, who otherwise could not read their own history on a new device
+/// (crypto_box seals to exactly one recipient).
+///
+/// `ciphertext` is opaque to this server, permanently. Nothing here may ever
+/// read, index, search or log it.
+model MessageEnvelope {
+  messageId String  @db.Uuid
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  recipientUserId String @db.Uuid
+  recipient       User   @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
+
+  ciphertext String
+
+  @@id([messageId, recipientUserId])
+  @@index([recipientUserId])
 }
 
 /// One row per refresh token. Rotation creates a new row and points the old

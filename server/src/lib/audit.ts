@@ -12,7 +12,16 @@ export type AuditAction =
   | 'auth.refreshed'
   | 'auth.refresh_reuse_detected'
   | 'auth.logged_out'
-  | 'auth.logged_out_all';
+  | 'auth.logged_out_all'
+  /// friend.request_sent and friend.request_failed are also the counters the
+  /// per-account request budget reads - see modules/friends/service.ts.
+  | 'friend.request_sent'
+  | 'friend.request_failed'
+  | 'friend.accepted'
+  | 'friend.declined'
+  | 'friend.removed'
+  | 'friend.blocked'
+  | 'friend.unblocked';
 
 export interface AuditEntry {
   action: AuditAction;

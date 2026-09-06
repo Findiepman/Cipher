@@ -23,12 +23,19 @@ export interface MockTransportOptions {
   offline?: boolean;
   /** Seeded history, keyed by channel. */
   history?: IncomingMessage[];
+  /**
+   * Who this transport is answering as. Decides which envelope of a sent
+   * message comes back in the backlog, the way the real server hands each
+   * client only the copy addressed to them.
+   */
+  selfUserId?: string;
 }
 
 export class MockTransport implements Transport {
   private connectionState: ConnectionState = 'idle';
   private readonly handlers = new Map<string, Set<(payload: never) => void>>();
   private readonly delivered: IncomingMessage[];
+  private readonly selfUserId: string;
   private sequence = 0;
 
   latencyMs: number;
@@ -38,6 +45,7 @@ export class MockTransport implements Transport {
     this.latencyMs = options.latencyMs ?? 120;
     this.offline = options.offline ?? false;
     this.delivered = [...(options.history ?? [])];
+    this.selfUserId = options.selfUserId ?? 'self';
   }
 
   get state(): ConnectionState {
@@ -66,13 +74,20 @@ export class MockTransport implements Transport {
       id: `srv-${this.sequence}-${message.clientId}`,
       sentAt: new Date().toISOString(),
     };
+    // Keep only the copy addressed to us, and fall back to the first envelope
+    // so a caller that has not bothered with identities still gets something
+    // readable back.
+    const own =
+      message.envelopes.find((envelope) => envelope.recipientUserId === this.selfUserId) ??
+      message.envelopes[0];
+
     this.delivered.push({
       id: ack.id,
       clientId: message.clientId,
       channelId: message.channelId,
-      authorId: 'self',
+      authorId: this.selfUserId,
       sentAt: ack.sentAt,
-      ciphertext: message.ciphertext,
+      ciphertext: own.ciphertext,
     });
     return ack;
   }

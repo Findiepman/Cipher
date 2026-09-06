@@ -13,16 +13,41 @@
 
 export type ConnectionState = 'idle' | 'connecting' | 'online' | 'offline';
 
+/**
+ * One sealed copy of a message, addressed to one participant.
+ *
+ * There is a copy per participant *including the sender* because `crypto_box`
+ * seals to exactly one recipient: a message sealed for the person you are
+ * talking to cannot be opened by you. Without a copy addressed to yourself, a
+ * sender signing in on a fresh device would find their own history unreadable.
+ *
+ * Phase 1 puts the same `alg: 'none'` blob in every envelope, so this costs a
+ * row per participant today and saves a migration when phase 2 lands.
+ */
+export interface Envelope {
+  recipientUserId: string;
+  /** Serialized Ciphertext from packages/crypto. Opaque here. */
+  ciphertext: string;
+}
+
 /** A message on its way out. `clientId` is generated locally for dedupe. */
 export interface OutgoingMessage {
   clientId: string;
   channelId: string;
-  /** Serialized Ciphertext from packages/crypto. Opaque here. */
-  ciphertext: string;
+  /**
+   * One per participant, sender included. The server checks the recipient set
+   * matches the channel's participants and stores the blobs without reading
+   * them.
+   */
+  envelopes: Envelope[];
   sentAt: string;
 }
 
-/** A message arriving from the server, still sealed. */
+/**
+ * A message arriving from the server, still sealed. One `ciphertext`, not a
+ * list: the server hands each client only the envelope addressed to them, so a
+ * recipient never receives a copy they could not open anyway.
+ */
 export interface IncomingMessage {
   id: string;
   /** Present when this is the server's echo of something we sent. */

@@ -21,8 +21,14 @@ export async function createTestApp(
 export async function resetDatabase(): Promise<void> {
   // Truncate rather than delete so the tables come back in a known state, and
   // cascade so ordering between them stops mattering.
+  //
+  // Conversation is listed explicitly: it is the one table with no foreign key
+  // to User, so truncating User would not cascade to it and rows would leak
+  // between test cases.
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "AuditLog", "EmailToken", "Session", "Device", "User" RESTART IDENTITY CASCADE',
+    'TRUNCATE TABLE "AuditLog", "EmailToken", "Session", "Device", ' +
+      '"MessageEnvelope", "Message", "ConversationParticipant", "Conversation", ' +
+      '"Friendship", "User" RESTART IDENTITY CASCADE',
   );
 }
 
@@ -134,4 +140,71 @@ export async function login(
 
   const { tokens } = response.json();
   return { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken };
+}
+
+/// A registered, verified, signed-in account, with everything a test needs to
+/// act as them. Bearer rather than cookies: it is the mode the desktop shell
+/// uses, and it keeps `inject` calls to one header.
+export interface Actor extends LoggedIn {
+  id: string;
+  user: RegisteredUser;
+  /// Injects as this account.
+  request(
+    options: { method: 'GET' | 'POST' | 'PATCH' | 'DELETE'; url: string; payload?: unknown },
+  ): ReturnType<FastifyInstance['inject']>;
+}
+
+let actorSequence = 0;
+
+/// Registers, verifies and signs in one account in a single call. Most tests
+/// here need two or three of these and care about none of the steps.
+export async function createActor(
+  ctx: TestContext,
+  suffix = `a${(actorSequence += 1)}-${randomBytes(4).toString('hex')}`,
+): Promise<Actor> {
+  const user = newUser(suffix);
+  await registerAndVerify(ctx, user);
+  const tokens = await login(ctx, user);
+
+  const record = await prisma.user.findUniqueOrThrow({
+    where: { email: user.email },
+    select: { id: true },
+  });
+
+  return {
+    ...tokens,
+    id: record.id,
+    user,
+    request: ({ method, url, payload }) =>
+      ctx.app.inject({
+        method,
+        url,
+        payload: payload as never,
+        headers: { authorization: `Bearer ${tokens.accessToken}` },
+      }),
+  };
+}
+
+/// Makes `a` and `b` friends the way a user would: request, then accept.
+export async function befriend(a: Actor, b: Actor): Promise<void> {
+  const sent = await a.request({
+    method: 'POST',
+    url: '/friends/requests',
+    payload: { username: b.user.username },
+  });
+  if (sent.statusCode !== 200) {
+    throw new Error(`Friend request failed: ${sent.body}`);
+  }
+
+  const requests = await b.request({ method: 'GET', url: '/friends/requests' });
+  const [incoming] = requests.json().incoming;
+  if (!incoming) throw new Error('No incoming friend request to accept');
+
+  const accepted = await b.request({
+    method: 'POST',
+    url: `/friends/requests/${incoming.id}/accept`,
+  });
+  if (accepted.statusCode !== 200) {
+    throw new Error(`Accepting failed: ${accepted.body}`);
+  }
 }

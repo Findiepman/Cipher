@@ -19,12 +19,10 @@
   padding: 26px 4px 10px;
 }
 
+/* The sage plate is gone with the keyhole glyph that sat on it: the logo is a
+   copper shield on transparency, and a green tile behind it is two shapes
+   arguing. The mark stands on the panel on its own. */
 .messages__intro-icon {
-  width: 50px;
-  height: 50px;
-  border-radius: var(--r-lg);
-  background: var(--sage-bg);
-  color: var(--sage);
   display: grid;
   place-items: center;
   margin-bottom: 12px;

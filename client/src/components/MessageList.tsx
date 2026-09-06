@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react';
 import { previewCiphertext } from '../lib/envelope';
 import type { Channel, Message, User } from '../types';
 import { Avatar } from './Avatar';
-import { KeyholeIcon, LockIcon } from './Icons';
+import { BrandMark } from './BrandMark';
+import { LockIcon } from './Icons';
 import '../styles/messages.css';
 
 type Props = {
@@ -179,7 +180,7 @@ function ChannelIntro({ channel }: { channel: Channel }) {
   return (
     <div className="messages__intro">
       <div className="messages__intro-icon">
-        <KeyholeIcon size={26} />
+        <BrandMark size={34} />
       </div>
       <h2>{channel.name}</h2>
       <p>

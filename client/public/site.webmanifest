@@ -1,0 +1,23 @@
+{
+  "name": "Cipher",
+  "short_name": "Cipher",
+  "description": "End-to-end encrypted messaging. Your keys stay on your device.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#100d0c",
+  "theme_color": "#100d0c",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "195x195",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

@@ -64,24 +64,3 @@ export function SettingsIcon({ size = 24, className }: Props) {
     </svg>
   );
 }
-
-/** Cipher's mark: a keyhole. Used for the DM button on the rail. */
-export function KeyholeIcon({ size = 24, className }: Props) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.7}
-      strokeLinecap="round"
-      className={className}
-      aria-hidden
-    >
-      <circle cx="12" cy="9" r="4" />
-      <path d="M12 13v7" />
-      <path d="M12 17h3.5" />
-    </svg>
-  );
-}

@@ -1,6 +1,6 @@
 import type { User } from '../types';
 import { Avatar } from './Avatar';
-import { KeyholeIcon } from './Icons';
+import { BrandMark } from './BrandMark';
 import '../styles/top-bar.css';
 
 /**
@@ -25,7 +25,7 @@ export function TopBar({ view, onSelect, currentUser, requestCount, connection }
   return (
     <header className="top-bar">
       <div className="top-bar__brand">
-        <KeyholeIcon size={20} className="top-bar__mark" />
+        <BrandMark size={22} className="top-bar__mark" />
         <span className="top-bar__wordmark">Cipher</span>
       </div>
 

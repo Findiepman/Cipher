@@ -14,8 +14,11 @@
   flex: 0 0 auto;
 }
 
+/* Nudged up by a hair: the shield's optical centre sits below its bounding
+   box, so a mark aligned by the box reads as sitting low next to the
+   wordmark. */
 .top-bar__mark {
-  color: var(--ember);
+  margin-top: -1px;
 }
 
 .top-bar__wordmark {

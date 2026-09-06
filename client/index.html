@@ -3,9 +3,35 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- The .ico carries the small sizes Windows and older browsers ask for;
+         the PNG is what modern browsers actually pick for a tab, and it is the
+         same file the app renders in-page, so the two can never drift. -->
     <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="icon" type="image/png" href="/logo.png" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
     <meta name="theme-color" content="#100d0c" />
+    <meta name="apple-mobile-web-app-title" content="Cipher" />
+    <meta
+      name="description"
+      content="End-to-end encrypted messaging. Your keys stay on your device."
+    />
+
+    <!-- What a shared link looks like. Without these a pasted link is a bare
+         URL, which for a private messenger reads as less trustworthy than it
+         should. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Cipher" />
+    <meta property="og:title" content="Cipher" />
+    <meta
+      property="og:description"
+      content="End-to-end encrypted messaging. Your keys stay on your device."
+    />
+    <meta property="og:image" content="/logo.png" />
+    <meta name="twitter:card" content="summary" />
+
     <title>Cipher</title>
   </head>
   <body>

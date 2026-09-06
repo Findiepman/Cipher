@@ -1,0 +1,12 @@
+/* The app mark.
+ *
+ * No plate, no tint, no filter behind or over it: the logo is a copper shield
+ * on transparency, and an ember tile behind it reads as two competing shapes.
+ * Wherever it sits, it sits on the surface it was dropped onto. */
+.brand-mark {
+  object-fit: contain;
+  flex: 0 0 auto;
+  /* It is a fixed-size mark, never a stretched one, so a wrapper with an odd
+     aspect ratio cannot distort it. */
+  user-select: none;
+}

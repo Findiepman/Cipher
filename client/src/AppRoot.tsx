@@ -14,6 +14,7 @@
 import { useCallback, useState } from 'react';
 import App from './App';
 import { AccountStrip } from './components/AccountStrip';
+import { BrandMark } from './components/BrandMark';
 import { AuthScreen } from './screens/AuthScreen';
 import { UnlockScreen } from './screens/UnlockScreen';
 import { VerifyEmailScreen } from './screens/VerifyEmailScreen';
@@ -43,8 +44,17 @@ export function AppRoot() {
     return <VerifyEmailScreen token={verifyToken} onContinue={leaveVerify} />;
   }
 
+  // The first paint on every reload, so it is the one screen guaranteed to be
+  // seen. Bare text here made the app look like it had not started yet.
   if (status === 'loading') {
-    return <div className="auth-centered">Loading…</div>;
+    return (
+      <div className="auth-centered">
+        <div className="auth-splash">
+          <BrandMark size={44} label="Cipher" />
+          <span>Loading…</span>
+        </div>
+      </div>
+    );
   }
 
   if (status === 'anonymous') return <AuthScreen />;

@@ -37,13 +37,8 @@
   margin-bottom: 22px;
 }
 
-.auth-brand-mark {
-  width: 30px;
-  height: 30px;
-  /* No plate behind it: the logo is a shield on transparency, and an ember
-     tile behind a copper shield reads as two competing shapes. */
-  object-fit: contain;
-}
+/* The mark itself is styled by .brand-mark in brand.css, which every use of
+   the logo shares. Nothing brand-specific is left to say here. */
 
 .auth-brand-name {
   color: var(--text-hi);
@@ -320,4 +315,11 @@
   color: var(--text-mute);
   font-size: 14px;
   background: var(--bg-app);
+}
+
+.auth-splash {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
 }

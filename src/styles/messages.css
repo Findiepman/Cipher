@@ -1,0 +1,207 @@
+.messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0 18px 6px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Rows must not shrink inside the scrolling column, or long bubbles clip. */
+.messages > * {
+  flex: 0 0 auto;
+}
+
+.messages__anchor {
+  height: 1px;
+}
+
+.messages__intro {
+  padding: 26px 4px 10px;
+}
+
+.messages__intro-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: var(--r-lg);
+  background: var(--sage-bg);
+  color: var(--sage);
+  display: grid;
+  place-items: center;
+  margin-bottom: 12px;
+}
+
+.messages__intro h2 {
+  margin: 0 0 6px;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text-hi);
+}
+
+.messages__intro p {
+  margin: 0;
+  max-width: 520px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-mute);
+}
+
+.messages__divider {
+  display: flex;
+  justify-content: center;
+  margin: 18px 0 12px;
+}
+.messages__divider .eyebrow {
+  padding: 3px 10px;
+  border-radius: 10px;
+  background: var(--bg-raised);
+}
+
+.message {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 3px;
+}
+/* Space between turns, not between every line of one turn. */
+.message--run-end {
+  margin-bottom: 11px;
+}
+.message--own {
+  justify-content: flex-end;
+}
+.message--pending {
+  opacity: 0.55;
+}
+
+.message__avatar-space {
+  width: 30px;
+  flex: 0 0 30px;
+}
+
+.message__column {
+  max-width: 62%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+.message--own .message__column {
+  align-items: flex-end;
+}
+
+.message__author {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  padding-left: 2px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.message__key {
+  font-weight: 400;
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.message__bot {
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--sage-bg);
+  color: var(--sage);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.bubble {
+  padding: 10px 14px;
+  border-radius: var(--r-lg);
+  font-size: 14.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.bubble--in {
+  background: var(--bg-bubble-in);
+  color: var(--text-on-bubble);
+}
+.bubble--out {
+  background: var(--bg-bubble-out);
+  border: 1px solid var(--line-bubble-out);
+  color: var(--text-on-bubble-out);
+}
+
+/* The tail: one squared-off corner on the last bubble of a run, pointing at
+   whoever said it. */
+.bubble--tail-in,
+.locked-bubble.bubble--tail-in {
+  border-bottom-left-radius: 5px;
+}
+.bubble--tail-out {
+  border-bottom-right-radius: 5px;
+}
+
+.bubble--mention {
+  box-shadow: inset 0 0 0 1px var(--ember);
+}
+
+.bubble__body {
+  white-space: pre-wrap;
+}
+
+.bubble__meta {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--text-faint);
+}
+.bubble--out .bubble__meta {
+  text-align: right;
+  color: #b08a78;
+}
+
+.bubble__ciphertext {
+  display: block;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--sage);
+}
+
+.locked-bubble {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px dashed var(--line);
+  border-radius: var(--r-lg);
+  color: var(--text-mute);
+}
+.locked-bubble svg {
+  flex: 0 0 auto;
+}
+
+.locked-bubble__text {
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.locked-bubble__action {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border-radius: var(--r-sm);
+  background: var(--bg-raised);
+  color: var(--text-on-bubble);
+  font-size: 10.5px;
+}
+.locked-bubble__action:hover {
+  background: var(--ember);
+  color: var(--ember-ink);
+}
+
+.locked-bubble--failed {
+  border-color: rgba(229, 72, 77, 0.45);
+  color: var(--red);
+}

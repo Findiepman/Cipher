@@ -1,0 +1,128 @@
+.composer {
+  flex: 0 0 auto;
+  padding: 8px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+/* A pill, not a framed box — it belongs to the same family as the workspace
+   pills in the top bar. */
+.composer__pill {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  min-height: 48px;
+  padding: 7px 8px 7px 16px;
+  border-radius: var(--r-pill);
+  background: var(--bg-raised);
+}
+
+.composer__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 7px 0;
+  border: none;
+  background: none;
+  resize: none;
+  color: var(--text-on-bubble);
+  font-family: inherit;
+  font-size: 14.5px;
+  line-height: 1.45;
+  max-height: 160px;
+}
+.composer__input:focus {
+  outline: none;
+}
+.composer__input::placeholder {
+  color: var(--text-faint);
+}
+
+.composer__pill .icon-button {
+  width: 34px;
+  height: 34px;
+  border-radius: 17px;
+}
+
+.composer__send {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 17px;
+  background: var(--ember);
+  color: var(--ember-ink);
+  transition: background-color 140ms ease;
+}
+.composer__send:hover:not(:disabled) {
+  background: var(--ember-hover);
+}
+.composer__send:disabled {
+  background: var(--line);
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.composer__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 16px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+
+.composer__typing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--text-faint);
+}
+
+.composer__dots {
+  display: inline-flex;
+  gap: 2px;
+}
+.composer__dots i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--text-mute);
+  animation: composer-bounce 1.4s infinite ease-in-out;
+}
+.composer__dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.composer__dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes composer-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.6;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer__dots i {
+    animation: none;
+  }
+}
+
+.composer__sealed {
+  flex: 0 0 auto;
+  color: var(--sage);
+  cursor: default;
+}

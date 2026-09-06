@@ -1,0 +1,99 @@
+/* "Ember" — Cipher's design tokens.
+ *
+ * The rules that hold the look together:
+ *   - panels FLOAT on a darker backdrop; nothing is flush against anything
+ *   - the ground is warm brown-black, never neutral grey
+ *   - --ember is the only interactive colour, and your own messages
+ *   - --sage is reserved for encryption and nothing else
+ *   - --red is failure only: a message that would not decrypt
+ *   - mono carries machine facts (key ids, timestamps), the sans carries
+ *     anything a human wrote
+ */
+:root {
+  --bg-app: #100d0c;         /* backdrop the panels sit on */
+  --bg-panel: #1a1614;       /* conversation list */
+  --bg-panel-alt: #171311;   /* the conversation itself */
+  --bg-raised: #241f1c;      /* composer, selected row, hover */
+  --bg-bubble-in: #221d1a;
+  --bg-bubble-out: #33201a;
+  --line-bubble-out: #4a2a20;
+
+  --line: #2b2422;           /* panel borders */
+  --line-soft: #241f1c;      /* dividers inside a panel */
+  --hover: rgba(255, 255, 255, 0.03);
+
+  --text-hi: #f2e9e2;
+  --text: #cfc3ba;
+  --text-mute: #8d8078;
+  --text-faint: #5f544e;
+  --text-on-bubble: #e6dcd4;
+  --text-on-bubble-out: #f7e3d9;
+  --text-link: #f2734e;
+
+  --ember: #f2734e;          /* interaction, and your own voice */
+  --ember-hover: #ff8f6d;
+  --ember-ink: #1a1210;      /* text drawn on top of ember */
+  --sand: #d9b382;
+
+  --sage: #7fb08a;           /* encryption, and only encryption */
+  --sage-bg: #16211a;
+  --sage-line: #2a4a34;
+
+  --red: #e5484d;
+
+  --presence-online: #7fb08a;
+  --presence-idle: #d9b382;
+  --presence-dnd: #e5484d;
+  --presence-offline: #4a423e;
+
+  --r-sm: 10px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 24px;
+
+  --font: "Outfit", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "Consolas", ui-monospace, monospace;
+
+  color-scheme: dark;
+}
+
+/* Same system in daylight: the panels float on warm paper instead of soot. */
+:root[data-theme="light"] {
+  --bg-app: #e8e1d8;
+  --bg-panel: #f7f3ee;
+  --bg-panel-alt: #fffcf8;
+  --bg-raised: #eee7de;
+  --bg-bubble-in: #f0eae1;
+  --bg-bubble-out: #fbe3d6;
+  --line-bubble-out: #edc5b0;
+
+  --line: #ddd3c7;
+  --line-soft: #e8e0d5;
+  --hover: rgba(26, 18, 16, 0.035);
+
+  --text-hi: #1f1a17;
+  --text: #453d38;
+  --text-mute: #7c7168;
+  --text-faint: #a3988e;
+  --text-on-bubble: #2e2723;
+  --text-on-bubble-out: #43231a;
+  --text-link: #c04a25;
+
+  --ember: #d1552e;
+  --ember-hover: #b2431f;
+  --ember-ink: #fffcf8;
+  --sand: #a8813f;
+
+  --sage: #3f7a53;
+  --sage-bg: #e9f1ea;
+  --sage-line: #bcd6c3;
+
+  --red: #b3261e;
+
+  --presence-online: #3f7a53;
+  --presence-idle: #a8813f;
+  --presence-dnd: #b3261e;
+  --presence-offline: #b8ada2;
+
+  color-scheme: light;
+}

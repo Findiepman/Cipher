@@ -1,0 +1,150 @@
+.conversations {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 6px 8px 8px;
+}
+
+.conversations__section + .conversations__section {
+  margin-top: 10px;
+}
+
+.conversations__heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 6px 6px;
+}
+
+.conversations__count {
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.conversation {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 10px;
+  border-radius: var(--r-md);
+  text-align: left;
+  transition: background-color 120ms ease;
+}
+.conversation:hover {
+  background: var(--hover);
+}
+.conversation--active,
+.conversation--active:hover {
+  background: var(--bg-raised);
+}
+
+.conversation__tile {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 11px;
+  background: var(--bg-raised);
+  color: var(--text-mute);
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  font-weight: 600;
+}
+.conversation__tile--active {
+  background: var(--ember);
+  color: var(--ember-ink);
+}
+
+.conversation__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.conversation__top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.conversation__name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.conversation--active .conversation__name {
+  color: var(--text-hi);
+  font-weight: 600;
+}
+.conversation__name--unread {
+  color: var(--text-hi);
+  font-weight: 600;
+}
+
+.conversation__time {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.conversation__dot {
+  margin-left: auto;
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--ember);
+}
+
+.conversation__badge {
+  margin-left: auto;
+  flex: 0 0 auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--ember);
+  color: var(--ember-ink);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}
+
+.conversation__preview {
+  font-size: 12px;
+  color: var(--text-mute);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.conversation__preview--unread {
+  color: var(--text);
+}
+
+/* The panel's foot is a statement about the key, so it is sage, not ember. */
+.key-status {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px;
+  border-top: 1px solid var(--line);
+  color: var(--sage);
+}
+.key-status .mono {
+  font-size: 11px;
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.key-status .icon-button {
+  color: var(--text-mute);
+}

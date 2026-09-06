@@ -1,0 +1,74 @@
+.chat-header {
+  height: 58px;
+  flex: 0 0 58px;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.chat-header__name {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-hi);
+  white-space: nowrap;
+}
+
+.chat-header__topic {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-mute);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.chat-header__right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.chat-header__key {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.avatar-stack {
+  display: flex;
+  align-items: center;
+}
+
+.avatar-stack__slot {
+  display: block;
+  border-radius: 11px;
+  /* The border is the panel colour, so the discs punch out of each other. */
+  box-shadow: 0 0 0 2px var(--bg-panel-alt);
+}
+.avatar-stack__slot + .avatar-stack__slot {
+  margin-left: -8px;
+}
+
+.avatar-stack__more {
+  width: 26px;
+  height: 26px;
+  border-radius: 9px;
+  background: var(--bg-raised);
+  color: var(--text-mute);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+@media (max-width: 980px) {
+  .chat-header__topic {
+    display: none;
+  }
+}

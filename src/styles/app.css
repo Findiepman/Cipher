@@ -1,0 +1,46 @@
+/* The shell: a top bar, then two panels floating on the backdrop with a
+   gutter between them. Nothing is flush against anything else — that gutter
+   is doing most of the work of not looking like every other chat app. */
+.app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-app);
+}
+
+.app__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  gap: 10px;
+  padding: 0 10px 10px;
+}
+
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.panel--list {
+  width: 292px;
+  flex: 0 0 292px;
+}
+
+.panel--chat {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--bg-panel-alt);
+}
+
+/* Narrow windows drop the conversation list; the top bar keeps working, so
+   you can still move between workspaces. */
+@media (max-width: 820px) {
+  .panel--list {
+    display: none;
+  }
+}

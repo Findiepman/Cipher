@@ -50,7 +50,8 @@ export interface SessionContextValue {
   auth: AuthService;
 }
 
-const SessionContext = createContext<SessionContextValue | null>(null);
+/** Exported so tests can mount a screen against a stub session. */
+export const SessionContext = createContext<SessionContextValue | null>(null);
 
 export interface SessionProviderProps {
   children: ReactNode;

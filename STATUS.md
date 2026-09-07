@@ -1,11 +1,14 @@
 # STATUS: where this project actually is
 
-Last updated **2026-09-07**, after two passes over the chat UI. The first
-brought nicknames, right-click actions on a person, a password reveal on the
-auth screens and the removal of every encryption badge. The second added the
-profile panel, rebuilt the Friends screen as five tabs and finished the
-blocking story: a blocked list, unblocking, re-adding afterwards, and taking
-back a request you sent.
+Last updated **2026-09-07**, after two passes over the chat UI and one over
+the account layer. The first UI pass brought nicknames, right-click actions on
+a person, a password reveal on the auth screens and the removal of every
+encryption badge. The second added the profile panel, rebuilt the Friends
+screen as five tabs and finished the blocking story: a blocked list,
+unblocking, re-adding afterwards, and taking back a request you sent. The
+third pass is not UI at all: unread counts and read receipts, password reset
+with the whole of `backend-plan.md` step 2, and CSRF, which is step 6. Three
+of the four items this file listed as next steps are now done.
 
 This file is the "get up to speed without reading everything" document. It says
 what works, what does not, and which decisions are load-bearing. Keep it
@@ -28,7 +31,11 @@ sign out, with real key custody: the account keypair is generated on the
 device and the server never receives a password, a recovery code, or a private
 key. **DM messaging works end to end too**: add a friend by exact username,
 they accept, you get a conversation with live delivery over Socket.io, an
-offline queue, and a backlog on reconnect. **Encryption is still deliberately
+offline queue, a backlog on reconnect, and unread counts that clear when you
+actually look at the conversation. **Losing a password is no longer losing the
+account**: a reset link plus the recovery code rebuilds it with the identity
+intact, and the alternative branch discards the identity knowingly rather than
+by accident. **Encryption is still deliberately
 phase 1**, meaning `encryptMessage`/`decryptMessage` are base64 no-ops, so the
 server can currently read message bodies. The UI no longer says anything about
 this either way: the SEALED pill, the key fingerprints and the ciphertext
@@ -68,6 +75,10 @@ account-work axis (`backend-plan.md`).
 | Public-key registry, gated on friendship | `server/src/modules/keys/routes.ts` |
 | DM conversations, message history, cursor paging | `server/src/modules/conversations/` |
 | Live delivery, presence, typing, over Socket.io | `server/src/realtime/index.ts` |
+| Unread counts and read receipts, over the socket or HTTP | `server/src/modules/conversations/service.ts`, `client/src/state/chatStore.ts` |
+| Password reset by email: keep the identity, or discard it | `server/src/modules/auth/service.ts`, `client/src/screens/ResetPasswordScreen.tsx` |
+| Change password, rotate the recovery code | `server/src/modules/account/credentials.ts` |
+| CSRF double submit on every state-changing request | `server/src/plugins/csrf.ts` |
 | Optimistic send, offline queue, reconnect backlog | `client/src/state/`, `client/src/lib/transport/` |
 | The chat UI itself: friends screen, DM list, composer | `client/src/App.tsx`, `client/src/screens/FriendsScreen.tsx` |
 | Transactional email, text + HTML, over a real relay | `server/src/lib/mailer.ts` |
@@ -75,7 +86,7 @@ account-work axis (`backend-plan.md`).
 | Deployed: 4 containers, no host ports, Cloudflare Tunnel | `deploy/` |
 | Live registration + verification email landing in an inbox | verified by hand 2026-09-07 |
 
-263 tests pass: 34 crypto, 107 client, 122 server. `npm run typecheck` and
+352 tests pass: 34 crypto, 142 client, 176 server. `npm run typecheck` and
 `npm run build` are clean across all workspaces.
 
 **Adding a friend and exchanging messages were driven by hand in the browser on
@@ -87,11 +98,14 @@ nobody has clicked the whole screen. Anything you change in
 `client/src/state/ChatProvider.tsx` or the screens still needs a human to look
 at it.
 
-**Neither 2026-09-07 UI pass has been driven by hand.** Typecheck, build and
-263 tests are green, and every endpoint behind them is covered by
-`server/tests/nicknames.test.ts` and `server/tests/blocking.test.ts`, but
-nobody has right-clicked a conversation row or opened the profile panel in a
-browser. That is the first thing to do next.
+**Nothing added on 2026-09-07 has been driven by hand.** Typecheck, build and
+352 tests are green, and every endpoint behind them is covered
+(`nicknames.test.ts`, `blocking.test.ts`, `readState.test.ts`,
+`passwordReset.test.ts`, `csrf.test.ts`), but nobody has right-clicked a
+conversation row, opened the profile panel, watched an unread badge clear or
+followed a reset link in a browser. Three features deep is further behind the
+click-through than this project has ever been, and it is the first thing to do
+next.
 
 **The device-key unlock has not been clicked in a real browser yet.** Its unit
 tests run against in-memory stores, so what they prove is the logic, not that
@@ -121,10 +135,15 @@ Two end-to-end proofs, both against a running server over real HTTP:
 - **Blocking somebody you have never met.** The API takes any user id, but the
   only way into the UI is a right-click on a person already on screen, and a
   stranger is not on screen. In practice you unfriend or decline instead.
-- **Message editing, deletion, read receipts, attachments, search.** None of
-  it. `ConversationParticipant.lastReadMessageId` exists in the schema and is
-  never written, so nothing is ever marked read and the conversation list has
-  no unread state.
+- **Message editing, deletion, attachments, search.** None of it. Read
+  receipts have landed, so `lastReadMessageId` is written now and the DM list
+  carries unread counts, but a message once sent cannot be changed or taken
+  back by either side.
+- **No notification email when credentials change.** A password change or a
+  recovery-code rotation is silent, so the legitimate owner of an account
+  learns about a hostile one only by being signed out. `app.ts` registers
+  `accountRoutes` without a mailer, which is the only reason: pass one in and
+  `modules/account/credentials.ts` has the hooks.
 - **Backups are not scheduled.** `deploy/backup.sh` and `restore.sh` exist and
   `deploy.sh` calls the former before every deploy, but **no cron entry is
   installed on the box**, so nothing runs nightly. Until it is, the only dumps
@@ -139,19 +158,17 @@ Two end-to-end proofs, both against a running server over real HTTP:
   verification and the rate limits are the only friction. `DEPLOY.md`
   → *Restricting who can register* has the Cloudflare Access recipe if that
   should change.
-- **Most account endpoints.** `client/src/lib/api/endpoints.ts` calls a full
-  API; the server implements a slice of it. Everything below 404s today:
-  `POST /auth/forgot-password`, `/auth/reset-password`,
-  `/auth/reset-password/context`, `PATCH /account/me`,
-  `/account/change-password`, `/account/change-email[/confirm]`,
-  `GET|DELETE /account/sessions[/:id]`, `/account/recovery-code`,
-  `DELETE /account`, all of `/admin/*`. (`/keys/user/:userId` now exists;
-  `POST /keys/device` and `DELETE /keys/device/:id` do not.)
-  The client half of most of these already exists in `authService.ts`.
-- **CSRF.** The client sends `x-csrf-token` from a `csrf_token` cookie; the
-  server never sets one, so the header is simply absent. Cross-site POSTs are
-  currently blocked by `SameSite=Lax` plus a CORS allowlist, not by a token.
-  This is `backend-plan.md` step 6.
+- **Some account endpoints, and no settings screen at all.**
+  `client/src/lib/api/endpoints.ts` calls a full API; the server implements
+  most but not all of it. Still 404 today: `PATCH /account/me`,
+  `/account/change-email[/confirm]`, `GET|DELETE /account/sessions[/:id]`,
+  `DELETE /account`, all of `/admin/*`. (`POST /keys/device` and
+  `DELETE /keys/device/:id` do not exist either.) The client half of most of
+  these already exists in `authService.ts`. Separately, `/account/change-password`
+  and `/account/recovery-code` now work but have **no UI**: there is no settings
+  screen for them to live on, and building one is what unlocks the sessions
+  list, which is the only per-session revocation there will ever be short of
+  rotating `JWT_SECRET` and signing out every account on the box.
 - **Phase 2 encryption.** See `packages/crypto/AGENTS.md`.
 - **`desktop/`.** Nothing but an `AGENTS.md`.
 
@@ -270,6 +287,34 @@ worse for this specific app.
     override from "view profile" that does not. One id cannot express both: the
     panel would reopen every time you switched DM, or a pinned profile would be
     silently replaced on the next render.
+22. **Read marking only ever moves forward, and counts come from `seq`.**
+    `markRead` leaves the stored position alone when handed an older marker,
+    and `readUpTo` in `chatStore` only ever lowers a count. Two tabs race
+    constantly and a late retry is normal, so without both rules a message
+    somebody has already seen comes back unread. Counting from `seq` rather
+    than `sentAt` is decision 11 applied: several sends land in the same
+    millisecond. A message id from another conversation is a 404 rather than a
+    no-op, because `seq` is global and a borrowed id would silently mark an
+    arbitrary slice of this conversation read.
+23. **The CSRF cookie is deliberately not `httpOnly`, and a request with no
+    cookies at all skips the check.** The first is what double submit means: a
+    cookie the page cannot read is a cookie it cannot echo into a header. The
+    second is the load-bearing one. Under `SameSite=Lax` a cross-site POST
+    carries no cookies, so a request arriving without them has no ambient
+    authority to spend, and a bearer caller had to hold its own credential.
+    That is also what lets the test suites, the desktop shell and the smoke
+    scripts keep working untouched. If `SameSite` is ever loosened, re-read
+    this: the skip is safe only because Lax makes it unreachable from a
+    cross-site form.
+24. **The reset context endpoint is a POST, and it does not spend the token.**
+    A GET would put a live credential in a query string, which is the part of
+    a request that reliably reaches access logs and browser history. Not
+    spending the token is what lets a mistyped recovery code be retried, and
+    it costs nothing to hand the wrapped key out: blob_B is sealed under a
+    recovery code the server has never seen. So what an attacker holding the
+    inbox gets is the account, not the messages, and their only path to the
+    identity is offline work against that blob. This is the argument for the
+    recovery code staying a key rather than becoming a PIN.
 21. **The UI makes no claim about encryption.** No SEALED pill, no key
     fingerprint beside a name, no "the server only ever held the blob". If
     phase 2 lands and someone wants to surface it again, it should be one

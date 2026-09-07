@@ -78,7 +78,20 @@ echo "==> building"
 "${COMPOSE[@]}" build
 
 echo "==> starting"
-"${COMPOSE[@]}" up -d --remove-orphans
+# `up` exiting non-zero means a container failed its healthcheck or died on
+# boot, and with `set -e` that would end the script here - before the health
+# wait below, which is where the log dumping lives. Since the server's own
+# first few lines are almost always the answer (env.ts fails loudly at boot and
+# names the variable), print them rather than making someone go and ask for
+# them separately.
+if ! "${COMPOSE[@]}" up -d --remove-orphans; then
+  echo >&2
+  echo "    'up' failed. The server's log usually says why:" >&2
+  "${COMPOSE[@]}" logs --tail 60 server || true
+  echo >&2
+  echo "    Full logs: docker compose -f deploy/docker-compose.prod.yml logs server" >&2
+  exit 1
+fi
 
 echo "==> waiting for the server to report ready"
 for _ in $(seq 1 30); do

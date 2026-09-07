@@ -3,7 +3,7 @@
 # Nightly pg_dump with retention. Install it with:
 #
 #   crontab -e
-#   17 3 * * * /home/YOU/private-messenger/deploy/backup.sh >> /var/log/cipher-backup.log 2>&1
+#   17 3 * * * BACKUP_DIR=/mnt/backup/cipher /home/YOU/cipher/deploy/backup.sh >> "$HOME/cipher-backup.log" 2>&1
 #
 # BACKUP_DIR should be somewhere that is not the same disk as the Docker
 # volume. A backup that dies with the drive it was protecting against is not a
@@ -14,10 +14,16 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-BACKUP_DIR="${BACKUP_DIR:-/var/backups/cipher}"
+# Defaults under $HOME because /var/backups needs root, and a backup step that
+# silently fails every night is worse than no backup step at all. Point it at
+# another disk in the cron line - see DEPLOY.md.
+BACKUP_DIR="${BACKUP_DIR:-$HOME/cipher-backups}"
 RETAIN_DAYS="${RETAIN_DAYS:-14}"
 
-mkdir -p "$BACKUP_DIR"
+if ! mkdir -p "$BACKUP_DIR" 2>/dev/null; then
+  echo "cannot create $BACKUP_DIR - check permissions, or set BACKUP_DIR" >&2
+  exit 1
+fi
 
 stamp="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
 target="$BACKUP_DIR/messenger-$stamp.sql.gz"

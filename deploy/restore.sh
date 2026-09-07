@@ -2,7 +2,7 @@
 #
 # Restore a dump written by backup.sh.
 #
-#   ./restore.sh /var/backups/cipher/messenger-2026-09-07T03-17-00Z.sql.gz
+#   ./restore.sh ~/cipher-backups/messenger-2026-09-07T03-17-00Z.sql.gz
 #
 # This is destructive: the dump is --clean --if-exists, so it drops and
 # recreates everything it contains. It exists as a script because the time you

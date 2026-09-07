@@ -419,14 +419,18 @@ crontab -e
 ```
 
 `backup.sh` writes a gzipped `pg_dump`, checks it is not empty, and only then
-deletes dumps older than 14 days. **Point `BACKUP_DIR` at another disk.** The
-default `/var/backups/cipher` sits on the same drive as the Docker volume, and
-a backup that dies with the drive it was protecting against is not a backup.
+deletes dumps older than 14 days. It defaults to `$HOME/cipher-backups` —
+writable without root, because a backup step that fails silently every night is
+worse than no backup step at all.
+
+**Point `BACKUP_DIR` at another disk**, as the cron line above does. The
+default sits on the same drive as the Docker volume, and a backup that dies
+with the drive it was protecting against is not a backup.
 
 Test the restore path once, now, while nothing is at stake:
 
 ```bash
-./deploy/restore.sh /var/backups/cipher/messenger-<stamp>.sql.gz
+./deploy/restore.sh ~/cipher-backups/messenger-<stamp>.sql.gz
 ```
 
 An untested backup is a guess.

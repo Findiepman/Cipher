@@ -54,8 +54,15 @@ if [[ $PULL -eq 1 ]]; then
 fi
 
 echo "==> backing up the database before anything changes"
-# A migration that goes wrong is the one failure a redeploy cannot undo.
-./backup.sh || echo "    (no database yet - first deploy)"
+# A migration that goes wrong is the one failure a redeploy cannot undo. On the
+# very first deploy there is no database to dump, which is expected - but any
+# other failure has to be visible rather than folded into the same message,
+# because a backup step that quietly never runs is the worst outcome here.
+if "${COMPOSE[@]}" ps -q postgres 2>/dev/null | grep -q .; then
+  ./backup.sh
+else
+  echo "    no postgres container yet - first deploy, nothing to back up"
+fi
 
 echo "==> building"
 "${COMPOSE[@]}" build
@@ -65,12 +72,22 @@ echo "==> starting"
 
 echo "==> waiting for the server to report ready"
 for _ in $(seq 1 30); do
-  if [[ "$("${COMPOSE[@]}" ps --format '{{.Service}} {{.Health}}' | grep '^server ' | awk '{print $2}')" == "healthy" ]]; then
+  # `docker compose ps --format` only reliably accepts table/json in Compose v2,
+  # so ask Docker directly about the container instead of templating compose's
+  # output. Empty container id means it has not been created yet.
+  cid="$("${COMPOSE[@]}" ps -q server 2>/dev/null || true)"
+  health="$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || echo starting)"
+  if [[ "$health" == "healthy" ]]; then
     echo "    ready"
     break
   fi
   sleep 2
 done
+
+if [[ "${health:-}" != "healthy" ]]; then
+  echo "    server is '${health:-unknown}' after 60s - check the logs below" >&2
+  "${COMPOSE[@]}" logs --tail 40 server
+fi
 
 echo "==> pruning old images"
 docker image prune -f >/dev/null

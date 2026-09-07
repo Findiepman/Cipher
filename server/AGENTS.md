@@ -32,6 +32,7 @@ Once phase 2 (real encryption) lands, the server's job for message bodies is: ac
 - Sends are idempotent on `(conversationId, clientId)`. The socket and the HTTP fallback both go through `postMessage()`, so a message that takes both paths is stored once.
 - A socket outlives its 15-minute access token, so the session behind it is re-checked before every send and on a periodic sweep (`realtime/index.ts`). Don't remove that: without it, logout would stop the HTTP API and leave the socket delivering.
 - Don't build delivery-receipt or read-receipt features that require the server to correlate content, only message IDs/timestamps.
+- Voice calls ride the same socket (`realtime/calls.ts`). The server relays session descriptions and ICE candidates and holds who-is-ringing-whom in memory; the audio never touches it. Don't store or log an SDP: it is not message content, but it carries the DTLS fingerprints and the caller's candidate addresses, and there is nothing a server-side copy is for. Don't add a media path (recording, an SFU) without raising it first, for the same reason as server-side search.
 
 ## Auth
 

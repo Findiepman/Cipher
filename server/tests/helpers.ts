@@ -4,7 +4,8 @@ import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { buildApp } from '../src/app.js';
 import { prisma } from '../src/db.js';
 import { InMemoryMailer } from '../src/lib/mailer.js';
-import { attachRealtime, type Realtime } from '../src/realtime/index.js';
+import { attachRealtime, type Realtime, type RealtimeOptions } from '../src/realtime/index.js';
+import type { IceProvider } from '../src/modules/calls/ice.js';
 import { screenUsername } from '../src/lib/usernameFilter.js';
 
 export interface TestContext {
@@ -32,7 +33,9 @@ export interface LiveContext extends TestContext {
 /// Boots the app on an ephemeral port with the socket layer attached, wired the
 /// same way src/index.ts wires it - including the late-bound `deliver`, so a
 /// message sent over HTTP still arrives in real time here too.
-export async function createLiveApp(): Promise<LiveContext> {
+export async function createLiveApp(
+  options: { realtime?: RealtimeOptions; ice?: IceProvider } = {},
+): Promise<LiveContext> {
   const mailer = new InMemoryMailer();
 
   let realtime: Realtime | null = null;
@@ -40,9 +43,10 @@ export async function createLiveApp(): Promise<LiveContext> {
     mailer,
     rateLimits: false,
     deliver: (message) => realtime?.deliver(message),
+    ice: options.ice,
   });
 
-  realtime = attachRealtime(app);
+  realtime = attachRealtime(app, options.realtime);
 
   await app.listen({ port: 0, host: '127.0.0.1' });
   const { port } = app.server.address() as AddressInfo;

@@ -33,6 +33,13 @@ const schema = z.object({
 
   MAX_FAILED_LOGINS: z.coerce.number().int().positive().default(8),
   LOCKOUT_MINUTES: z.coerce.number().int().positive().default(15),
+
+  /// A Cloudflare Realtime TURN key. Both or neither: with them the server
+  /// mints short-lived relay credentials for calls, without them calls are
+  /// STUN only and two browsers that cannot reach each other directly will
+  /// not connect. The key itself is never sent to a client.
+  TURN_KEY_ID: z.string().min(1).optional(),
+  TURN_KEY_API_TOKEN: z.string().min(1).optional(),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -55,6 +62,12 @@ if (env.NODE_ENV === 'production' && env.MAIL_TRANSPORT !== 'smtp') {
   // Otherwise every verification and reset email is silently dropped, and
   // nobody can sign up or recover an account.
   throw new Error('MAIL_TRANSPORT must be "smtp" in production');
+}
+
+if (Boolean(env.TURN_KEY_ID) !== Boolean(env.TURN_KEY_API_TOKEN)) {
+  // Half a key is a misconfiguration that would otherwise look like "calls
+  // work on my network and not on yours".
+  throw new Error('TURN_KEY_ID and TURN_KEY_API_TOKEN must be set together');
 }
 
 export const isProduction = env.NODE_ENV === 'production';

@@ -33,6 +33,7 @@ import {
   type PostedMessage,
 } from '../modules/conversations/service.js';
 import { AppError } from '../lib/errors.js';
+import { createCallSignalling, type CallSignallingOptions } from './calls.js';
 
 /// How often to re-check that every connected socket's session is still live.
 /// The window this leaves is the longest a revoked session can keep receiving.
@@ -50,7 +51,12 @@ export interface Realtime {
   close(): Promise<void>;
 }
 
-export function attachRealtime(app: FastifyInstance): Realtime {
+export interface RealtimeOptions {
+  /// Passed through to the call signalling. Tests shorten the ring.
+  calls?: CallSignallingOptions;
+}
+
+export function attachRealtime(app: FastifyInstance, options: RealtimeOptions = {}): Realtime {
   const io = new Server(app.server, {
     cors: { origin: [env.APP_URL], credentials: true },
     // The client's own outbox handles retries and ordering, so a slow reconnect
@@ -66,6 +72,11 @@ export function attachRealtime(app: FastifyInstance): Realtime {
   /// fire a presence query per user against a pool that is about to close -
   /// and "everyone went offline" is not news anyone is still connected to hear.
   let closing = false;
+
+  /// Voice call signalling: who is ringing whom, and the relay of SDP and ICE
+  /// between the two. Its own file, because it is a state machine of its own
+  /// and this one is long enough (realtime/calls.ts).
+  const calls = createCallSignalling(io, options.calls);
 
   io.use(async (socket, next) => {
     const token = tokenFrom(socket);
@@ -87,10 +98,11 @@ export function attachRealtime(app: FastifyInstance): Realtime {
   });
 
   io.on('connection', (socket) => {
-    const { userId } = socket.data as SocketData;
+    const { userId, sessionId } = socket.data as SocketData;
 
     void socket.join(userId);
     void markOnline(userId, true);
+    calls.attach(socket, userId, sessionId);
 
     socket.on('message:send', async (payload: unknown, ack?: (result: unknown) => void) => {
       try {
@@ -165,6 +177,10 @@ export function attachRealtime(app: FastifyInstance): Realtime {
 
     socket.on('disconnect', () => {
       void markOnline(userId, false);
+      // A caller who closes the tab mid-ring must not leave a phone ringing,
+      // and a party who drops out of a connected call must not leave the other
+      // side talking to nobody.
+      calls.detach(socket);
     });
   });
 
@@ -222,6 +238,7 @@ export function attachRealtime(app: FastifyInstance): Realtime {
     async close() {
       closing = true;
       clearInterval(sweep);
+      calls.close();
       await io.close();
     },
   };

@@ -14,6 +14,8 @@ import { conversationRoutes } from './modules/conversations/routes.js';
 import { friendRoutes } from './modules/friends/routes.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { keysRoutes } from './modules/keys/routes.js';
+import { callsRoutes } from './modules/calls/routes.js';
+import { createIceProvider, type IceProvider } from './modules/calls/ice.js';
 import type { PostedMessage } from './modules/conversations/service.js';
 
 export interface BuildOptions {
@@ -29,6 +31,10 @@ export interface BuildOptions {
   /// in index.ts; absent here so the HTTP API can be built and tested with no
   /// socket at all.
   deliver?: (message: PostedMessage) => void;
+
+  /// Mints STUN and TURN credentials for calls. Defaults to Cloudflare, or
+  /// STUN only when no TURN key is configured; tests hand in a fake.
+  ice?: IceProvider;
 }
 
 export async function buildApp(
@@ -164,6 +170,16 @@ export async function buildApp(
   await app.register(conversationRoutes, {
     prefix: '/conversations',
     deliver: options.deliver,
+  });
+  await app.register(callsRoutes, {
+    prefix: '/calls',
+    ice:
+      options.ice ??
+      createIceProvider({
+        keyId: env.TURN_KEY_ID,
+        apiToken: env.TURN_KEY_API_TOKEN,
+        log: app.log,
+      }),
   });
 
   return app;

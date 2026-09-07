@@ -125,7 +125,17 @@ the literal string `resend`.
 
 ### 1.3 Prove it works before anything depends on it
 
-From your dev machine, with `server/.env` temporarily pointed at Resend:
+From your dev machine. Set these five lines in `server/.env` — and **leave
+`MAIL_TRANSPORT=file` alone**, because both smoke scripts need it and this
+script does not consult it:
+
+```ini
+SMTP_HOST=smtp.resend.com
+SMTP_PORT=587
+SMTP_USER=resend
+SMTP_PASSWORD=re_your_key_here
+MAIL_FROM="Cipher <no-reply@findiepman.dev>"
+```
 
 ```bash
 cd server

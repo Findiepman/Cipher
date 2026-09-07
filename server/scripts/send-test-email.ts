@@ -48,7 +48,7 @@ async function writePreviews(): Promise<void> {
 
 async function main(): Promise<void> {
   console.log('');
-  console.log(`  MAIL_TRANSPORT  ${env.MAIL_TRANSPORT}`);
+  console.log(`  MAIL_TRANSPORT  ${env.MAIL_TRANSPORT}  (this script bypasses it)`);
   console.log(`  MAIL_FROM       ${env.MAIL_FROM}`);
   console.log(`  APP_URL         ${env.APP_URL}`);
 
@@ -69,10 +69,25 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  if (env.MAIL_TRANSPORT !== 'smtp') {
+  // Deliberately NOT gated on MAIL_TRANSPORT. This script builds an SmtpMailer
+  // directly, so it can prove the relay works while the app is still on the
+  // `file` transport - which matters because both smoke scripts require
+  // `file`, and demanding a config change in order to run a test is how you
+  // end up testing a configuration you then revert.
+  //
+  // What does need checking is that SMTP_* points somewhere real: aimed at
+  // Mailpit this 'succeeds' without anything leaving the machine, which is
+  // the one outcome worse than failing.
+  const looksLocal =
+    env.SMTP_PORT === 1025 ||
+    ['localhost', '127.0.0.1', '::1', 'mailpit'].includes(env.SMTP_HOST);
+
+  if (looksLocal) {
     console.error(
-      `\n  MAIL_TRANSPORT is "${env.MAIL_TRANSPORT}", so nothing would leave this` +
-        '\n  machine. Set MAIL_TRANSPORT=smtp with real credentials and rerun.\n',
+      `\n  SMTP points at ${env.SMTP_HOST}:${env.SMTP_PORT}, which is a local mail` +
+        '\n  catcher. Nothing would leave this machine and the test would pass' +
+        '\n  anyway. Point SMTP_HOST/PORT/USER/PASSWORD at the real provider\'s' +
+        '\n  settings first - MAIL_TRANSPORT can stay exactly as it is.\n',
     );
     process.exit(2);
   }

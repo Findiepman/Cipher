@@ -69,6 +69,12 @@ inside the app: bad credentials (caught by an SMTP `verify`, before anything is
 sent) and a rejected message (usually a `MAIL_FROM` on a domain the provider
 has not verified, which only ever surfaces at send time).
 
+It builds an `SmtpMailer` directly and **ignores `MAIL_TRANSPORT`**, so you can
+point `SMTP_*` at a real provider and still leave the transport on `file` for
+the smoke scripts. It refuses to run against `localhost:1025`, because aimed at
+Mailpit it would report success without anything leaving the machine — the one
+outcome worse than failing.
+
 Run it before deploying. Verification is required before login, so if mail does
 not send, nobody can create an account — including you. `../DEPLOY.md` covers
 the provider and DNS setup.

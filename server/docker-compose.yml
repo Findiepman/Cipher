@@ -1,3 +1,12 @@
+# DEVELOPMENT ONLY - do not run this on the server.
+#
+# It publishes 5432, 1025 and 8025 on the host and uses fixed container names,
+# so on a machine that already runs other services it will collide. It assumes
+# a laptop with nothing else on those ports.
+#
+# The deployable stack is ../deploy/docker-compose.prod.yml, which publishes no
+# host ports at all - see ../DEPLOY.md.
+
 services:
   postgres:
     image: postgres:17-alpine

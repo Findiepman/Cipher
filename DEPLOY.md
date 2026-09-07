@@ -40,6 +40,34 @@ Four containers, **no published ports and no inbound firewall rule**.
 the box needs no static IP, no port forwarding, and works behind CGNAT.
 Postgres is reachable only from the other containers.
 
+### It does not take port 80, or any host port
+
+Worth stating outright if the box already runs other services. Nothing in
+`docker-compose.prod.yml` has a `ports:` mapping. The `:80` in
+`deploy/Caddyfile` is inside the web container's own network namespace, and
+`cloudflared` reaches it as `web:80` over the private `cipher_default` Docker
+network. The host's port 80 is never bound, and neither is 443, 3000 or 5432 —
+so an existing reverse proxy, or a Postgres already running on the host, is
+untouched.
+
+Everything is namespaced under the compose project `cipher`: containers are
+`cipher-web-1` and friends, the network is `cipher_default`, the volume is
+`cipher_pgdata`. No fixed `container_name` anywhere, so nothing can collide
+with a container you already have.
+
+**Do not run `server/docker-compose.yml` on the box.** That one is the
+development stack — it publishes 5432, 1025 and 8025 and uses fixed container
+names, so it *would* collide. It exists for a laptop with nothing else running.
+
+The one case where a host port would matter is reaching the app over the LAN
+without going through Cloudflare. That needs an explicit mapping on a port you
+know is free, added to the `web` service:
+
+```yaml
+    ports:
+      - "8080:80"     # pick anything free; 80 is not required
+```
+
 One hostname serves everything: Caddy serves the built client at `/` and
 proxies the API prefixes and `/socket.io` to Fastify. That is not tidiness.
 Same-origin is what keeps the auth cookies first-party and makes `SameSite=Lax`

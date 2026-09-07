@@ -8,13 +8,18 @@ about calls. It follows the same convention as
 and [`settings-plan.md`](settings-plan.md): a plan that gets edited as it is
 executed, not a record of what was decided.
 
-**Where it stands, 2026-09-07:** stages 0 to 4 are built and covered by tests
-(42 server, 45 client). Where the code differs from the plan below, the plan
-has been edited to say what was built and why. What has not happened yet is a
-real call between two browsers: every test runs against fakes or a loopback
-socket, and WebRTC is exactly the kind of thing that passes those and fails in
-a room. Walk one through on the live site before trusting any of it. Stages 5
-and 6 are untouched.
+**Where it stands, 2026-09-07:** stages 0 to 4 are built, covered by tests
+(42 server, 45 client) and walked through for real on the live site: a call
+between two browsers, and one from a phone, both connected with audio a little
+below Discord's. Where the code differs from the plan below, the plan has been
+edited to say what was built and why. Stages 5 and 6 are untouched.
+
+One thing the phone taught: WebRTC plays through the loudspeaker, and the web
+has almost no say in it. `setSinkId` does not exist on iOS Safari at all, and
+on Android only Chrome lists "Earpiece" and "Speakerphone" as outputs a page
+may choose between. The call bar therefore shows an earpiece toggle only on a
+phone whose browser names both, and nothing anywhere else, because a switch
+that does nothing is worse than none.
 
 ---
 
@@ -261,7 +266,7 @@ for.
 Opus is the default audio codec everywhere and needs no configuration. Resist
 touching the SDP to tune it.
 
-## Stage 4: the UI. Done, unwalked.
+## Stage 4: the UI. Done.
 
 Ember palette, `--ember` as the only interactive colour, nothing flush against
 anything else. Hanging up is ember, not red: red is a message that would not
@@ -343,11 +348,14 @@ needs its own merge into the message list. Lean towards the separate table.
   the first thing to add if this bites.
 - **Every test here runs against fakes or a loopback socket.** The server
   suite relays hand-written SDP strings; the engine suite drives a fake
-  RTCPeerConnection that fires `negotiationneeded` on the browser's rule. What
-  none of them proves is that two Chromes agree on the result. Until a real
-  call has been walked through on the live site, with the mic permission
-  prompt, a real network and a second browser profile, treat stages 3 and 4 as
-  compiled, not shipped.
+  RTCPeerConnection that fires `negotiationneeded` on the browser's rule. The
+  first real call, on the live site on 2026-09-07, is what proved two Chromes
+  agree; anything that changes negotiation wants that walk-through again.
+- **A phone plays calls through the loudspeaker, and only Android Chrome lets
+  a page change that.** The earpiece toggle is a label match on the output
+  device list ("Earpiece", "Speakerphone") behind `setSinkId`, and it is hidden
+  when there is nothing to match. iOS Safari has no `setSinkId`, so an iPhone
+  keeps the loudspeaker until Apple ships one.
 - **The desktop shell may not be able to do this.** `desktop/` is empty, but when
   it lands, WebRTC support depends on the webview: WebView2 on Windows is
   Chromium and fine, WKWebView on macOS is limited and WebKitGTK on Linux

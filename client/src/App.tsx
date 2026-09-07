@@ -34,7 +34,12 @@ import './styles/app.css';
 
 export default function App() {
   const [view, setView] = useState<View>('direct');
-  const [hidden, setHidden] = useState(false);
+  // Open beside the conversation on a wide window. On a narrow one the column
+  // has nowhere to sit, so it starts closed and the header's Profile button
+  // opens it as a sheet over the conversation (app.css).
+  const [hidden, setHidden] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 1100px)').matches,
+  );
   const [pinnedUserId, setPinnedUserId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
 

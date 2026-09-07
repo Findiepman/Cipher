@@ -22,7 +22,7 @@ import { useChat } from '../state/ChatProvider';
 import { useSettings } from '../state/SettingsProvider';
 import type { User } from '../types';
 import { Avatar } from './Avatar';
-import { CloseIcon, MicIcon, MicOffIcon, PhoneIcon, PhoneOffIcon } from './Icons';
+import { CloseIcon, MicIcon, MicOffIcon, PhoneIcon, PhoneOffIcon, SpeakerIcon } from './Icons';
 import '../styles/call.css';
 
 export function CallPanel() {
@@ -46,7 +46,7 @@ function IncomingCall({ peer }: { peer: User | undefined }) {
   return (
     <div className="call call--ringing" role="alertdialog" aria-label={`${name} is calling`}>
       <div className="call__who">
-        {peer && <Avatar user={peer} size={40} />}
+        {peer && <Avatar user={peer} size={52} />}
         <div className="call__names">
           <span className="call__name">{name}</span>
           <span className="call__status">is calling</span>
@@ -69,7 +69,7 @@ function IncomingCall({ peer }: { peer: User | undefined }) {
 /* -------------------------------------------------------------- in call --- */
 
 function InCall({ call, peer }: { call: CallSnapshot; peer: User | undefined }) {
-  const { hangUp, toggleMuted, setTalking, dismiss } = useCall();
+  const { hangUp, toggleMuted, setTalking, dismiss, outputRoute, toggleOutputRoute } = useCall();
   const { settings } = useSettings();
   const name = peer?.name ?? 'Unknown';
   const ended = call.phase === 'ended';
@@ -78,7 +78,7 @@ function InCall({ call, peer }: { call: CallSnapshot; peer: User | undefined }) 
   return (
     <div className={`call${ended ? ' call--ended' : ''}`} role="status" aria-live="polite">
       <div className="call__who">
-        {peer && <Avatar user={peer} size={36} />}
+        {peer && <Avatar user={peer} size={44} />}
         <div className="call__names">
           <span className="call__name">{name}</span>
           <span className="call__status">
@@ -120,6 +120,21 @@ function InCall({ call, peer }: { call: CallSnapshot; peer: User | undefined }) 
             </button>
           )}
 
+          {/* Phones only, and only where the browser lets a page pick the
+              output. Pressed means the loudspeaker is on. */}
+          {outputRoute && (
+            <button
+              type="button"
+              className={`call__round${outputRoute === 'speaker' ? ' call__round--active' : ''}`}
+              onClick={toggleOutputRoute}
+              aria-pressed={outputRoute === 'speaker'}
+              aria-label={outputRoute === 'speaker' ? 'Switch to earpiece' : 'Switch to speaker'}
+              title={outputRoute === 'speaker' ? 'Switch to earpiece' : 'Switch to speaker'}
+            >
+              <SpeakerIcon size={17} />
+            </button>
+          )}
+
           <button
             type="button"
             className={`call__round${call.muted ? ' call__round--active' : ''}`}
@@ -128,7 +143,7 @@ function InCall({ call, peer }: { call: CallSnapshot; peer: User | undefined }) 
             aria-label={call.muted ? 'Unmute' : 'Mute'}
             title={call.muted ? 'Unmute' : 'Mute'}
           >
-            {call.muted ? <MicOffIcon size={16} /> : <MicIcon size={16} />}
+            {call.muted ? <MicOffIcon size={18} /> : <MicIcon size={18} />}
             <span
               className={`call__level${call.transmitting ? ' call__level--on' : ''}`}
               aria-hidden
@@ -142,7 +157,7 @@ function InCall({ call, peer }: { call: CallSnapshot; peer: User | undefined }) 
             aria-label={call.phase === 'calling' ? 'Cancel call' : 'Hang up'}
             title={call.phase === 'calling' ? 'Cancel call' : 'Hang up'}
           >
-            <PhoneOffIcon size={16} />
+            <PhoneOffIcon size={18} />
           </button>
         </div>
       )}

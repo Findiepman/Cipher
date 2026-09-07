@@ -11,10 +11,10 @@
   z-index: 60;
   display: flex;
   align-items: center;
-  gap: 18px;
-  min-width: 300px;
-  max-width: 440px;
-  padding: 12px 14px 12px 16px;
+  gap: 20px;
+  min-width: 360px;
+  max-width: 480px;
+  padding: 16px 18px 16px 20px;
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   background: var(--bg-panel);
@@ -40,9 +40,17 @@
   bottom: auto;
   flex-direction: column;
   align-items: stretch;
-  gap: 14px;
-  padding: 16px;
+  gap: 18px;
+  padding: 20px;
   border-color: var(--ember);
+}
+.call--ringing .call__actions {
+  justify-content: stretch;
+}
+.call--ringing .call__btn {
+  flex: 1 1 0;
+  justify-content: center;
+  height: 42px;
 }
 
 .call--ended {
@@ -65,7 +73,7 @@
 }
 
 .call__name {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-hi);
   white-space: nowrap;
@@ -74,7 +82,7 @@
 }
 
 .call__status {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-mute);
   line-height: 1.4;
 }
@@ -139,11 +147,11 @@
    decrypt, and ending a call is not a failure. */
 .call__round {
   position: relative;
-  width: 36px;
-  height: 36px;
+  width: 42px;
+  height: 42px;
   display: grid;
   place-items: center;
-  border-radius: 18px;
+  border-radius: 21px;
   border: 1px solid var(--line);
   color: var(--text);
   transition:
@@ -179,10 +187,10 @@
    "can they hear me", and that is a yes or a no. */
 .call__level {
   position: absolute;
-  right: -1px;
-  bottom: -1px;
-  width: 9px;
-  height: 9px;
+  right: 0;
+  bottom: 0;
+  width: 10px;
+  height: 10px;
   border-radius: 5px;
   background: var(--text-faint);
   box-shadow: 0 0 0 2px var(--bg-panel);
@@ -192,21 +200,7 @@
   background: var(--ember);
 }
 
-/* The header's note that this conversation is the one on the call. */
-.chat-header__call {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 30px;
-  padding: 0 12px;
-  border-radius: 15px;
-  border: 1px solid var(--ember);
-  color: var(--ember);
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
+/* The dot in the header's "In a call" pill. */
 .chat-header__call-dot {
   width: 6px;
   height: 6px;
@@ -218,7 +212,11 @@
   .call {
     right: 10px;
     left: 10px;
+    bottom: 12px;
     min-width: 0;
     max-width: none;
+  }
+  .call--ringing {
+    top: 10px;
   }
 }

@@ -302,6 +302,15 @@ export class CallEngine {
     this.applyGate();
   }
 
+  /**
+   * Route this call's audio to a particular output, for the life of the call.
+   * The phone's earpiece and speaker toggle lives on this; the settings screen
+   * choice still applies to the next call.
+   */
+  setOutputDevice(deviceId: string | null): void {
+    void this.output?.setSink(deviceId);
+  }
+
   /** Take the "call ended" notice down early. */
   dismiss(): void {
     if (this.snapshot.phase === 'ended') this.reset();

@@ -31,10 +31,12 @@ import { createCallSealer } from '../lib/call/sealing';
 import { IDLE_CALL, type CallMedia, type CallSnapshot } from '../lib/call/types';
 import { keyManager as defaultKeyManager, type KeyManager } from '../lib/session/keyManager';
 import {
+  canChooseOutput,
   createAudioOutput,
   createInputChain,
   createLevelMeter,
   isSupported,
+  listDevices,
   openMicrophone,
 } from '../lib/media/devices';
 import { useChat } from './ChatProvider';
@@ -54,7 +56,16 @@ export interface CallContextValue {
   setTalking: (talking: boolean) => void;
   /** Take the "call ended" notice down early. */
   dismiss: () => void;
+  /**
+   * Where a phone plays the call: its earpiece or its loudspeaker. Null when
+   * the browser offers no such choice, which is every phone browser but
+   * Chrome on Android, and every desktop.
+   */
+  outputRoute: OutputRoute | null;
+  toggleOutputRoute: () => void;
 }
+
+export type OutputRoute = 'speaker' | 'earpiece';
 
 const CallContext = createContext<CallContextValue | null>(null);
 
@@ -70,6 +81,23 @@ const browserMedia: CallMedia = {
 function callsSupported(): boolean {
   return typeof RTCPeerConnection !== 'undefined' && isSupported();
 }
+
+/// A phone, as far as CSS can tell: a coarse pointer and a narrow window.
+function isPhone(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(pointer: coarse) and (max-width: 820px)').matches
+  );
+}
+
+/**
+ * Android Chrome names its outputs "Earpiece" and "Speakerphone" (and a wired
+ * or Bluetooth headset when one is plugged in). No standard says so, which is
+ * why this is a label match and why it fails soft: no match, no toggle.
+ */
+const EARPIECE = /earpiece|receiver|handset/i;
+const SPEAKER = /speaker/i;
 
 export function CallProvider({
   children,
@@ -155,6 +183,40 @@ export function CallProvider({
     useCallback(() => engine?.current ?? IDLE_CALL, [engine]),
   );
 
+  // Earpiece or loudspeaker, on a phone. The device list only carries labels
+  // once the microphone has been granted, so it is read when the call is up,
+  // not before. Nothing here can tell where the browser is playing right now;
+  // phones start on the loudspeaker for WebRTC, so that is the assumption
+  // until the toggle is pressed.
+  const [routes, setRoutes] = useState<{ earpiece: string; speaker: string } | null>(null);
+  const [outputRoute, setOutputRoute] = useState<OutputRoute>('speaker');
+  const inCall = call.phase === 'connecting' || call.phase === 'connected';
+
+  useEffect(() => {
+    if (!inCall || !isPhone() || !canChooseOutput()) {
+      setRoutes(null);
+      setOutputRoute('speaker');
+      return;
+    }
+    let live = true;
+    void listDevices().then(({ speakers }) => {
+      if (!live) return;
+      const earpiece = speakers.find((device) => EARPIECE.test(device.label));
+      const speaker = speakers.find((device) => SPEAKER.test(device.label));
+      setRoutes(earpiece && speaker ? { earpiece: earpiece.id, speaker: speaker.id } : null);
+    });
+    return () => {
+      live = false;
+    };
+  }, [inCall]);
+
+  const toggleOutputRoute = useCallback(() => {
+    if (!engine || !routes) return;
+    const next: OutputRoute = outputRoute === 'speaker' ? 'earpiece' : 'speaker';
+    engine.setOutputDevice(routes[next]);
+    setOutputRoute(next);
+  }, [engine, routes, outputRoute]);
+
   // Push to talk. Only while in a call and only in that mode, so the key
   // means nothing the rest of the time.
   const pushToTalk =
@@ -204,8 +266,10 @@ export function CallProvider({
       toggleMuted: () => engine?.toggleMuted(),
       setTalking: (talking) => engine?.setTalking(talking),
       dismiss: () => engine?.dismiss(),
+      outputRoute: routes ? outputRoute : null,
+      toggleOutputRoute,
     }),
-    [call, engine, supported],
+    [call, engine, supported, routes, outputRoute, toggleOutputRoute],
   );
 
   return <CallContext.Provider value={value}>{children}</CallContext.Provider>;

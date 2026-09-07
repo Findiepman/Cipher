@@ -11,8 +11,9 @@ with the whole of `backend-plan.md` step 2 and CSRF, which is step 6. Three
 of the four items this file listed as next steps are now done. All of it has
 since been walked through by hand in a browser and works. The fourth pass is
 voice calls, stages 1 to 4 of [`voice-plan.md`](voice-plan.md): signalling,
-TURN credentials, a call engine and the UI for it, all tested and **none of it
-yet walked through in a browser**. What is left is parked on purpose rather
+TURN credentials, a call engine and the UI for it, tested and then walked
+through for real: a call between two browsers on the live site, and one on a
+phone, both connected and carried audio. What is left is parked on purpose rather
 than forgotten: the account endpoints behind settings and the backup cron on
 the box.
 
@@ -113,14 +114,16 @@ most likely to break silently (`components/ContextMenu.test.tsx`,
 `client/src/state/ChatProvider.tsx` or the screens wants a human to look at it
 again.
 
-**Voice calls are the exception to "nothing is shipped unseen."** The
-signalling has 42 server tests over a real socket and the engine has 36 over a
-fake RTCPeerConnection, but no call has yet been placed between two browsers.
-WebRTC is the one part of this app where that gap matters most: permission
-prompts, autoplay, ICE across two real NATs and the TURN key on the box are all
-things a fake cannot fail. Walk one through before calling it done, with two
-browser profiles and the mic test in settings first (see *Reasonable next
-steps*).
+**Voice calls have been placed for real.** The signalling has 42 server tests
+over a real socket and the engine has 36 over a fake RTCPeerConnection, and on
+2026-09-07 a call was walked through on the live site between two browsers and
+again from a phone: both connected, both carried audio, with quality reported
+as a little below Discord's. Two things a phone showed: WebRTC plays through
+the loudspeaker by default, and no phone browser lets a page pick the
+earpiece except Chrome on Android, so the earpiece toggle in the call bar
+appears only where that works. The profile button also did nothing on a phone,
+because the profile column was simply hidden below 1100px; it opens as a sheet
+there now.
 
 **Settings is a screen in front of endpoints that do not exist.** Seven
 sections render and three of them work end to end (Appearance, Voice & video,
@@ -642,14 +645,11 @@ they are known, planned and not being done yet.
    dump, rehearses restoring it, and installs the cron entry only if all three
    worked. Parked for now, but note what parking it costs: it is the only
    outstanding item where the price of leaving it is losing everything.
-3. **Place a real call.** Stages 1 to 4 of [`voice-plan.md`](voice-plan.md)
-   are built and tested against fakes; nothing has rung a real browser. In
-   this order: run the mic test in settings on the live site (it proves the
-   `Permissions-Policy` fix), create a TURN key and put it in `deploy/.env`
-   (`DEPLOY.md` → *Voice calls*), redeploy, then call between two browser
-   profiles on two networks. Watch for autoplay refusing the remote audio, a
-   suspended `AudioContext` and ICE never leaving `checking`. Then stage 5,
-   call records, which is the first thing in the plan that touches the schema.
+3. **Call records.** Calls work; a missed one leaves no trace. Stage 5 of
+   [`voice-plan.md`](voice-plan.md) is the first thing in it that touches the
+   schema, and the plan leans towards a separate `Call` table over a message
+   variant. Check the TURN key is in `deploy/.env` on the box first if calls
+   across two networks ever fail (`DEPLOY.md` → *Voice calls*).
 4. **Phase 2 encryption.** DMs now work end to end in phase 1, which
    `AGENTS.md` names as the precondition. The registry and the envelope model
    are already in place, so this is `encryptMessage`/`decryptMessage` plus the

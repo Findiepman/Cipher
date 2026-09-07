@@ -82,21 +82,22 @@ export function ChatHeader({
             one. Where the call itself is controlled is the floating panel;
             this is only so the conversation says what it is doing. */}
         {callState === 'here' ? (
-          <span className="chat-header__call" role="status">
+          <span className="chat-header__action chat-header__action--live" role="status">
             <span className="chat-header__call-dot" aria-hidden />
-            In a call
+            <span className="chat-header__action-label">In a call</span>
           </span>
         ) : (
           onCall && (
             <button
               type="button"
-              className="icon-button icon-button--framed"
+              className="chat-header__action"
               onClick={onCall}
               disabled={callState === 'elsewhere'}
-              title={callState === 'elsewhere' ? 'Already in a call' : 'Call'}
+              title={callState === 'elsewhere' ? 'Already in a call' : `Call ${channel.name}`}
               aria-label={callState === 'elsewhere' ? 'Already in a call' : `Call ${channel.name}`}
             >
-              <PhoneIcon size={16} />
+              <PhoneIcon size={17} />
+              <span className="chat-header__action-label">Call</span>
             </button>
           )
         )}
@@ -104,15 +105,14 @@ export function ChatHeader({
         {onToggleProfile && (
           <button
             type="button"
-            className={`icon-button icon-button--framed${
-              profileOpen ? ' icon-button--active' : ''
-            }`}
+            className={`chat-header__action${profileOpen ? ' chat-header__action--active' : ''}`}
             onClick={onToggleProfile}
             aria-pressed={profileOpen}
             title={profileOpen ? 'Hide profile' : 'Show profile'}
             aria-label={profileOpen ? 'Hide profile' : 'Show profile'}
           >
-            <ProfileIcon size={16} />
+            <ProfileIcon size={17} />
+            <span className="chat-header__action-label">Profile</span>
           </button>
         )}
       </div>

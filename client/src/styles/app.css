@@ -47,9 +47,32 @@
   overflow-y: auto;
 }
 
+/* No room for a third column: the same card slides in over the conversation
+   as a sheet instead, and only when asked for (App.tsx starts it closed). Its
+   own close button takes it away again. */
 @media (max-width: 1100px) {
   .panel--profile {
-    display: none;
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(360px, 100%);
+    z-index: 50;
+    border-radius: 0;
+    border-width: 0 0 0 1px;
+    box-shadow: -18px 0 48px rgba(0, 0, 0, 0.4);
+    animation: profile-in 180ms ease-out;
+  }
+}
+
+@keyframes profile-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
   }
 }
 

@@ -1,0 +1,82 @@
+{
+	# Cloudflare terminates TLS at the edge and the tunnel carries the request
+	# to this container over the Docker network, so Caddy must not try to get a
+	# certificate of its own: there is no inbound 80/443 for an ACME challenge
+	# to arrive on, and it would retry forever.
+	auto_https off
+	admin off
+}
+
+:80 {
+	encode zstd gzip
+
+	# Everything Fastify owns, matched at its real prefixes rather than moved
+	# under a single /api. That is deliberate: the refresh cookie is scoped to
+	# Path=/auth (server/src/lib/cookies.ts), so mounting the API at /api/auth
+	# would mean the browser never attaches it to /api/auth/refresh and every
+	# session would die after 15 minutes in a way that looks like a token bug.
+	#
+	# Adding a server module means adding it here. The SPA only ever navigates
+	# to / and /verify-email, so there is nothing to collide with.
+	@api path /auth /auth/* /account /account/* /friends /friends/* /keys /keys/* /conversations /conversations/* /health /health/* /socket.io /socket.io/*
+
+	handle @api {
+		reverse_proxy server:3000 {
+			# Fastify runs with trustProxy in production, which means it reads
+			# the client IP from the LEFTMOST X-Forwarded-For entry - and a
+			# caller can put anything there. cloudflared appends the real
+			# address, it does not sanitise what arrived, so without this line
+			# the per-IP rate limits on /auth/* are trivially evaded by sending
+			# a made-up X-Forwarded-For.
+			#
+			# Cf-Connecting-Ip is set by Cloudflare's edge and cannot be
+			# spoofed by the client, so it replaces the header outright.
+			header_up X-Forwarded-For {http.request.header.Cf-Connecting-Ip}
+			header_up X-Real-IP {http.request.header.Cf-Connecting-Ip}
+
+			# Sockets stay open far longer than a request does.
+			transport http {
+				read_timeout 0
+				write_timeout 0
+			}
+		}
+	}
+
+	handle {
+		root * /srv
+
+		# The client app has no router: every path other than /verify-email is
+		# the same document, and /verify-email is matched by hand in
+		# AppRoot.tsx. A reload on it must therefore serve index.html, not 404.
+		try_files {path} /index.html
+		file_server
+	}
+
+	# The client loads nothing from anywhere else - no CDN, no web font, no
+	# analytics - so this can be as tight as it looks. server/src/app.ts turns
+	# helmet's CSP off precisely because the header belongs to whoever serves
+	# the HTML, which is here.
+	#
+	# 'wasm-unsafe-eval' is for libsodium: the crypto is WebAssembly, and
+	# without it key generation fails at signup with a console error and no
+	# visible cause. If a future libsodium build falls back to asm.js it would
+	# need 'unsafe-eval' instead - check the console before adding it, because
+	# that is a real weakening rather than a formality.
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+		Referrer-Policy "no-referrer"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Cross-Origin-Opener-Policy "same-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+		-Server
+	}
+
+	# Hashed asset filenames can be cached forever; index.html must never be,
+	# or a deploy ships new assets that nobody's browser asks for.
+	@immutable path /assets/*
+	header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+	@html path / /index.html
+	header @html Cache-Control "no-cache"
+}

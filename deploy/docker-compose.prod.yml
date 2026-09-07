@@ -1,0 +1,78 @@
+# Production stack for the Ubuntu mini PC.
+#
+#   cd deploy && docker compose -f docker-compose.prod.yml up -d --build
+#
+# or just ./deploy.sh, which does that plus the checks worth doing first.
+#
+# Secrets come from deploy/.env - that exact name, because compose reads it
+# automatically for BOTH the ${...} substitutions below and the server's
+# environment. Calling it .env.production would work only with an explicit
+# --env-file on every command, and forgetting that flag fails confusingly:
+# substitution silently produces empty strings.
+#
+# Nothing publishes a port. The only way in is the Cloudflare tunnel, which
+# dials OUT from cloudflared - so the box needs no inbound firewall rule, no
+# static IP and no port forwarding, and Postgres is reachable only from the
+# other containers on this network.
+
+name: cipher
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: messenger
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: messenger
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U messenger -d messenger"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  server:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Assembled here rather than written out in deploy/.env, so the
+      # database password exists in exactly one place.
+      DATABASE_URL: postgresql://messenger:${POSTGRES_PASSWORD}@postgres:5432/messenger?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # /health/ready touches the database, so this answers "can it serve
+      # traffic" rather than "is the process alive".
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  web:
+    build:
+      context: ..
+      dockerfile: client/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    # A remotely-managed tunnel: the hostname and the service it points at are
+    # configured in the Cloudflare dashboard, so this container needs nothing
+    # but the token. Point the public hostname at http://web:80.
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN in deploy/.env}
+    depends_on:
+      - web
+
+volumes:
+  pgdata:

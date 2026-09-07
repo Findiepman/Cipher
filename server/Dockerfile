@@ -1,0 +1,81 @@
+# syntax=docker/dockerfile:1
+#
+# Built from the REPO ROOT, not from server/:
+#
+#   docker build -f server/Dockerfile .
+#
+# There is one lockfile for the whole workspace, and `npm ci` is only
+# reproducible against all of it. deploy/docker-compose.prod.yml sets the
+# context accordingly.
+
+FROM node:22-bookworm-slim AS build
+WORKDIR /repo
+
+# Prisma's tooling wants OpenSSL and it is not in -slim.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
+
+# Manifests first, so this layer is cached until a dependency actually
+# changes. The prisma schema comes with them because server/'s postinstall
+# runs `prisma generate`, which needs the schema present *before* npm ci
+# rather than after it.
+COPY package.json package-lock.json ./
+COPY packages/crypto/package.json packages/crypto/
+COPY client/package.json client/
+COPY server/package.json server/
+COPY server/prisma server/prisma/
+COPY server/prisma.config.ts server/
+
+# prisma.config.ts resolves DATABASE_URL at load. Generating a client never
+# connects to anything, but the config still has to parse, so a syntactically
+# valid placeholder is enough. It is a build-stage value and is not carried
+# into the final image.
+ENV DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build
+RUN npm ci
+
+# npm hoists workspace dependencies to the root when it can, so whether
+# server/node_modules exists at all depends on version conflicts that differ
+# between platforms - and `COPY` fails outright on a path that is not there.
+# `prisma` currently lands in the workspace, but that is not a guarantee to
+# build on.
+RUN mkdir -p server/node_modules
+
+COPY packages/crypto packages/crypto/
+COPY server server/
+RUN npm run build --workspace @cipher/server
+
+# Everything the running server does not need, minus one exception: `prisma`
+# is a runtime dependency here because the container applies migrations on
+# start. See docker-entrypoint.sh.
+RUN npm prune --omit=dev
+
+
+FROM node:22-bookworm-slim AS runtime
+WORKDIR /repo
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
+
+ENV NODE_ENV=production
+
+COPY --from=build /repo/node_modules node_modules/
+COPY --from=build /repo/package.json ./
+COPY --from=build /repo/server/node_modules server/node_modules/
+COPY --from=build /repo/server/package.json server/
+COPY --from=build /repo/server/dist server/dist/
+COPY --from=build /repo/server/prisma server/prisma/
+COPY --from=build /repo/server/prisma.config.ts server/
+COPY server/docker-entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+WORKDIR /repo/server
+
+# node's own unprivileged user, already in the base image. Nothing here needs
+# to write to disk: mail goes to a relay and uploads do not exist.
+USER node
+
+EXPOSE 3000
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["node", "dist/index.js"]

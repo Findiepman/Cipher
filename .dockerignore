@@ -1,0 +1,22 @@
+# The build installs from the lockfile; a host node_modules would be both
+# wrong (Windows binaries) and enormous.
+node_modules
+**/node_modules
+dist
+**/dist
+.git
+.vite
+coverage
+
+# Secrets never enter an image layer. They arrive at run time, from
+# deploy/.env.production via compose.
+.env
+.env.*
+!.env.example
+!**/.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Development mail spool and rendered previews.
+server/.mail

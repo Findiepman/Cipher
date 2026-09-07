@@ -82,83 +82,19 @@ to sign the update package with. Two traps, both met on 2026-09-07:
   Bash `~/.tauri/cipher.key` (which is really `/c/Users/...`) is not found
   and the CLI reports "no private key".
 
-Only the platform you are on gets built; the workflow below is how the other
-two happen.
+Only the platform you are on gets built; the workflow described in
+`UPDATES.md` is how the other two happen.
 
-## Auto-update
+## Auto-update and releasing
 
-`tauri-plugin-updater`, driven from Rust in `main.rs`. A release build asks
-the endpoint once at start-up, and if a newer version exists it shows a native
-dialog. Accepting downloads the package, verifies its minisign signature
-against the public key in `tauri.conf.json`, installs it and restarts. A
-package that does not verify is never written, which is what the
-"auto-update must verify update package signatures" rule in `AGENTS.md`
-asks for. A debug build never checks.
-
-The endpoint is GitHub Releases:
-
-```
-https://github.com/Findiepman/Cipher/releases/latest/download/latest.json
-```
-
-GitHub Releases fits cleanly: the repository is public, the build workflow
-already has a token that can create releases, and `tauri-action` writes and
-merges `latest.json` across the platform jobs by itself. The one thing to
-know: `releases/latest` means the newest **published, non-prerelease** release
-of the whole repository, whatever it was for. Today the only releases are
-desktop ones, so that is right. If the repository ever starts publishing other
-kinds of release (server tags, say), switch the endpoint to a fixed tag such as
-`releases/download/desktop-latest/latest.json` and have the workflow move that
-tag, or host the JSON as a static file behind the site. Both are small
-changes; neither is worth doing before the problem exists.
-
-Update packages per platform: the NSIS installer on Windows, the `.app`
-tarball on macOS and the AppImage on Linux. **The `.deb` does not
-auto-update**; the plugin has no Linux path for it. Someone who installs the
-`.deb` sees the dialog and the install fails, so they need the AppImage or
-their package manager. That is a known gap, not a bug to file.
-
-## Releasing
-
-Versions live in `src-tauri/tauri.conf.json`. Keep `src-tauri/Cargo.toml` and
-`package.json` at the same number so nobody is confused, but the config file
-is the one Tauri reads.
-
-1. Bump `version` in `src-tauri/tauri.conf.json` (and the other two), commit,
-   push to `main`. That push builds all three platforms and leaves the
-   installers as workflow artifacts; it creates no release.
-2. Actions, `desktop`, Run workflow. This builds again and creates a **draft**
-   release `desktop-v<version>` with the installers, the `.sig` files and
-   `latest.json` attached.
-3. Look at the draft. Publish it. From that moment every installed release
-   build offers the update at its next start.
-
-Nothing reaches an installed app until step 3, so a bad build can simply be
-deleted as a draft.
-
-## The signing key
-
-The keypair was generated on 2026-09-07 with `tauri signer generate`, with
-**no password**. The private key is protected by where it lives, not by a
-passphrase:
-
-- `~/.tauri/cipher.key` on the maintainer's machine that generated it.
-- The GitHub Actions secret `TAURI_SIGNING_PRIVATE_KEY`, whose value is the
-  entire content of that file. `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` can be
-  left unset or empty. **Adding these secrets is still to do**; the workflow
-  will fail at the build step until they exist.
-- Nowhere else. Never in the repository (`.gitignore` here refuses `*.key`),
-  never in a `.env` file, never in a chat.
-
-The public half, `~/.tauri/cipher.key.pub`, is the `pubkey` string in
-`tauri.conf.json` and is safe to publish.
-
-If the private key is lost, generate a new pair, put the new public key in
-`tauri.conf.json` and ship. Apps already installed will refuse every update
-signed with the new key, since they trust the old one, so each person
-installs that one release by hand. If the private key is *leaked*, do the
-same thing quickly and revoke the GitHub secret. Set a password on the
-new key at that point.
+[`UPDATES.md`](UPDATES.md) is the whole story: how the updater works, the
+one-time secret setup, the release checklist, how to try an update without
+publishing one, what to do when it fails and how to rotate the key. The
+short version: bump `version` in `src-tauri/tauri.conf.json`, push, dispatch
+the `desktop` workflow, publish the draft release it makes. The private key
+is in `~/.tauri/cipher.key` on the machine that generated it and belongs in
+the `TAURI_SIGNING_PRIVATE_KEY` Actions secret, which **is not added yet**.
+Never commit it.
 
 ## Code signing: not set up
 

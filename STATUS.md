@@ -421,7 +421,8 @@ worse for this specific app.
     `releases/latest/download/latest.json`, which is GitHub's newest
     published non-prerelease release of the whole repository. That is right
     while desktop releases are the only kind; if another kind ever appears,
-    move to a fixed tag (`desktop/README.md` has the two options).
+    move to a fixed tag (`desktop/UPDATES.md` has the recipe, and the whole
+    release procedure).
 24. **The reset context endpoint is a POST, and it does not spend the token.**
     A GET would put a live credential in a query string, which is the part of
     a request that reliably reaches access logs and browser history. Not

@@ -1,6 +1,6 @@
 # AGENTS.md: desktop shell
 
-Read the root `AGENTS.md` first. This directory is the native desktop wrapper around `client/`. **The choice is Tauri 2**, made on 2026-09-07, and [`README.md`](README.md) here is the runbook: how to run it, build it, release it and where the keys live. This file is the rules.
+Read the root `AGENTS.md` first. This directory is the native desktop wrapper around `client/`. **The choice is Tauri 2**, made on 2026-09-07, and [`README.md`](README.md) here is the runbook for running and building it, with [`UPDATES.md`](UPDATES.md) for releasing, the updater and the signing key. This file is the rules.
 
 ## What it is
 
@@ -45,13 +45,13 @@ The rule from the root `AGENTS.md` still holds: the key must never be written to
 
 Built, with `tauri-plugin-updater`, signature verification on, the public key in `tauri.conf.json` and the private key in `~/.tauri/cipher.key` on the maintainer's machine and in the `TAURI_SIGNING_PRIVATE_KEY` GitHub Actions secret. **Never commit the private key.** The `.gitignore` here refuses `*.key` as a backstop, not as the rule.
 
-- The manifest is `latest.json` on the newest published GitHub release; `tauri-action` writes it. Publishing a draft release is the act of shipping an update. README has the release steps and the `releases/latest` caveat.
+- The manifest is `latest.json` on the newest published GitHub release; `tauri-action` writes it. Publishing a draft release is the act of shipping an update. UPDATES.md has the release checklist, the `releases/latest` caveat and the key rotation procedure.
 - Do not add a second endpoint, a fallback without signature checking or `dangerousInsecureTransportProtocol`. An update mechanism that a compromised server could use to push arbitrary code with access to the stored key is the exact failure this rule exists to prevent.
 - There are no OS code-signing certificates. README says plainly what that means on macOS and Windows. Do not paper over it in the docs or the release notes.
 
 ## Packaging
 
-- Bundles: NSIS on Windows, `.app` + `.dmg` on macOS, AppImage + `.deb` on Linux. The `.deb` cannot auto-update; that is documented in README rather than fixed.
+- Bundles: NSIS on Windows, `.app` + `.dmg` on macOS, AppImage + `.deb` on Linux. The `.deb` cannot auto-update; that is documented in UPDATES.md rather than fixed.
 - The workflow triggers only on pushes to `main` touching `desktop/` or itself, and on manual dispatch. A push builds and keeps workflow artifacts; a dispatch creates the draft release. Keep it that way: the server deploys on every push and the desktop does not.
 - Icons are generated from `client/public/logo.png` by `npm run icons`. Do not hand-edit `src-tauri/icons/`.
 

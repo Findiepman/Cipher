@@ -35,6 +35,16 @@ import './styles/auth.css';
  */
 const KNOWN_PATHS = new Set(['/', '/verify-email', '/reset-password']);
 
+/**
+ * Exported so the routing rule can be tested without mounting the app, which
+ * needs a session, a socket and a key. A trailing slash is the same address as
+ * far as anyone typing one is concerned.
+ */
+export function isKnownPath(pathname: string): boolean {
+  if (KNOWN_PATHS.has(pathname)) return true;
+  return pathname.endsWith('/') && KNOWN_PATHS.has(pathname.slice(0, -1));
+}
+
 /** No router yet: the two deep links that exist are matched by hand. */
 function readVerifyToken(): string | null {
   if (typeof window === 'undefined') return null;
@@ -79,7 +89,7 @@ export function AppRoot() {
 
   // Checked before the session states below: an address that does not exist is
   // not a reason to ask someone to sign in first.
-  if (typeof window !== 'undefined' && !KNOWN_PATHS.has(window.location.pathname)) {
+  if (typeof window !== 'undefined' && !isKnownPath(window.location.pathname)) {
     return <NotFoundScreen />;
   }
 

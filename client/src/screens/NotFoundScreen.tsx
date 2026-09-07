@@ -63,9 +63,12 @@ export function NotFoundScreen({ path, onHome }: Props) {
           )}
         </div>
 
+        {/* Worth saying, and worth saying without a claim attached: the point
+            is that a bad address is not a lost account. The UI does not
+            advertise encryption anywhere else (STATUS.md, decision 21) and a
+            404 is a poor place to start. */}
         <p className="not-found-foot">
-          Nothing was lost. Your conversations are still where you left them,
-          still encrypted.
+          Nothing was lost. Your conversations are still where you left them.
         </p>
       </div>
     </div>

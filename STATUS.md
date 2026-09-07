@@ -537,7 +537,9 @@ UI change twice.
 
 Pick one; they are roughly independent.
 
-0. **Finish the account endpoints behind settings.** In this order, because
+0. **Finish the account endpoints behind settings.** [`settings-plan.md`](settings-plan.md)
+   is the plan for this, section by section, with the traps written down.
+   The short version: in this order, because
    each is worth something on its own: `GET|DELETE /account/sessions[/:id]`
    (Devices & keys already lists them and the `Session` table already has
    `deviceLabel`, `ip`, `userAgent` and `lastUsedAt`), then `PATCH /account/me`

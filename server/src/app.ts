@@ -7,6 +7,7 @@ import { env, isProduction } from './env.js';
 import { AppError } from './lib/errors.js';
 import { createMailer, type Mailer } from './lib/mailer.js';
 import authPlugin from './plugins/auth.js';
+import csrfPlugin from './plugins/csrf.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { accountRoutes } from './modules/account/routes.js';
 import { conversationRoutes } from './modules/conversations/routes.js';
@@ -78,6 +79,9 @@ export async function buildApp(
   }
 
   await app.register(authPlugin);
+  // After the auth plugin, which is what registers the cookie parser: the
+  // CSRF hook reads request.cookies, and hooks run in registration order.
+  await app.register(csrfPlugin);
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {

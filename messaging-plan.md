@@ -5,7 +5,8 @@ onto a machine you own. Decided 2026-09-06, after `STATUS.md` listed messaging
 as the biggest remaining gap.
 
 > **Status: stages 0–7 are done.** DMs work end to end, proved by
-> `cd server && npm run smoke:messaging`. Stage 8 (self-hosting) is not started.
+> `cd server && npm run smoke:messaging`. Stage 8 (self-hosting) is written but
+> not yet deployed - see `DEPLOY.md`.
 > `STATUS.md` is the authority on what is true; this file is the plan.
 
 Follows [`AGENTS.md`](AGENTS.md) and [`stack.md`](stack.md).
@@ -314,17 +315,37 @@ Each stage is one or two commits, scoped to one workspace where possible.
 | 5 ✅ | Client: socketTransport, API wrappers, outbox persistence | Plumbing, no UI yet |
 | 6 ✅ | Client: ChatProvider, friends screens, de-mock `App.tsx` | The visible payoff |
 | 7 ✅ | Two-account smoke test + docs (`STATUS.md`, both `AGENTS.md`, `server/README.md`) | Keeps the handoff docs true |
-| 8 ⬜ | Hosting: Docker, Caddy, tunnel, deploy script, backups | Ship it |
+| 8 ✅ | Hosting: Docker, Caddy, tunnel, deploy script, backups | Ship it |
 
 Stages 2–4 are server-only and 5–6 are client-only, so they can be split between
 two people if you want.
 
 ## What I need from you
 
-- **A hostname.** A domain you own, or a Cloudflare Tunnel `*.trycloudflare.com`
-  for now.
-- **An SMTP provider + credentials**, per the blocker above.
-- Whether the mini PC has a public IP and router access, if you would rather
-  have Caddy + Let's Encrypt than a tunnel.
+All three are answered; the files are written and live under `deploy/`, with
+[`DEPLOY.md`](DEPLOY.md) as the runbook.
 
-None of these block stages 0–7. They are only needed at stage 8.
+| Question | Answer |
+|---|---|
+| A hostname | A subdomain of the domain on Cloudflare — `chat.<domain>` |
+| SMTP provider | **Resend.** SMTP username is the literal `resend`, password is the API key |
+| Public IP, or a tunnel? | **Cloudflare Tunnel**, as planned. No inbound ports |
+
+What stage 8 actually shipped, and where it differs from the sketch above:
+
+- **The API is proxied at its real prefixes** (`/auth`, `/friends`, …) rather
+  than under a single `/api`, which is what this document originally said. The
+  refresh cookie is scoped to `Path=/auth`, so moving the API under `/api`
+  would mean the browser never attaches it to `/api/auth/refresh` — every
+  session would die after 15 minutes, looking like a token bug.
+- **Caddy overwrites `X-Forwarded-For` with `Cf-Connecting-Ip`.** Fastify runs
+  with `trustProxy` in production and reads the leftmost entry; cloudflared
+  appends the real address rather than sanitising what arrived, so without that
+  line the per-IP limit on `/auth/*` is walked past with a forged header.
+- **The client build is same-origin** (`VITE_API_URL=` blank). That needed two
+  small client fixes — `new URL()` and socket.io both assumed an absolute base.
+- **Migrations run from the server container's entrypoint**, not `deploy.sh`,
+  so the schema is applied by the exact image about to serve it.
+
+Still true and still not done: phase 1 means the server stores readable message
+bodies, and the `pg_dump` backups contain them.

@@ -40,16 +40,47 @@ work as-is the day SVM Mode gets switched on (Advanced → CPU Configuration in
 the BIOS), and `npm run infra:up` will bring up Postgres plus Mailpit. Nothing
 in the app code cares which of the two you use — only `DATABASE_URL` changes.
 
-### Email in development
+### Email
 
-`MAIL_TRANSPORT=console` (the default in `.env.example`) prints each message to
-the server log instead of sending it, so the verification link is right there
-in the terminal — no mail server needed.
+Three transports, chosen with `MAIL_TRANSPORT`:
 
-Set `MAIL_TRANSPORT=smtp` to exercise the real send path. Pointed at the
-Mailpit container it delivers to http://localhost:8025; pointed at a real
-provider it sends for real. `console` is rejected outright when
-`NODE_ENV=production`, so live signups can never silently fail to send.
+| Value | What it does |
+|---|---|
+| `file` | Writes each message to `.mail/` **and prints the link to the console**. The default, and what both smoke scripts require. |
+| `console` | Prints the message and nothing else. |
+| `smtp` | Really sends. Mailpit at :1025 locally, or a real provider. |
+
+Anything but `smtp` is rejected outright when `NODE_ENV=production`, so a live
+signup can never silently fail to send.
+
+Only the newest verification email for an address works: issuing a token
+deletes the previous one, so older files in `.mail/` are dead links. That is
+why `file` prints to the console too.
+
+#### Checking the real send path
+
+```bash
+npm run mail:test -- you@example.com   # connect, authenticate, send one
+npm run mail:test -- --preview         # render both emails to .mail/, send nothing
+```
+
+`mail:test` separates the two failures that otherwise look identical from
+inside the app: bad credentials (caught by an SMTP `verify`, before anything is
+sent) and a rejected message (usually a `MAIL_FROM` on a domain the provider
+has not verified, which only ever surfaces at send time).
+
+Run it before deploying. Verification is required before login, so if mail does
+not send, nobody can create an account — including you. `../DEPLOY.md` covers
+the provider and DNS setup.
+
+#### Templates
+
+`src/lib/mailer.ts` holds them. They are written **text-first**, with the HTML
+rendered from the same words — the text part is what lands in `.mail/` and what
+the smoke scripts parse, so it has to stay self-sufficient, and a transactional
+message whose HTML says more than its text scores badly with spam filters.
+Styling is the Ember light palette inlined by hand, because email clients strip
+`<style>`.
 
 ## Trying it without a frontend
 

@@ -1,7 +1,7 @@
 # STATUS — where this project actually is
 
-Last updated **2026-09-06**, after DM messaging and the friend graph landed and
-were confirmed working by hand in the browser.
+Last updated **2026-09-07**, after the hosting layer and real SMTP landed.
+Nothing has been deployed yet — the files exist and are unbuilt.
 
 This file is the "get up to speed without reading everything" document. It says
 what works, what does not, and which decisions are load-bearing. Keep it
@@ -27,7 +27,9 @@ they accept, you get a conversation with live delivery over Socket.io, an
 offline queue, and a backlog on reconnect. **Encryption is still deliberately
 phase 1**, meaning `encryptMessage`/`decryptMessage` are base64 no-ops — so the
 server can currently read message bodies. Group servers/channels do not exist;
-DMs only.
+DMs only. **Mail sends for real now** (Resend over SMTP) and the whole
+self-hosting layer is written — Docker, Caddy, a Cloudflare Tunnel, backups —
+but none of it has been built or deployed yet.
 
 Two independent numbering schemes are in play and they are unrelated: *phase
 1/2* is the messaging-encryption axis (`AGENTS.md`), *steps 0–6* are the
@@ -50,8 +52,10 @@ account-work axis (`backend-plan.md`).
 | Live delivery, presence, typing, over Socket.io | `server/src/realtime/index.ts` |
 | Optimistic send, offline queue, reconnect backlog | `client/src/state/`, `client/src/lib/transport/` |
 | The chat UI itself: friends screen, DM list, composer | `client/src/App.tsx`, `client/src/screens/FriendsScreen.tsx` |
+| Transactional email, text + HTML, over a real relay | `server/src/lib/mailer.ts` |
+| Same-origin client build (blank `VITE_API_URL`) | `client/src/lib/config.ts` |
 
-195 tests pass: 28 crypto, 77 client, 90 server. `npm run typecheck` and
+196 tests pass: 28 crypto, 78 client, 90 server. `npm run typecheck` and
 `npm run build` are clean across all workspaces.
 
 **Adding a friend and exchanging messages were driven by hand in the browser on
@@ -80,11 +84,13 @@ Two end-to-end proofs, both against a running server over real HTTP:
   it. `ConversationParticipant.lastReadMessageId` exists in the schema and is
   never written, so nothing is ever marked read and the conversation list has
   no unread state.
-- **Hosting.** It runs on localhost only. `messaging-plan.md` stage 8 covers
-  the Ubuntu mini PC: Dockerfiles, Caddy, a Cloudflare Tunnel, a deploy script
-  and backups. **Real SMTP is the blocker there, not polish** — verification is
-  required before login, so until mail sends, nobody can create an account on
-  the box, including you. A residential IP cannot deliver mail directly.
+- **Hosting has never actually run.** Everything stage 8 asks for is written —
+  `server/Dockerfile`, `client/Dockerfile`, `deploy/` (compose, Caddyfile,
+  `deploy.sh`, `backup.sh`, `restore.sh`) and [`DEPLOY.md`](DEPLOY.md) as the
+  runbook — but **no image has ever been built and nothing is deployed**.
+  Docker cannot run on this dev machine (SVM disabled in BIOS), so the first
+  build of both images happens on the mini PC. Expect to fix something there;
+  treat the first deploy as part of the work, not as a formality.
 - **Most account endpoints.** `client/src/lib/api/endpoints.ts` calls a full
   API; the server implements a slice of it. Everything below 404s today:
   `POST /auth/forgot-password`, `/auth/reset-password`,
@@ -259,6 +265,21 @@ UI change twice.
   from a different input and they have no `Device` row. Re-register.
 - **Docker is unavailable on the dev machine** (SVM disabled in BIOS), so
   Postgres runs natively and Mailpit is not an option. See `server/README.md`.
+- **The production client build is same-origin, and that is a blank
+  `VITE_API_URL`, not an unset one.** Blank means "use relative paths"; unset
+  falls back to `http://localhost:3000` and the deployed app would quietly talk
+  to the user's own machine. `client/Dockerfile` sets it; don't "tidy" it away.
+- **`prisma` is a runtime dependency of `server/`, not a dev one.** The
+  container runs `prisma migrate deploy` on start, so it has to survive
+  `npm prune --omit=dev`. Moving it back breaks the image and only at boot.
+- **Caddy proxies the API at its real prefixes**, listed one by one in
+  `deploy/Caddyfile`. Adding a server module means adding it there too, or it
+  404s in production while working perfectly in development. The API is not
+  under `/api` because the refresh cookie is scoped to `Path=/auth`.
+- **The production env file must be named `deploy/.env`.** Compose reads that
+  name automatically for both `${...}` substitution and the server's
+  environment. Any other name needs `--env-file` on every command, and
+  forgetting it silently substitutes empty strings rather than failing.
 
 ---
 
@@ -266,10 +287,11 @@ UI change twice.
 
 Pick one; they are roughly independent.
 
-1. **Self-hosting** — `messaging-plan.md` stage 8. Dockerfiles, Caddy, a
-   Cloudflare Tunnel, a deploy script, nightly `pg_dump`. **Real SMTP is a
-   blocker, not polish**: verification is required before login, so if mail
-   does not send, nobody can create an account.
+1. **Actually deploy it.** The files are written; nothing has been run. Follow
+   [`DEPLOY.md`](DEPLOY.md) in order — mail and DNS first, because verification
+   is required before login and a box whose mail does not send is a box nobody
+   can register on. Both images get their first build on the mini PC, so budget
+   for fixing something.
 2. **Phase 2 encryption.** DMs now work end to end in phase 1, which
    `AGENTS.md` names as the precondition. The registry and the envelope model
    are already in place, so this is `encryptMessage`/`decryptMessage` plus the

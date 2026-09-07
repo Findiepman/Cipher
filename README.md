@@ -8,7 +8,7 @@ One npm workspace, four packages:
 | Path | What it is |
 |---|---|
 | `client/` | The React + Vite app. One UI codebase, built twice: as the web app, and wrapped by the desktop shell. |
-| `server/` | Fastify API, Postgres via Prisma. Accounts and auth so far — see [`backend-plan.md`](backend-plan.md). |
+| `server/` | Fastify API, Socket.io, Postgres via Prisma. Accounts and auth ([`backend-plan.md`](backend-plan.md)) plus friends and DMs ([`messaging-plan.md`](messaging-plan.md)). |
 | `packages/crypto/` | `@cipher/crypto`. The only place in the repo that calls libsodium. |
 | `desktop/` | The Tauri/Electron shell around `client/`'s build output. Not started. |
 
@@ -16,7 +16,8 @@ Read [`AGENTS.md`](AGENTS.md) before changing anything, then
 [`STATUS.md`](STATUS.md) for where the project actually is — what works, what is
 missing, and the decisions worth not undoing — then the `AGENTS.md` in the
 directory you are working in. [`stack.md`](stack.md) records why the stack is
-what it is.
+what it is, and [`DEPLOY.md`](DEPLOY.md) is the runbook for putting it on a
+server.
 
 ## Getting it running
 
@@ -107,17 +108,35 @@ That drives register → verify → login → refresh → reuse-detection over r
 HTTP, using the same `@cipher/crypto` calls the browser makes, and asserts the
 private key it generated comes back out of the server's blob unchanged.
 
+## Deploying it
+
+[`DEPLOY.md`](DEPLOY.md) is the runbook: Docker Compose on an Ubuntu box,
+Caddy serving the client and proxying the API on one hostname, a Cloudflare
+Tunnel for ingress, Resend for SMTP, and nightly `pg_dump`.
+
+```bash
+cp deploy/.env.example deploy/.env    # fill it in
+./deploy/deploy.sh
+```
+
+**Mail is a hard prerequisite, not polish.** Verification is required before
+login, so if mail does not send, nobody can create an account — including you.
+`cd server && npm run mail:test -- you@example.com` proves the relay works
+before anything depends on it.
+
 ## Still to build
 
+- **Group servers and channels.** DMs only. The message tables are generic
+  enough for groups, but the key model is not chosen — see
+  `packages/crypto/AGENTS.md`.
+- **Message editing, deletion, read receipts, attachments, search.** None of
+  it, and nothing is ever marked read.
 - **Account flows the client already implements but the server does not**:
   password reset, the recovery-code reset path, email change, the session list,
-  recovery-code rotation, account deletion, the device key registry
-  (`/keys/*`), and the admin API. `client/src/lib/api/endpoints.ts` calls all of
-  them; they 404 today.
-- **Messaging.** There are no message or channel tables yet, and no socket
-  layer. The chat UI behind the login screen still renders `data/mockData.ts`.
+  recovery-code rotation, account deletion, and the admin API.
+  `client/src/lib/api/endpoints.ts` calls all of them; they 404 today.
 - **CSRF.** The client sends `x-csrf-token` from a `csrf_token` cookie in cookie
   mode; the server never sets one, so the header is simply absent. Cross-site
-  POSTs are currently blocked by `SameSite=Lax` plus a CORS allowlist rather
-  than by a token.
+  POSTs are currently blocked by same-origin serving plus `SameSite=Lax` and a
+  CORS allowlist rather than by a token.
 - **Phase 2 encryption**, per `packages/crypto/AGENTS.md`.

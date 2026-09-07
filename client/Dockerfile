@@ -27,6 +27,28 @@ COPY server/prisma.config.ts server/
 ENV DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build
 RUN npm ci
 
+# The lockfile is generated on Windows, so it records only @rollup/rollup-win32-*
+# and @esbuild/win32-x64. `npm ci` installs exactly what the lockfile lists and
+# nothing else, so on Linux both packages arrive with no native binary and vite
+# dies with "Cannot find module @rollup/rollup-linux-x64-gnu" - npm/cli#4828.
+#
+# Rather than hardcode versions that would silently rot the next time vite
+# bumps rollup, ask the tree that npm ci just built what it actually installed,
+# and derive the platform triple from the machine doing the building. Both
+# packages demand an exact version match with their parent, so this has to be
+# read rather than guessed.
+RUN set -eux; \
+    case "$(uname -m)" in \
+      x86_64)  target=linux-x64 ;; \
+      aarch64) target=linux-arm64 ;; \
+      *) echo "unsupported build arch: $(uname -m)" >&2; exit 1 ;; \
+    esac; \
+    rollup_version="$(node -p "require('rollup/package.json').version")"; \
+    esbuild_version="$(node -p "require('esbuild/package.json').version")"; \
+    npm install --no-save --no-audit --no-fund \
+      "@rollup/rollup-${target}-gnu@${rollup_version}" \
+      "@esbuild/${target}@${esbuild_version}"
+
 COPY packages/crypto packages/crypto/
 COPY client client/
 

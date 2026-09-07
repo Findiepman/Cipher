@@ -50,6 +50,31 @@ RUN npm run build --workspace @cipher/server
 # start. See docker-entrypoint.sh.
 RUN npm prune --omit=dev
 
+# @node-rs/argon2 is a native module, and the lockfile is generated on Windows,
+# so it lists only @node-rs/argon2-win32-x64-msvc. `npm ci` installs exactly
+# what the lockfile says, which on Linux means argon2 arrives with no binding
+# for this platform - npm/cli#4828, the same bug that breaks rollup in
+# client/Dockerfile.
+#
+# This one is far more dangerous than the rollup case, because it fails at
+# RUN time rather than build time and not immediately: the image builds, the
+# server starts, and /health/ready passes because it only touches the database.
+# The first symptom is that nobody can register or log in, since argon2 hashes
+# the authVerifier on both paths.
+#
+# It must come AFTER `npm prune`, not before: prune removes anything absent
+# from package.json, and --no-save deliberately keeps it out of there.
+RUN set -eux; \
+    case "$(uname -m)" in \
+      x86_64)  target=linux-x64 ;; \
+      aarch64) target=linux-arm64 ;; \
+      *) echo "unsupported build arch: $(uname -m)" >&2; exit 1 ;; \
+    esac; \
+    argon2_version="$(node -p "require('@node-rs/argon2/package.json').version")"; \
+    npm install --no-save --no-audit --no-fund \
+      "@node-rs/argon2-${target}-gnu@${argon2_version}"; \
+    node -e "import('@node-rs/argon2').then(m => m.hash('probe')).then(() => console.log('argon2 native binding loads OK'), e => { console.error(e); process.exit(1); })"
+
 
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /repo

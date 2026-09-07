@@ -276,6 +276,18 @@ UI change twice.
   `deploy/Caddyfile`. Adding a server module means adding it there too, or it
   404s in production while working perfectly in development. The API is not
   under `/api` because the refresh cookie is scoped to `Path=/auth`.
+- **The lockfile is Windows-only, and Docker builds on Linux.** `npm ci`
+  installs exactly what `package-lock.json` lists, and a lockfile generated on
+  Windows records only `win32` builds of every native package — npm/cli#4828.
+  Three packages are affected: rollup and esbuild (vite fails loudly at build
+  time) and **`@node-rs/argon2`, which fails at run time and not immediately**
+  — the image builds, the server starts, `/health/ready` passes because it only
+  touches the database, and the first symptom is that nobody can register or
+  log in. Both Dockerfiles install the right binary explicitly, deriving the
+  version from the installed parent and the platform from `uname -m`. If you
+  add another native dependency, it needs the same treatment. In `server/`
+  that step must come **after** `npm prune`, which deletes anything missing
+  from `package.json`.
 - **The production env file must be named `deploy/.env`.** Compose reads that
   name automatically for both `${...}` substitution and the server's
   environment. Any other name needs `--env-file` on every command, and

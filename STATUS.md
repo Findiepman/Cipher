@@ -1,7 +1,7 @@
 # STATUS — where this project actually is
 
-Last updated **2026-09-07**, after the hosting layer and real SMTP landed.
-Nothing has been deployed yet — the files exist and are unbuilt.
+Last updated **2026-09-07**, after the app went live at
+<https://cipher.findiepman.dev>.
 
 This file is the "get up to speed without reading everything" document. It says
 what works, what does not, and which decisions are load-bearing. Keep it
@@ -27,9 +27,11 @@ they accept, you get a conversation with live delivery over Socket.io, an
 offline queue, and a backlog on reconnect. **Encryption is still deliberately
 phase 1**, meaning `encryptMessage`/`decryptMessage` are base64 no-ops — so the
 server can currently read message bodies. Group servers/channels do not exist;
-DMs only. **Mail sends for real now** (Resend over SMTP) and the whole
-self-hosting layer is written — Docker, Caddy, a Cloudflare Tunnel, backups —
-but none of it has been built or deployed yet.
+DMs only. **It is deployed and reachable** at
+<https://cipher.findiepman.dev> — Docker Compose on the Ubuntu mini PC, one
+origin behind a Cloudflare Tunnel, mail through Resend. Registration and
+verification-by-email have been driven by hand against the live box;
+**messaging over the tunnel has not been yet** (see below).
 
 Two independent numbering schemes are in play and they are unrelated: *phase
 1/2* is the messaging-encryption axis (`AGENTS.md`), *steps 0–6* are the
@@ -54,6 +56,8 @@ account-work axis (`backend-plan.md`).
 | The chat UI itself: friends screen, DM list, composer | `client/src/App.tsx`, `client/src/screens/FriendsScreen.tsx` |
 | Transactional email, text + HTML, over a real relay | `server/src/lib/mailer.ts` |
 | Same-origin client build (blank `VITE_API_URL`) | `client/src/lib/config.ts` |
+| Deployed: 4 containers, no host ports, Cloudflare Tunnel | `deploy/` |
+| Live registration + verification email landing in an inbox | verified by hand 2026-09-07 |
 
 196 tests pass: 28 crypto, 78 client, 90 server. `npm run typecheck` and
 `npm run build` are clean across all workspaces.
@@ -84,13 +88,21 @@ Two end-to-end proofs, both against a running server over real HTTP:
   it. `ConversationParticipant.lastReadMessageId` exists in the schema and is
   never written, so nothing is ever marked read and the conversation list has
   no unread state.
-- **Hosting has never actually run.** Everything stage 8 asks for is written —
-  `server/Dockerfile`, `client/Dockerfile`, `deploy/` (compose, Caddyfile,
-  `deploy.sh`, `backup.sh`, `restore.sh`) and [`DEPLOY.md`](DEPLOY.md) as the
-  runbook — but **no image has ever been built and nothing is deployed**.
-  Docker cannot run on this dev machine (SVM disabled in BIOS), so the first
-  build of both images happens on the mini PC. Expect to fix something there;
-  treat the first deploy as part of the work, not as a formality.
+- **Messaging has not been exercised against the deployed box.** The
+  `/socket.io/` handshake answers through the tunnel and reports
+  `"upgrades":["websocket"]`, but no message has actually been pushed through
+  it in production. Two accounts, a friend request, and a message arriving
+  *without a reload* is the check that has not been run. Everything else in
+  §4 of [`DEPLOY.md`](DEPLOY.md) has.
+- **Backups are not scheduled.** `deploy/backup.sh` and `restore.sh` exist and
+  `deploy.sh` calls the former before every deploy, but **no cron entry is
+  installed**, so nothing runs nightly and the restore path has never been
+  tested. `DEPLOY.md` §6. Until that is done, one bad disk loses everything.
+- **Registration is open to anyone who finds the URL.** There is no invite
+  system, the hostname is public DNS, and the repository is public. Email
+  verification and the rate limits are the only friction. `DEPLOY.md`
+  → *Restricting who can register* has the Cloudflare Access recipe if that
+  should change.
 - **Most account endpoints.** `client/src/lib/api/endpoints.ts` calls a full
   API; the server implements a slice of it. Everything below 404s today:
   `POST /auth/forgot-password`, `/auth/reset-password`,
@@ -189,6 +201,30 @@ created at signup).
 Stages 0–7 of it are done; stage 8 (self-hosting) is not.
 
 ---
+
+## Where it runs
+
+Live at <https://cipher.findiepman.dev>, on the Ubuntu mini PC (`fin-server`).
+[`DEPLOY.md`](DEPLOY.md) is the runbook; this is just the shape of it.
+
+Four containers under the compose project `cipher`, and **no published host
+ports at all** — `cloudflared` dials out, so there is no inbound firewall rule
+and nothing collides with the other services on that box. Caddy serves the
+built client and proxies the API prefixes and `/socket.io` to Fastify on one
+hostname, which is what keeps the auth cookies first-party.
+
+```bash
+cd ~/cipher && ./deploy/deploy.sh          # pull, build, migrate, restart
+docker compose -f deploy/docker-compose.prod.yml logs -f server
+```
+
+Secrets live only in `deploy/.env` on the box (gitignored, and no `.env` has
+ever been committed — the repository is public). Migrations are applied by the
+server container's entrypoint, not by `deploy.sh`, so the schema is always
+applied by the exact image about to serve it.
+
+**Rotating `JWT_SECRET` signs everyone out.** That is the only way to revoke
+every session at once; there is no admin UI.
 
 ## Running it
 
@@ -311,11 +347,11 @@ UI change twice.
 
 Pick one; they are roughly independent.
 
-1. **Actually deploy it.** The files are written; nothing has been run. Follow
-   [`DEPLOY.md`](DEPLOY.md) in order — mail and DNS first, because verification
-   is required before login and a box whose mail does not send is a box nobody
-   can register on. Both images get their first build on the mini PC, so budget
-   for fixing something.
+1. **Finish verifying the deployment.** Two accounts on the live box, add by
+   username, and confirm a message arrives without a reload. Then install the
+   backup cron (`DEPLOY.md` §6) and test `restore.sh` once, while nothing is at
+   stake. These are small and they are the difference between "it responded to
+   a health check" and "it works".
 2. **Phase 2 encryption.** DMs now work end to end in phase 1, which
    `AGENTS.md` names as the precondition. The registry and the envelope model
    are already in place, so this is `encryptMessage`/`decryptMessage` plus the

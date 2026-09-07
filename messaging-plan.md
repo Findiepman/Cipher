@@ -5,8 +5,8 @@ onto a machine you own. Decided 2026-09-06, after `STATUS.md` listed messaging
 as the biggest remaining gap.
 
 > **Status: stages 0–7 are done.** DMs work end to end, proved by
-> `cd server && npm run smoke:messaging`. Stage 8 (self-hosting) is written but
-> not yet deployed - see `DEPLOY.md`.
+> `cd server && npm run smoke:messaging`. Stage 8 (self-hosting) is **done and
+> live** at <https://cipher.findiepman.dev> - see `DEPLOY.md`.
 > `STATUS.md` is the authority on what is true; this file is the plan.
 
 Follows [`AGENTS.md`](AGENTS.md) and [`stack.md`](stack.md).

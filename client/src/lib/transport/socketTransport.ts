@@ -160,6 +160,19 @@ export class SocketTransport implements Transport {
       this.emit('presence', args[0] as { userId: string; online: boolean });
     });
 
+    socket.on('read', (...args) => {
+      const payload = args[0] as {
+        conversationId: string;
+        userId: string;
+        lastReadMessageId: string;
+      };
+      this.emit('read', {
+        channelId: payload.conversationId,
+        userId: payload.userId,
+        lastReadMessageId: payload.lastReadMessageId,
+      });
+    });
+
     // Resolves on the first outcome either way, and on a deadline if neither
     // arrives: a caller must not block on a connection that may legitimately
     // take minutes to come back. Everything downstream copes with being
@@ -207,6 +220,25 @@ export class SocketTransport implements Transport {
   async backlog(channelId: string, cursor?: string): Promise<IncomingMessage[]> {
     const { messages } = await this.conversations.messages(channelId, cursor);
     return messages.map(toIncoming);
+  }
+
+  /**
+   * Tells the server how far we have read: the socket when there is one, HTTP
+   * when there is not. The same split as send(), for the same reason. Both
+   * land in the same handler, the position only ever moves forward there, so
+   * the two paths cannot disagree about where it ended up.
+   *
+   * The socket path is fire and forget. There is no ack to wait for: the
+   * server answers by broadcasting `read` to every participant, this client
+   * included, which is what moves the badge in the tab next door.
+   */
+  async markRead(channelId: string, messageId: string): Promise<void> {
+    if (this.socket?.connected) {
+      this.socket.emit('read', { conversationId: channelId, messageId });
+      return;
+    }
+
+    await this.conversations.markRead(channelId, messageId);
   }
 
   on<E extends TransportEventName>(

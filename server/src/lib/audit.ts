@@ -22,6 +22,7 @@ export type AuditAction =
   | 'friend.removed'
   | 'friend.blocked'
   | 'friend.unblocked'
+  | 'friend.request_cancelled'
   | 'friend.nickname_set'
   | 'friend.nickname_cleared';
 

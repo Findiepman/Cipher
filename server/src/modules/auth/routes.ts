@@ -7,15 +7,21 @@ import { unauthorized } from '../../lib/errors.js';
 import type { Mailer } from '../../lib/mailer.js';
 import { parseBody } from '../../lib/validate.js';
 import {
+  forgotPasswordSchema,
   loginSchema,
   registerSchema,
   resendVerificationSchema,
+  resetContextSchema,
+  resetPasswordSchema,
   verifyEmailSchema,
 } from './schemas.js';
 import {
   authenticate,
+  loadResetContext,
   register,
+  requestPasswordReset,
   resendVerification,
+  resetPassword,
   toAccountDto,
   toDeviceDto,
   verifyEmail,
@@ -74,6 +80,38 @@ export const authRoutes: FastifyPluginAsync<{ mailer: Mailer }> = async (
     await resendVerification(email, contextOf(request), mailer);
 
     return reply.status(202).send({ ok: true });
+  });
+
+  fastify.post('/forgot-password', strictLimit, async (request, reply) => {
+    const { email } = parseBody(forgotPasswordSchema, request.body);
+
+    await requestPasswordReset(email, contextOf(request), mailer);
+
+    // Same generic acknowledgement as register, for the same reason: anything
+    // that varied with whether the account exists would be an enumeration
+    // oracle, and this is the endpoint most obviously shaped like one.
+    return reply.status(202).send({ ok: true });
+  });
+
+  /// POST rather than GET, despite reading nothing. The token is a live
+  /// credential for the account and a GET would put it in the query string,
+  /// which is the one part of a request that reliably ends up in access logs,
+  /// proxy logs and browser history.
+  fastify.post('/reset-password/context', strictLimit, async (request, reply) => {
+    const { token } = parseBody(resetContextSchema, request.body);
+
+    return reply.send(await loadResetContext(token));
+  });
+
+  fastify.post('/reset-password', strictLimit, async (request, reply) => {
+    const input = parseBody(resetPasswordSchema, request.body);
+
+    await resetPassword(input, contextOf(request));
+
+    // No session is issued here. The reset revoked every one of them, and the
+    // client has to sign in with the new password anyway to prove the blob it
+    // just uploaded opens with it.
+    return reply.send({ ok: true });
   });
 
   fastify.post('/login', strictLimit, async (request, reply) => {

@@ -27,6 +27,7 @@ import { loadLiveSession } from '../lib/session-guard.js';
 import type { AccessTokenPayload } from '../plugins/auth.js';
 import { listFriends } from '../modules/friends/service.js';
 import {
+  markRead,
   postMessage,
   requireParticipant,
   type PostedMessage,
@@ -128,6 +129,37 @@ export function attachRealtime(app: FastifyInstance): Realtime {
         }
       } catch {
         // Typing is advisory. A rejected one is not worth reporting.
+      }
+    });
+
+    /// The socket path for marking read. POST /conversations/:id/read is the
+    /// same call over HTTP, both landing in markRead(), which is the split the
+    /// send path already has: the socket is the normal route and HTTP is what
+    /// still works with a dead websocket.
+    socket.on('read', async (payload: unknown) => {
+      const value = payload as { conversationId?: unknown; messageId?: unknown } | undefined;
+      if (typeof value?.conversationId !== 'string' || typeof value.messageId !== 'string') {
+        return;
+      }
+
+      try {
+        const state = await markRead(userId, value.conversationId, value.messageId);
+        const participants = await requireParticipant(userId, value.conversationId);
+
+        // The reader is included, unlike typing. Their own other tabs are the
+        // reason this event is worth having: reading on the phone should clear
+        // the dot on the desktop. The other participant gets it so a sender can
+        // tell their message landed.
+        for (const participant of participants) {
+          io.to(participant).emit('read', {
+            conversationId: state.conversationId,
+            userId,
+            lastReadMessageId: state.lastReadMessageId,
+          });
+        }
+      } catch {
+        // A read marker is advisory. The HTTP route is where a client finds out
+        // that something was actually wrong with the request.
       }
     });
 

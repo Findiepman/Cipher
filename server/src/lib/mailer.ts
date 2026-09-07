@@ -295,6 +295,33 @@ export const verificationEmail = (token: string): Omit<OutboundMail, 'to'> =>
     ],
   });
 
+/// The reset link, and the one email in this file that has to set an
+/// expectation rather than just carry a URL.
+///
+/// Proving control of the inbox is enough to take the account back, and it is
+/// not enough to take the messages back: those need the recovery code, which
+/// this server has never seen and cannot resend. Someone who arrives at the
+/// reset screen without their code and only finds that out there has been
+/// misled by the email that sent them, so the footnote says it up front.
+export const passwordResetEmail = (token: string): Omit<OutboundMail, 'to'> =>
+  render({
+    subject: 'Reset your password',
+    preheader: 'A link to choose a new password, good for one hour.',
+    heading: 'Choose a new password',
+    paragraphs: [
+      'Someone asked to reset the password on your account. If that was you, follow the link below to set a new one:',
+    ],
+    action: {
+      label: 'Set a new password',
+      url: `${env.APP_URL}/reset-password?token=${token}`,
+    },
+    footnotes: [
+      'This link works once and expires in one hour.',
+      'Have your recovery code ready. It is the only thing that can carry your existing messages over to the new password, and nobody here can send it to you. Without it you still get the account back, but everything already in it stays unreadable.',
+      "If you didn't ask for this, you can ignore this email. Nothing has changed and your password still works.",
+    ],
+  });
+
 /// Sent when someone tries to register with an address that already has an
 /// account. Registration can't say "that email is taken" without becoming an
 /// account-enumeration oracle, so the person who owns the address is told

@@ -13,6 +13,12 @@ type Props = {
   onSelect: (channelId: string) => void;
   usersById: Map<string, User>;
   previews: Map<string, Preview>;
+  /**
+   * How many messages are waiting in each channel. A count rather than a flag
+   * because "3 waiting" and "1 waiting" are different enough to act on, and
+   * the number is already known: the server sends it with the list.
+   */
+  unread: Record<string, number>;
   /** Null on the first paint, before the account has loaded. */
   currentUser: User | null;
 };
@@ -27,6 +33,7 @@ export function ConversationList({
   onSelect,
   usersById,
   previews,
+  unread,
   currentUser,
 }: Props) {
   return (
@@ -52,6 +59,7 @@ export function ConversationList({
                     channel.recipientId ? usersById.get(channel.recipientId) : undefined
                   }
                   preview={previews.get(channel.id)}
+                  unread={unread[channel.id] ?? 0}
                   onSelect={() => onSelect(channel.id)}
                 />
               ))}
@@ -75,16 +83,21 @@ function ConversationRow({
   active,
   recipient,
   preview,
+  unread,
   onSelect,
 }: {
   channel: Channel;
   active: boolean;
   recipient?: User;
   preview?: Preview;
+  unread: number;
   onSelect: () => void;
 }) {
   const menu = usePersonMenu();
-  const unread = channel.unread && !active;
+  // Nothing is unread in the conversation you are looking at, and the count
+  // clears a moment later anyway. Drawing it would be a flash of a badge that
+  // is about to disappear.
+  const waiting = active ? 0 : unread;
 
   return (
     <button
@@ -111,14 +124,14 @@ function ConversationRow({
       <span className="conversation__text">
         <span className="conversation__top">
           <span
-            className={`conversation__name${unread ? ' conversation__name--unread' : ''}`}
+            className={`conversation__name${waiting ? ' conversation__name--unread' : ''}`}
           >
             {channel.name}
           </span>
-          {channel.mentions ? (
-            <span className="conversation__badge mono">{channel.mentions}</span>
-          ) : unread ? (
-            <span className="conversation__dot" />
+          {waiting ? (
+            <span className="conversation__badge mono" aria-label={`${waiting} unread`}>
+              {waiting > 99 ? '99+' : waiting}
+            </span>
           ) : preview ? (
             <span className="conversation__time mono">{shortTime(preview.at)}</span>
           ) : null}
@@ -127,7 +140,7 @@ function ConversationRow({
         {preview && (
           <span
             className={`conversation__preview${
-              unread ? ' conversation__preview--unread' : ''
+              waiting ? ' conversation__preview--unread' : ''
             }`}
           >
             {preview.text}

@@ -30,6 +30,13 @@ export const sendMessageSchema = z.object({
     .max(64),
 });
 
+/// Marking read is expressed as a message id for the same reason a cursor is:
+/// the server can order messages but cannot read them, so "up to here" is the
+/// only thing the client can say and the only thing the server can act on.
+export const markReadSchema = z.object({
+  messageId: z.string().uuid(),
+});
+
 export const backlogQuerySchema = z.object({
   /// A message id. The client's own last-seen, because the server cannot tell
   /// anyone "what is new" in a conversation it cannot read.
@@ -38,4 +45,5 @@ export const backlogQuerySchema = z.object({
 });
 
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;
+export type MarkReadInput = z.infer<typeof markReadSchema>;
 export type BacklogQuery = z.infer<typeof backlogQuerySchema>;

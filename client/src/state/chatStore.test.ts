@@ -134,3 +134,171 @@ describe('messagesForChannel', () => {
     expect(messagesForChannel(state, 'c-general').map((m) => m.id)).toEqual(['a', 'c']);
   });
 });
+
+describe('unread', () => {
+  /// Every case below needs to know who "us" is, because our own messages are
+  /// never unread and that is the only thing the store uses the identity for.
+  const mine = chatReducer(initialChatState, { type: 'identity', userId: 'u-me' });
+
+  it('counts a message that lands in a channel nobody is looking at', () => {
+    const state = chatReducer(mine, {
+      type: 'received',
+      message: message({ id: 'srv-1', authorId: 'u-nova' }),
+    });
+    expect(state.unread).toEqual({ 'c-general': 1 });
+  });
+
+  it('does not count a message in the channel on screen', () => {
+    let state = chatReducer(mine, { type: 'focus', channelId: 'c-general' });
+    state = chatReducer(state, {
+      type: 'received',
+      message: message({ id: 'srv-1', authorId: 'u-nova' }),
+    });
+    expect(state.unread).toEqual({});
+  });
+
+  it('counts again once the window goes to the background', () => {
+    // A conversation left open behind another window has not been read, and a
+    // messenger that says otherwise is losing messages for the user.
+    let state = chatReducer(mine, { type: 'focus', channelId: 'c-general' });
+    state = chatReducer(state, { type: 'focus', channelId: null });
+    state = chatReducer(state, {
+      type: 'received',
+      message: message({ id: 'srv-1', authorId: 'u-nova' }),
+    });
+    expect(state.unread).toEqual({ 'c-general': 1 });
+  });
+
+  it('never counts our own messages, wherever they were typed', () => {
+    // A send from a second device arrives as a message this one has never
+    // held. It still must not leave a dot on our own conversation.
+    const state = chatReducer(mine, {
+      type: 'received',
+      message: message({ id: 'srv-1', authorId: 'u-me' }),
+    });
+    expect(state.unread).toEqual({});
+  });
+
+  it('does not count the server echo of a message already on screen', () => {
+    let state = chatReducer(mine, {
+      type: 'sending',
+      message: message({ id: 'c-1', clientId: 'c-1', state: 'sending' }),
+    });
+    state = chatReducer(state, {
+      type: 'received',
+      message: message({ id: 'srv-9', clientId: 'c-1', state: 'encrypted', body: null }),
+    });
+    expect(state.unread).toEqual({});
+  });
+
+  it('counts a backlog pulled for a channel that is not on screen', () => {
+    const state = chatReducer(mine, {
+      type: 'backlog',
+      channelId: 'c-crypto',
+      messages: [
+        message({ id: 'srv-1', channelId: 'c-crypto', authorId: 'u-nova' }),
+        message({ id: 'srv-2', channelId: 'c-crypto', authorId: 'u-nova' }),
+      ],
+    });
+    expect(state.unread).toEqual({ 'c-crypto': 2 });
+  });
+
+  it('clears the focused channel and leaves the others alone', () => {
+    let state = chatReducer(mine, {
+      type: 'unread',
+      counts: { 'c-general': 3, 'c-crypto': 2 },
+    });
+    state = chatReducer(state, { type: 'focus', channelId: 'c-general' });
+    expect(state.unread).toEqual({ 'c-crypto': 2 });
+  });
+
+  it('takes the server counts, except for the channel on screen', () => {
+    // The server counted before this client said it was reading, so honouring
+    // its number here would put a dot on the conversation being looked at.
+    let state = chatReducer(mine, { type: 'focus', channelId: 'c-general' });
+    state = chatReducer(state, {
+      type: 'unread',
+      counts: { 'c-general': 4, 'c-crypto': 1 },
+    });
+    expect(state.unread).toEqual({ 'c-crypto': 1 });
+  });
+
+  it('replaces the local counts rather than adding to them', () => {
+    // A reload is the truth: this device may have been closed while a
+    // conversation filled up, and it has no history of what it missed.
+    let state = chatReducer(mine, {
+      type: 'received',
+      message: message({ id: 'srv-1', authorId: 'u-nova' }),
+    });
+    state = chatReducer(state, { type: 'unread', counts: { 'c-general': 7 } });
+    expect(state.unread).toEqual({ 'c-general': 7 });
+  });
+});
+
+describe('a read that happened somewhere else', () => {
+  const mine = chatReducer(initialChatState, { type: 'identity', userId: 'u-me' });
+
+  /// Three waiting, with nobody looking at the conversation.
+  function waiting() {
+    return chatReducer(mine, {
+      type: 'backlog',
+      channelId: 'c-general',
+      messages: [
+        message({ id: 'srv-1', authorId: 'u-nova' }),
+        message({ id: 'srv-2', authorId: 'u-nova' }),
+        message({ id: 'srv-3', authorId: 'u-nova' }),
+      ],
+    });
+  }
+
+  it('lowers the count to whatever sits after the marker', () => {
+    const state = chatReducer(waiting(), {
+      type: 'readUpTo',
+      channelId: 'c-general',
+      messageId: 'srv-1',
+    });
+    expect(state.unread).toEqual({ 'c-general': 2 });
+  });
+
+  it('clears it when the marker is the newest thing we hold', () => {
+    const state = chatReducer(waiting(), {
+      type: 'readUpTo',
+      channelId: 'c-general',
+      messageId: 'srv-3',
+    });
+    expect(state.unread).toEqual({});
+  });
+
+  it('clears it for a marker we have never seen', () => {
+    // The other device is ahead of this one, so nothing this one holds can
+    // still be waiting.
+    const state = chatReducer(waiting(), {
+      type: 'readUpTo',
+      channelId: 'c-general',
+      messageId: 'srv-99',
+    });
+    expect(state.unread).toEqual({});
+  });
+
+  it('never raises a count', () => {
+    // A device sitting behind this one must not put a badge back on a
+    // conversation this one has already shown as read.
+    let state = chatReducer(waiting(), { type: 'unread', counts: { 'c-general': 1 } });
+    state = chatReducer(state, {
+      type: 'readUpTo',
+      channelId: 'c-general',
+      messageId: 'srv-1',
+    });
+    expect(state.unread).toEqual({ 'c-general': 1 });
+  });
+
+  it('leaves a channel with nothing waiting alone', () => {
+    const before = waiting();
+    const after = chatReducer(before, {
+      type: 'readUpTo',
+      channelId: 'c-crypto',
+      messageId: 'srv-1',
+    });
+    expect(after).toBe(before);
+  });
+});

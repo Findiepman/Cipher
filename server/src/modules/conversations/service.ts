@@ -23,7 +23,21 @@ export interface ConversationDto {
   /// The id and time of the newest message, so a client can tell whether it is
   /// behind. Not a preview - the server has no readable text to preview.
   lastMessage: { id: string; authorId: string; sentAt: string } | null;
+  /// Where the *caller* has read up to. Per-viewer, not per-conversation: the
+  /// other participant's position is theirs and is never handed out here.
+  lastReadMessageId: string | null;
+  /// How many messages sit after that position, written by somebody else. It
+  /// comes down with the list so a client with twenty conversations does not
+  /// make twenty extra requests to draw twenty dots.
+  unread: number;
   createdAt: string;
+}
+
+/// What a caller gets back after moving their own read position.
+export interface ReadStateDto {
+  conversationId: string;
+  lastReadMessageId: string;
+  unread: number;
 }
 
 export interface MessageDto {
@@ -60,7 +74,7 @@ export async function openDm(
   const dmKey = dmKeyFor(userId, otherUserId);
 
   const existing = await prisma.conversation.findUnique({ where: { dmKey } });
-  if (existing) return loadConversation(existing.id);
+  if (existing) return loadConversation(existing.id, userId);
 
   try {
     const created = await prisma.conversation.create({
@@ -71,13 +85,13 @@ export async function openDm(
         },
       },
     });
-    return loadConversation(created.id);
+    return loadConversation(created.id, userId);
   } catch (error) {
     // Lost a race against the other party opening the same DM. The unique index
     // is the real guard; just read back whichever row won.
     if (!isUniqueViolation(error)) throw error;
     const winner = await prisma.conversation.findUniqueOrThrow({ where: { dmKey } });
-    return loadConversation(winner.id);
+    return loadConversation(winner.id, userId);
   }
 }
 
@@ -87,8 +101,10 @@ export async function listConversations(userId: string): Promise<ConversationDto
     include: conversationInclude,
   });
 
+  const unread = await unreadCounts(userId, rows);
+
   return rows
-    .map(toConversationDto)
+    .map((row) => toConversationDto(row, userId, unread))
     .sort((a, b) => sortKey(b).localeCompare(sortKey(a)));
 }
 
@@ -97,7 +113,7 @@ export async function getConversation(
   conversationId: string,
 ): Promise<ConversationDto> {
   await requireParticipant(userId, conversationId);
-  return loadConversation(conversationId);
+  return loadConversation(conversationId, userId);
 }
 
 export async function getBacklog(
@@ -150,6 +166,131 @@ export async function getBacklog(
       },
     ];
   });
+}
+
+/**
+ * Moves the caller's own read position in one conversation.
+ *
+ * Forward only. Two tabs marking read at once, or a retry landing after a
+ * newer request, would otherwise walk the position backwards and resurrect
+ * messages the person has already seen. Nothing here needs to move it the
+ * other way: there is no "mark as unread".
+ */
+export async function markRead(
+  userId: string,
+  conversationId: string,
+  messageId: string,
+): Promise<ReadStateDto> {
+  await requireParticipant(userId, conversationId);
+
+  // The marker has to be a message in *this* conversation. `seq` is global, so
+  // an id borrowed from somewhere else would silently mark an arbitrary slice
+  // of this conversation read.
+  const target = await prisma.message.findFirst({
+    where: { id: messageId, conversationId },
+    select: { id: true, seq: true },
+  });
+  if (!target) {
+    throw notFound('message_not_found', 'No such message in this conversation.');
+  }
+
+  const key = { conversationId_userId: { conversationId, userId } };
+  const participant = await prisma.conversationParticipant.findUniqueOrThrow({
+    where: key,
+    select: { lastReadMessageId: true },
+  });
+
+  const currentSeq = await seqOf(conversationId, participant.lastReadMessageId);
+  const ahead = currentSeq === null || target.seq > currentSeq;
+
+  if (ahead) {
+    await prisma.conversationParticipant.update({
+      where: key,
+      data: { lastReadMessageId: target.id },
+    });
+  }
+
+  const readSeq = ahead ? target.seq : (currentSeq as bigint);
+  const unread = await prisma.message.count({
+    where: { conversationId, authorId: { not: userId }, seq: { gt: readSeq } },
+  });
+
+  return {
+    conversationId,
+    lastReadMessageId: ahead ? target.id : (participant.lastReadMessageId as string),
+    unread,
+  };
+}
+
+/// Resolves a stored read marker to its position. A marker that is null (never
+/// read) and one whose message no longer exists both mean "read nothing",
+/// which over-counts rather than hiding a message somebody has not seen.
+async function seqOf(
+  conversationId: string,
+  messageId: string | null,
+): Promise<bigint | null> {
+  if (!messageId) return null;
+
+  const row = await prisma.message.findFirst({
+    where: { id: messageId, conversationId },
+    select: { seq: true },
+  });
+  return row?.seq ?? null;
+}
+
+/**
+ * Unread per conversation, in two queries for the whole list rather than two
+ * per row.
+ *
+ * Counted from `seq`, never from a timestamp: several sends land in the same
+ * millisecond and a timestamp cannot break that tie, so "everything after the
+ * message I last read" is the only definition that holds. Messages you wrote
+ * yourself never count, wherever you wrote them: you have read what you sent.
+ */
+async function unreadCounts(
+  userId: string,
+  rows: { id: string; participants: { userId: string; lastReadMessageId: string | null }[] }[],
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (rows.length === 0) return counts;
+
+  const markers = rows.map((row) => ({
+    conversationId: row.id,
+    messageId:
+      row.participants.find((participant) => participant.userId === userId)
+        ?.lastReadMessageId ?? null,
+  }));
+
+  const markerIds = markers
+    .map((marker) => marker.messageId)
+    .filter((id): id is string => id !== null);
+
+  const seqById = new Map<string, bigint>();
+  if (markerIds.length > 0) {
+    const found = await prisma.message.findMany({
+      where: { id: { in: markerIds } },
+      select: { id: true, seq: true },
+    });
+    for (const message of found) seqById.set(message.id, message.seq);
+  }
+
+  // One grouped count with a per-conversation threshold in the OR, because the
+  // threshold is different for every row and a shared `seq > n` would be wrong
+  // for all but one of them.
+  const grouped = await prisma.message.groupBy({
+    by: ['conversationId'],
+    where: {
+      authorId: { not: userId },
+      OR: markers.map(({ conversationId, messageId }) => {
+        const seq = messageId === null ? undefined : seqById.get(messageId);
+        return seq === undefined ? { conversationId } : { conversationId, seq: { gt: seq } };
+      }),
+    },
+    _count: { _all: true },
+  });
+
+  for (const row of grouped) counts.set(row.conversationId, row._count._all);
+  return counts;
 }
 
 export interface PostedMessage {
@@ -258,17 +399,22 @@ export async function requireParticipant(
   return ids;
 }
 
-async function loadConversation(id: string): Promise<ConversationDto> {
+async function loadConversation(id: string, userId: string): Promise<ConversationDto> {
   const row = await prisma.conversation.findUniqueOrThrow({
     where: { id },
     include: conversationInclude,
   });
-  return toConversationDto(row);
+  return toConversationDto(row, userId, await unreadCounts(userId, [row]));
 }
 
 const conversationInclude = {
   participants: {
     select: {
+      // The caller's own read position rides along with the membership row it
+      // already costs nothing to load. Only the caller's own is ever read out
+      // of this; see toConversationDto.
+      userId: true,
+      lastReadMessageId: true,
       user: {
         select: {
           id: true,
@@ -294,13 +440,23 @@ type ConversationRow = {
   id: string;
   createdAt: Date;
   participants: {
+    userId: string;
+    lastReadMessageId: string | null;
     user: { id: string; username: string; devices: { publicKey: string }[] };
   }[];
   messages: { id: string; authorId: string; sentAt: Date }[];
 };
 
-function toConversationDto(row: ConversationRow): ConversationDto {
+function toConversationDto(
+  row: ConversationRow,
+  userId: string,
+  unread: Map<string, number>,
+): ConversationDto {
   const last = row.messages[0];
+  // Whoever asked, and nobody else. The other participant's read position is
+  // theirs; handing it out here would be a read receipt nobody asked for.
+  const mine = row.participants.find((participant) => participant.userId === userId);
+
   return {
     id: row.id,
     kind: 'dm',
@@ -312,6 +468,8 @@ function toConversationDto(row: ConversationRow): ConversationDto {
     lastMessage: last
       ? { id: last.id, authorId: last.authorId, sentAt: last.sentAt.toISOString() }
       : null,
+    lastReadMessageId: mine?.lastReadMessageId ?? null,
+    unread: unread.get(row.id) ?? 0,
     createdAt: row.createdAt.toISOString(),
   };
 }

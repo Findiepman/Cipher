@@ -3,12 +3,14 @@ import { parseBody } from '../../lib/validate.js';
 import {
   backlogQuerySchema,
   conversationIdSchema,
+  markReadSchema,
   openDmSchema,
   sendMessageSchema,
 } from './schemas.js';
 import {
   getBacklog,
   listConversations,
+  markRead,
   openDm,
   postMessage,
   type MessageDto,
@@ -71,5 +73,15 @@ export const conversationRoutes: FastifyPluginAsync<ConversationRoutesOptions> =
     };
 
     return reply.send(dto);
+  });
+
+  /// Moves the caller's own read position. Deliberately not audited: no other
+  /// write in this module is, and an audit row per conversation opened would
+  /// bury the friend-request and auth events the log exists for.
+  fastify.post('/:id/read', async (request, reply) => {
+    const { id } = parseBody(conversationIdSchema, request.params);
+    const { messageId } = parseBody(markReadSchema, request.body);
+
+    return reply.send(await markRead(request.currentUser!.id, id, messageId));
   });
 };

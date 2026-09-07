@@ -106,3 +106,35 @@ export function BanIcon({ size = 24, className }: Props) {
     </svg>
   );
 }
+
+export function ProfileIcon({ size = 24, className }: Props) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm0 1.6c-4.2 0-7.6 2.4-7.6 5.4V20a1 1 0 0 0 1 1h13.2a1 1 0 0 0 1-1v-1c0-3-3.4-5.4-7.6-5.4Z" />
+    </svg>
+  );
+}
+
+export function UserPlusIcon({ size = 24, className }: Props) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M10 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm0 1.5c-3.86 0-7 2.24-7 5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1.5c0-2.76-3.14-5-7-5ZM19 6a1 1 0 0 1 1 1v1.5h1.5a1 1 0 1 1 0 2H20V12a1 1 0 1 1-2 0v-1.5h-1.5a1 1 0 1 1 0-2H18V7a1 1 0 0 1 1-1Z" />
+    </svg>
+  );
+}
+
+export function InboxIcon({ size = 24, className }: Props) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M5 3h14a2 2 0 0 1 1.94 1.51L22.5 12H17a1 1 0 0 0-.95.68l-.43 1.3a1 1 0 0 1-.95.68h-5.34a1 1 0 0 1-.95-.68l-.43-1.3A1 1 0 0 0 7 12H1.5l2.56-7.49A2 2 0 0 1 5 3ZM1 14h5.28l.2.6A3 3 0 0 0 9.33 17h5.34a3 3 0 0 0 2.85-2.4l.2-.6H23v5a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-5Z" />
+    </svg>
+  );
+}
+
+export function ClockIcon({ size = 24, className }: Props) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 5a1 1 0 1 0-2 0v5.25c0 .35.18.67.47.85l3.5 2.2a1 1 0 1 0 1.06-1.7L13 11.7V7Z" />
+    </svg>
+  );
+}

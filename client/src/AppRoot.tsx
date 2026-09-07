@@ -16,22 +16,30 @@ import App from './App';
 import { AccountStrip } from './components/AccountStrip';
 import { BrandMark } from './components/BrandMark';
 import { AuthScreen } from './screens/AuthScreen';
+import { ResetPasswordScreen } from './screens/ResetPasswordScreen';
 import { UnlockScreen } from './screens/UnlockScreen';
 import { VerifyEmailScreen } from './screens/VerifyEmailScreen';
 import { ChatProvider } from './state/ChatProvider';
 import { useSession } from './state/SessionProvider';
 import './styles/auth.css';
 
-/** No router yet: the one deep link that exists is matched by hand. */
+/** No router yet: the two deep links that exist are matched by hand. */
 function readVerifyToken(): string | null {
   if (typeof window === 'undefined') return null;
   if (window.location.pathname !== '/verify-email') return null;
   return new URLSearchParams(window.location.search).get('token');
 }
 
+function readResetToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  if (window.location.pathname !== '/reset-password') return null;
+  return new URLSearchParams(window.location.search).get('token');
+}
+
 export function AppRoot() {
   const { status } = useSession();
   const [verifyToken, setVerifyToken] = useState(readVerifyToken);
+  const [resetToken, setResetToken] = useState(readResetToken);
 
   const leaveVerify = useCallback(() => {
     // Drop the single-use token from the address bar so a reload does not
@@ -40,8 +48,21 @@ export function AppRoot() {
     setVerifyToken(null);
   }, []);
 
+  const leaveReset = useCallback(() => {
+    window.history.replaceState(null, '', '/');
+    setResetToken(null);
+  }, []);
+
   if (verifyToken) {
     return <VerifyEmailScreen token={verifyToken} onContinue={leaveVerify} />;
+  }
+
+  // Ahead of the status switch, like verification, so the link works whatever
+  // state this tab happens to be in. A completed reset revokes every session
+  // the account had, so a tab that was signed in lands back on sign in as soon
+  // as it next asks the server for anything.
+  if (resetToken) {
+    return <ResetPasswordScreen token={resetToken} onLeave={leaveReset} />;
   }
 
   // The first paint on every reload, so it is the one screen guaranteed to be

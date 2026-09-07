@@ -92,6 +92,18 @@ export class MockTransport implements Transport {
     return ack;
   }
 
+  /// Every read position this transport has been handed, oldest first. Kept so
+  /// a test can assert what was reported without having to spy on the method.
+  readonly reads: { channelId: string; messageId: string }[] = [];
+
+  async markRead(channelId: string, messageId: string): Promise<void> {
+    await delay(this.latencyMs);
+    // Offline the same way send() is: a read position is a server round trip
+    // like any other, and the caller decides whether it is worth another go.
+    if (this.offline) throw new Error('offline');
+    this.reads.push({ channelId, messageId });
+  }
+
   async backlog(channelId: string, cursor?: string): Promise<IncomingMessage[]> {
     await delay(this.latencyMs);
     const inChannel = this.delivered.filter((m) => m.channelId === channelId);
@@ -116,6 +128,11 @@ export class MockTransport implements Transport {
   receive(message: IncomingMessage): void {
     this.delivered.push(message);
     this.emit('message', message);
+  }
+
+  /** Test/dev hook: pretend a read position arrived from another device. */
+  receiveRead(read: TransportEvents['read']): void {
+    this.emit('read', read);
   }
 
   /** Test/dev hook: pull the plug, then put it back. */

@@ -67,6 +67,9 @@ export class ChatController {
   private readonly outbox: Outbox;
   private readonly resolveRecipients: ((channelId: string) => Promise<Recipient[]>) | null;
   private readonly resolveAuthorKey: (authorId: string) => Promise<Uint8Array | null>;
+  /// The last id already reported per channel, so re-focusing a conversation
+  /// nothing has happened in does not re-post the same marker.
+  private readonly reported = new Map<string, string>();
   private unsubscribers: (() => void)[] = [];
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -99,10 +102,51 @@ export class ChatController {
   /** The identity must be unlocked before anything can be sealed or opened. */
   setIdentity(identity: ChatIdentity | null): void {
     this.identity = identity;
+    // The store needs to know who we are to leave our own messages out of the
+    // unread counts, and it is the only thing it needs the identity for.
+    this.dispatch({ type: 'identity', userId: identity?.userId ?? null });
   }
 
   seed(messages: Message[]): void {
     this.dispatch({ type: 'seed', messages });
+  }
+
+  /** What the server says is unread, which is the truth on a fresh load. */
+  seedUnread(counts: Record<string, number>): void {
+    this.dispatch({ type: 'unread', counts });
+  }
+
+  /**
+   * The conversation on screen, or null when the window is in the background.
+   *
+   * Focusing one clears its count locally and tells the server how far we have
+   * read. A conversation left open behind another window is deliberately not
+   * focused: it has not been read, and a messenger that says otherwise is
+   * losing messages on the user's behalf.
+   */
+  focus(channelId: string | null): void {
+    this.dispatch({ type: 'focus', channelId });
+    if (channelId) void this.reportRead(channelId);
+  }
+
+  /**
+   * Posts our read position for a channel, if it has moved.
+   *
+   * The marker is the newest *confirmed* message: an optimistic id is one the
+   * server has never heard of, and marking read against it would be rejected.
+   */
+  private async reportRead(channelId: string): Promise<void> {
+    const newest = this.state.cursors[channelId];
+    if (!newest || this.reported.get(channelId) === newest) return;
+
+    this.reported.set(channelId, newest);
+    try {
+      await this.transport.markRead(channelId, newest);
+    } catch {
+      // Read state is not worth failing anything over. Forget that we tried so
+      // the next focus or message has another go.
+      if (this.reported.get(channelId) === newest) this.reported.delete(channelId);
+    }
   }
 
   async start(): Promise<void> {
@@ -110,6 +154,15 @@ export class ChatController {
     this.unsubscribers.push(
       this.transport.on('message', (incoming) => {
         void this.ingest(incoming);
+      }),
+      this.transport.on('read', ({ channelId, userId, lastReadMessageId }) => {
+        // Only our own reads move our own badges. Somebody else reading is
+        // their business, and this client draws it nowhere.
+        //
+        // This includes the echo of what this tab just reported, which needs
+        // no special case: the count it lands on is the one we already have.
+        if (userId !== this.identity?.userId) return;
+        this.dispatch({ type: 'readUpTo', channelId, messageId: lastReadMessageId });
       }),
       this.transport.on('state', (state) => {
         // Anything queued while offline goes out the moment we are back, and
@@ -240,10 +293,19 @@ export class ChatController {
     const backlog = await this.transport.backlog(channelId, cursor);
     const messages = await Promise.all(backlog.map((incoming) => this.open(incoming)));
     this.dispatch({ type: 'backlog', channelId, messages });
+    // Selecting a conversation pulls its backlog, so this is where the read
+    // marker for a conversation opened for the first time actually gets set:
+    // at focus time there was no confirmed message id to point at yet.
+    if (this.state.focusedChannelId === channelId) await this.reportRead(channelId);
   }
 
   private async ingest(incoming: IncomingMessage): Promise<void> {
     this.dispatch({ type: 'received', message: await this.open(incoming) });
+    // Arriving in the conversation somebody is looking at means it has been
+    // read, which is the only way the marker keeps up during a live exchange.
+    if (this.state.focusedChannelId === incoming.channelId) {
+      await this.reportRead(incoming.channelId);
+    }
   }
 
   /**

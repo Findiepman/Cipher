@@ -1,8 +1,11 @@
 # STATUS: where this project actually is
 
-Last updated **2026-09-07**, after a pass over the chat UI: nicknames,
-right-click actions on a person, a password reveal on the auth screens, and the
-removal of every encryption badge from the interface.
+Last updated **2026-09-07**, after two passes over the chat UI. The first
+brought nicknames, right-click actions on a person, a password reveal on the
+auth screens and the removal of every encryption badge. The second added the
+profile panel, rebuilt the Friends screen as five tabs and finished the
+blocking story: a blocked list, unblocking, re-adding afterwards, and taking
+back a request you sent.
 
 This file is the "get up to speed without reading everything" document. It says
 what works, what does not, and which decisions are load-bearing. Keep it
@@ -55,7 +58,11 @@ account-work axis (`backend-plan.md`).
 | Account lockout, generic responses that resist enumeration | `server/src/modules/auth/service.ts` |
 | Friend requests by exact username, accept/decline, unfriend, block | `server/src/modules/friends/` |
 | Nicknames: your own private label for a friend | `server/src/modules/friends/service.ts`, `client/src/components/PersonMenu.tsx` |
-| Right-click a person for message / nickname / unfriend / block | `client/src/components/PersonMenu.tsx` |
+| Right-click a person for profile / message / nickname / unfriend / block | `client/src/components/PersonMenu.tsx` |
+| The profile card, beside a conversation | `client/src/components/UserProfile.tsx` |
+| Friends screen as five tabs: all, add, sent, received, blocked | `client/src/screens/FriendsScreen.tsx` |
+| Blocked list, unblock, and re-adding afterwards | `server/src/modules/friends/service.ts` |
+| Cancelling a request you sent | `POST /friends/requests/:id/cancel` |
 | Username word filter on registration | `server/src/lib/usernameFilter.ts` |
 | Password reveal toggle on sign in, create account and unlock | `client/src/components/PasswordField.tsx` |
 | Public-key registry, gated on friendship | `server/src/modules/keys/routes.ts` |
@@ -68,7 +75,7 @@ account-work axis (`backend-plan.md`).
 | Deployed: 4 containers, no host ports, Cloudflare Tunnel | `deploy/` |
 | Live registration + verification email landing in an inbox | verified by hand 2026-09-07 |
 
-243 tests pass: 34 crypto, 99 client, 110 server. `npm run typecheck` and
+263 tests pass: 34 crypto, 107 client, 122 server. `npm run typecheck` and
 `npm run build` are clean across all workspaces.
 
 **Adding a friend and exchanging messages were driven by hand in the browser on
@@ -80,10 +87,11 @@ nobody has clicked the whole screen. Anything you change in
 `client/src/state/ChatProvider.tsx` or the screens still needs a human to look
 at it.
 
-**The 2026-09-07 UI pass has not been driven by hand.** Typecheck, build and
-243 tests are green, and the nickname and block endpoints are covered by
-`server/tests/nicknames.test.ts`, but nobody has right-clicked a conversation
-row in a browser. That is the first thing to do next.
+**Neither 2026-09-07 UI pass has been driven by hand.** Typecheck, build and
+263 tests are green, and every endpoint behind them is covered by
+`server/tests/nicknames.test.ts` and `server/tests/blocking.test.ts`, but
+nobody has right-clicked a conversation row or opened the profile panel in a
+browser. That is the first thing to do next.
 
 **The device-key unlock has not been clicked in a real browser yet.** Its unit
 tests run against in-memory stores, so what they prove is the logic, not that
@@ -107,11 +115,12 @@ Two end-to-end proofs, both against a running server over real HTTP:
   enough for groups (a `Conversation` with N participants), but the key model
   is not chosen, see `packages/crypto/AGENTS.md`. The UI's server rail is
   gone; there is a Direct view and a Friends view.
-- **Unblocking, anywhere in the UI.** `DELETE /friends/:userId/block` exists
-  and the client wraps it, but nothing calls it: a blocked person vanishes from
-  every list, so there is no row left to right-click. Blocking is currently a
-  one-way door from inside the app. A blocked-users list under settings is the
-  missing piece.
+- **A profile for yourself.** `UserProfile` renders other people. Your own
+  account has no card, no avatar upload and no status line; the account strip
+  is still the whole of it.
+- **Blocking somebody you have never met.** The API takes any user id, but the
+  only way into the UI is a right-click on a person already on screen, and a
+  stranger is not on screen. In practice you unfriend or decline instead.
 - **Message editing, deletion, read receipts, attachments, search.** None of
   it. `ConversationParticipant.lastReadMessageId` exists in the schema and is
   never written, so nothing is ever marked read and the conversation list has
@@ -239,7 +248,29 @@ worse for this specific app.
     innocent word ("therapist", "torpedo", "pakistani", "raccoon", "mustard").
     Moving a term between the lists is how this feature starts refusing real
     people, so `tests/usernameFilter.test.ts` asserts those words specifically.
-17. **The UI makes no claim about encryption.** No SEALED pill, no key
+17. **A blocked list answers "who have I blocked" and nothing else.** There is
+    no endpoint for "who has blocked me" and there should not be: that list is
+    useful to exactly one person, and it is the one working around it.
+    `listBlocked` filters on `blockedById`, not on the status alone, so a row
+    where the other party did the blocking is invisible.
+18. **Cancelling and declining are different endpoints on purpose.**
+    `respondToRequest` refuses the requester, because the person who asked
+    cannot also answer; without that, someone could accept a friendship
+    one-sidedly. Withdrawing is a separate act available only to the asker, so
+    it is `POST /friends/requests/:id/cancel`. Each side sees the other's move
+    as a 404 rather than a 403, because a 403 would confirm that a given id is
+    a live request between two other people.
+19. **Unblocking deletes the row rather than restoring what was there.**
+    Afterwards the two of you are strangers, not friends again, and either can
+    send a request. Restoring a friendship somebody had already ended by
+    blocking would be the wrong default, and the Blocked tab says so in words
+    when a block is lifted.
+20. **The profile panel is two pieces of state, not one id.** `hidden` is a
+    preference that survives changing conversation; `pinnedUserId` is an
+    override from "view profile" that does not. One id cannot express both: the
+    panel would reopen every time you switched DM, or a pinned profile would be
+    silently replaced on the next render.
+21. **The UI makes no claim about encryption.** No SEALED pill, no key
     fingerprint beside a name, no "the server only ever held the blob". If
     phase 2 lands and someone wants to surface it again, it should be one
     considered screen (an out-of-band verification flow), not a badge on every
@@ -430,9 +461,11 @@ UI change twice.
 
 Pick one; they are roughly independent.
 
-0. **Click through the 2026-09-07 UI pass.** Right-click a conversation row,
-   set a nickname, check it replaces the name in the list, the header and the
-   composer placeholder, then unfriend and block someone. None of that has been
+0. **Click through both 2026-09-07 UI passes.** Right-click a conversation
+   row, set a nickname, check it replaces the name in the list, the header and
+   the composer placeholder. Open the profile panel and use its buttons. Then
+   walk the five Friends tabs: send a request, cancel it, block someone,
+   unblock them from the Blocked tab and add them back. None of that has been
    seen in a browser, and the React layer has no other coverage.
 
 1. **Run `deploy/setup-backups.sh` on the box.** One command, and it is the

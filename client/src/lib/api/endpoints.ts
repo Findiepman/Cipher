@@ -14,6 +14,7 @@ import type {
   AdminUserListQuery,
   AuditLogEntry,
   BacklogResponse,
+  BlockedUserDto,
   ChangeEmailRequest,
   ChangePasswordRequest,
   ConfirmEmailChangeRequest,
@@ -26,6 +27,7 @@ import type {
   FriendRequestsResponse,
   LoginRequest,
   LoginResponse,
+  MarkReadRequest,
   MessageDto,
   Paginated,
   PublicDeviceDto,
@@ -35,6 +37,7 @@ import type {
   ResetContextRequest,
   ResetContextResponse,
   ResetPasswordRequest,
+  ReadStateDto,
   SendFriendRequestRequest,
   SendFriendRequestResponse,
   SendMessageRequest,
@@ -139,6 +142,9 @@ export function createFriendsApi(client: ApiClient) {
     requests() {
       return client.get<FriendRequestsResponse>('/friends/requests');
     },
+    blocked() {
+      return client.get<{ blocked: BlockedUserDto[] }>('/friends/blocked');
+    },
     /** Exact username. The server caps this per account, not per address. */
     sendRequest(body: SendFriendRequestRequest) {
       return client.post<SendFriendRequestResponse>('/friends/requests', body);
@@ -151,6 +157,16 @@ export function createFriendsApi(client: ApiClient) {
     decline(id: string) {
       return client.post<AcknowledgedResponse>(
         `/friends/requests/${encodeURIComponent(id)}/decline`,
+      );
+    },
+    /**
+     * Withdrawing a request you sent. Deliberately not `decline`: the server
+     * refuses the requester on that path, because the person who asked cannot
+     * also answer.
+     */
+    cancel(id: string) {
+      return client.post<AcknowledgedResponse>(
+        `/friends/requests/${encodeURIComponent(id)}/cancel`,
       );
     },
     remove(userId: string) {
@@ -194,6 +210,18 @@ export function createConversationsApi(client: ApiClient) {
       return client.get<BacklogResponse>(
         `/conversations/${encodeURIComponent(conversationId)}/messages`,
         { query: { after, limit } },
+      );
+    },
+    /**
+     * How far this client has read. A message id for the same reason a cursor
+     * is one: the server orders messages but cannot read them, so "up to here"
+     * is the only thing either side can say about them.
+     */
+    markRead(conversationId: string, messageId: string) {
+      const body: MarkReadRequest = { messageId };
+      return client.post<ReadStateDto>(
+        `/conversations/${encodeURIComponent(conversationId)}/read`,
+        body,
       );
     },
     /** The fallback for when the socket is down; the socket is the normal path. */

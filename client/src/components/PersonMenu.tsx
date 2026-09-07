@@ -1,25 +1,31 @@
 /**
  * Right-click a person, act on them.
  *
- * One provider rather than a menu per list, because the same four actions
- * belong on a conversation row, a friends row and a message author, and three
- * copies of them would drift. Anywhere that draws a person calls
+ * One provider rather than a menu per list, because the same actions belong on
+ * a conversation row, a friends row, a message author and the profile card, and
+ * four copies of them would drift. Anywhere that draws a person calls
  * `usePersonMenu().open(event, userId)` from `onContextMenu` and gets the whole
- * thing.
+ * thing; anywhere with its own buttons calls `act(action, userId)` and gets the
+ * same dialogs without the menu.
  *
  * Removing and blocking both ask first. Neither is catastrophic, but both are
  * invisible once done: nothing on screen says "you unfriended this person", so
- * a misclick would just look like the app losing someone.
+ * a misclick would just look like the app losing someone. Unblocking does not
+ * ask, because it only ever gives something back.
  */
 import { useCallback, useContext, useMemo, useState, createContext, type ReactNode } from 'react';
 import { ContextMenu, MenuDivider, MenuHeading, MenuItem, type MenuAnchor } from './ContextMenu';
-import { BanIcon, MessageIcon, PencilIcon, UserMinusIcon } from './Icons';
+import { BanIcon, MessageIcon, PencilIcon, ProfileIcon, UserMinusIcon } from './Icons';
 import { useChat } from '../state/ChatProvider';
 import '../styles/dialog.css';
+
+export type PersonAction = 'profile' | 'message' | 'nickname' | 'clear-nickname' | 'unfriend' | 'block';
 
 interface PersonMenuValue {
   /** Opens the menu where the pointer is, and stops the browser's own menu. */
   open: (event: React.MouseEvent, userId: string) => void;
+  /** Runs one action directly, dialogs included. For buttons, not right-clicks. */
+  act: (action: PersonAction, userId: string) => void;
 }
 
 const PersonMenuContext = createContext<PersonMenuValue | null>(null);
@@ -27,14 +33,62 @@ const PersonMenuContext = createContext<PersonMenuValue | null>(null);
 type Pending =
   | { kind: 'menu'; userId: string; anchor: MenuAnchor }
   | { kind: 'nickname'; userId: string }
-  | { kind: 'remove'; userId: string }
+  | { kind: 'unfriend'; userId: string }
   | { kind: 'block'; userId: string }
   | null;
 
-export function PersonMenuProvider({ children }: { children: ReactNode }) {
+export interface PersonMenuProviderProps {
+  children: ReactNode;
+  /**
+   * Opens the profile panel. Optional: where there is nowhere to put a profile
+   * (the Friends screen owns its whole pane), the menu simply omits the item
+   * rather than offering one that does nothing.
+   */
+  onViewProfile?: (userId: string) => void;
+}
+
+export function PersonMenuProvider({ children, onViewProfile }: PersonMenuProviderProps) {
   const { usersById, friends, self, openDmWith, removeFriend, blockUser, setNickname } = useChat();
   const [pending, setPending] = useState<Pending>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const close = useCallback(() => setPending(null), []);
+
+  /// Every action closes what opened it before it runs, and reports afterwards.
+  /// A dialog that stays up while a request is in flight invites a second click
+  /// on the same button, and blocking twice is a different outcome from
+  /// blocking once.
+  const run = useCallback(async (action: () => Promise<void>) => {
+    setPending(null);
+    try {
+      await action();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'That did not work.');
+    }
+  }, []);
+
+  const act = useCallback(
+    (action: PersonAction, userId: string) => {
+      setError(null);
+      switch (action) {
+        case 'profile':
+          setPending(null);
+          onViewProfile?.(userId);
+          return;
+        case 'message':
+          void run(() => openDmWith(userId));
+          return;
+        case 'clear-nickname':
+          void run(() => setNickname(userId, ''));
+          return;
+        case 'nickname':
+        case 'unfriend':
+        case 'block':
+          setPending({ kind: action, userId });
+      }
+    },
+    [onViewProfile, openDmWith, run, setNickname],
+  );
 
   const open = useCallback((event: React.MouseEvent, userId: string) => {
     event.preventDefault();
@@ -43,28 +97,12 @@ export function PersonMenuProvider({ children }: { children: ReactNode }) {
     setPending({ kind: 'menu', userId, anchor: { x: event.clientX, y: event.clientY } });
   }, []);
 
-  const value = useMemo<PersonMenuValue>(() => ({ open }), [open]);
+  const value = useMemo<PersonMenuValue>(() => ({ open, act }), [open, act]);
 
   const person = pending ? usersById.get(pending.userId) : undefined;
   const isFriend = pending ? friends.some((friend) => friend.id === pending.userId) : false;
   // Your own row has a menu with nothing on it worth showing, so it has none.
   const isSelf = pending ? pending.userId === self?.id : false;
-
-  function close() {
-    setPending(null);
-  }
-
-  /// Every action closes the menu first and reports afterwards. A dialog that
-  /// stays open while a request is in flight invites a second click on the same
-  /// button, and blocking twice is a different outcome from blocking once.
-  async function run(action: () => Promise<void>) {
-    close();
-    try {
-      await action();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'That did not work.');
-    }
-  }
 
   return (
     <PersonMenuContext.Provider value={value}>
@@ -74,25 +112,33 @@ export function PersonMenuProvider({ children }: { children: ReactNode }) {
         <ContextMenu anchor={pending.anchor} onClose={close} label={`Actions for ${person.name}`}>
           <MenuHeading>{person.username}</MenuHeading>
 
+          {onViewProfile && (
+            <MenuItem
+              icon={<ProfileIcon size={15} />}
+              label="View profile"
+              onClick={() => act('profile', pending.userId)}
+            />
+          )}
+
           {isFriend && (
             <MenuItem
               icon={<MessageIcon size={15} />}
               label="Message"
-              onClick={() => void run(() => openDmWith(pending.userId))}
+              onClick={() => act('message', pending.userId)}
             />
           )}
 
           <MenuItem
             icon={<PencilIcon size={15} />}
             label={person.nickname ? 'Change nickname' : 'Add nickname'}
-            onClick={() => setPending({ kind: 'nickname', userId: pending.userId })}
+            onClick={() => act('nickname', pending.userId)}
           />
 
           {person.nickname && (
             <MenuItem
               icon={<PencilIcon size={15} />}
               label="Remove nickname"
-              onClick={() => void run(() => setNickname(pending.userId, ''))}
+              onClick={() => act('clear-nickname', pending.userId)}
             />
           )}
 
@@ -103,14 +149,14 @@ export function PersonMenuProvider({ children }: { children: ReactNode }) {
               danger
               icon={<UserMinusIcon size={15} />}
               label="Remove friend"
-              onClick={() => setPending({ kind: 'remove', userId: pending.userId })}
+              onClick={() => act('unfriend', pending.userId)}
             />
           )}
           <MenuItem
             danger
             icon={<BanIcon size={15} />}
             label="Block"
-            onClick={() => setPending({ kind: 'block', userId: pending.userId })}
+            onClick={() => act('block', pending.userId)}
           />
         </ContextMenu>
       )}
@@ -124,7 +170,7 @@ export function PersonMenuProvider({ children }: { children: ReactNode }) {
         />
       )}
 
-      {pending?.kind === 'remove' && person && (
+      {pending?.kind === 'unfriend' && person && (
         <ConfirmDialog
           title={`Remove ${person.name}?`}
           body={
@@ -142,7 +188,8 @@ export function PersonMenuProvider({ children }: { children: ReactNode }) {
           title={`Block ${person.name}?`}
           body={
             'They will not be able to reach you or add you again, and they are not ' +
-            'told. This also ends your friendship. You can undo it later.'
+            'told. This also ends your friendship. You can undo it from Friends, ' +
+            'under Blocked.'
           }
           confirmLabel="Block"
           onCancel={close}

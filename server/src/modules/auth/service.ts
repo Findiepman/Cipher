@@ -1,10 +1,11 @@
 import type { Device, User } from '../../generated/prisma/client.js';
 import { prisma } from '../../db.js';
 import { env } from '../../env.js';
-import { recordAudit } from '../../lib/audit.js';
+import { recordAudit, type AuditAction, type AuditEntry } from '../../lib/audit.js';
 import { badRequest, unauthorized } from '../../lib/errors.js';
 import {
   alreadyRegisteredEmail,
+  passwordResetEmail,
   verificationEmail,
   type Mailer,
 } from '../../lib/mailer.js';
@@ -19,9 +20,34 @@ import {
   minutesFromNow,
 } from '../../lib/tokens.js';
 import type { RequestContext } from './sessions.js';
-import type { LoginInput, RegisterInput } from './schemas.js';
+import type { LoginInput, RegisterInput, ResetPasswordInput } from './schemas.js';
 
 const VERIFY_TOKEN_TTL_MINUTES = 60 * 24;
+
+/// Much shorter than a verification link. A verification link is a convenience
+/// that sits in an inbox until someone gets around to it; a reset link is a
+/// live credential for the account, so the window it is stealable in should be
+/// about as long as it takes to read the email and type a password.
+const RESET_TOKEN_TTL_MINUTES = 60;
+
+/// Audit actions for the credential flows.
+///
+/// These belong in the `AuditAction` union in lib/audit.ts and are named here
+/// instead because a parallel change owns that file right now. The union is
+/// closed on purpose: a mistyped action string is otherwise invisible until
+/// someone reads the log looking for something that was never written under
+/// that name. Fold these four in and delete this the moment both changes land.
+type CredentialAuditAction =
+  | 'auth.reset_requested'
+  | 'auth.reset_completed'
+  | 'auth.password_changed'
+  | 'auth.recovery_code_rotated';
+
+export function recordCredentialAudit(
+  entry: Omit<AuditEntry, 'action'> & { action: CredentialAuditAction },
+): Promise<void> {
+  return recordAudit({ ...entry, action: entry.action as AuditAction });
+}
 
 /// Mirrors AccountDto in client/src/lib/api/types.ts. Lowercased role and
 /// status because the enum casing is a database detail, and `emailVerifiedAt`
@@ -353,6 +379,233 @@ async function registerFailedLogin(
     targetUserId: user.id,
     ip: ctx.ip,
     meta: { reason: 'bad_password', failedLoginCount },
+  });
+}
+
+/* ------------------------------------------------------ password reset --- */
+
+/// The account's live key material. One device per account today (STATUS.md
+/// decision 4), so "the device" is the oldest one still unrevoked, matching
+/// what login hands back.
+export function activeDeviceFor(userId: string): Promise<Device | null> {
+  return prisma.device.findFirst({
+    where: { userId, revokedAt: null },
+    orderBy: { createdAt: 'asc' },
+  });
+}
+
+/// Raised when an account has no key material to re-wrap. Registration creates
+/// the user and the device in one transaction, so reaching this means a device
+/// was revoked or the row predates devices existing at all.
+const identityUnavailable = () =>
+  badRequest(
+    'identity_unavailable',
+    'This account has no key material on file, so there is nothing to unlock. Contact an administrator.',
+  );
+
+async function issueResetToken(userId: string): Promise<string> {
+  const { token, tokenHash } = createOpaqueToken();
+
+  // Same rule as verification: one live link at a time, so asking again kills
+  // the previous email rather than leaving two working credentials in an inbox.
+  await prisma.$transaction([
+    prisma.emailToken.deleteMany({ where: { userId, purpose: 'RESET' } }),
+    prisma.emailToken.create({
+      data: {
+        userId,
+        purpose: 'RESET',
+        tokenHash,
+        expiresAt: minutesFromNow(RESET_TOKEN_TTL_MINUTES),
+      },
+    }),
+  ]);
+
+  return token;
+}
+
+/// Always resolves the same way, exactly like register and resendVerification.
+///
+/// An unverified account gets no link. Nobody has ever proved they can read
+/// that inbox, and this endpoint would be the proof step, so honouring it
+/// would turn "sign up with someone else's address" into a way to end up
+/// holding a verified-looking account against an address that was never
+/// confirmed. Such an account can still be reached: register again, or ask for
+/// a new verification email.
+export async function requestPasswordReset(
+  email: string,
+  ctx: RequestContext,
+  mailer: Mailer,
+): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { email } });
+
+  if (!user || user.status !== 'ACTIVE' || !user.emailVerifiedAt) return;
+
+  const token = await issueResetToken(user.id);
+  await mailer.send({ to: user.email, ...passwordResetEmail(token) });
+
+  await recordCredentialAudit({
+    action: 'auth.reset_requested',
+    targetUserId: user.id,
+    ip: ctx.ip,
+  });
+}
+
+/// Every rejection is the same 400. The reasons are worth keeping apart in
+/// code and not worth telling an anonymous caller apart, since the difference
+/// between "expired" and "never existed" is exactly what token guessing wants
+/// to learn.
+async function requireResetToken(rawToken: string) {
+  const record = await prisma.emailToken.findUnique({
+    where: { tokenHash: hashToken(rawToken) },
+    include: { user: true },
+  });
+
+  const invalid = badRequest(
+    'invalid_token',
+    'This reset link is invalid or has expired.',
+  );
+
+  if (
+    !record ||
+    record.purpose !== 'RESET' ||
+    record.usedAt ||
+    record.expiresAt.getTime() <= Date.now() ||
+    record.user.status !== 'ACTIVE'
+  ) {
+    throw invalid;
+  }
+
+  return record;
+}
+
+export interface ResetContextDto {
+  email: string;
+  deviceId: string;
+  publicKey: string;
+  wrappedPrivateKeyRecovery: string;
+}
+
+/// blob_B, handed out in exchange for a valid reset token.
+///
+/// This endpoint is not in backend-plan.md and the recovery-code path cannot
+/// work without it: a reset happens signed out, usually on a machine that has
+/// never held this account's key material, so there is no other way to reach
+/// the blob the recovery code opens.
+///
+/// Handing it over leaks nothing the server could have withheld anyway. blob_B
+/// is sealed under a 103-bit code this server has never seen and cannot
+/// derive, so to whoever holds the token it is a wrapped key they still cannot
+/// open, and to us it always was. What the token holder does gain is an
+/// offline target, which is why the recovery code is a key rather than a PIN.
+///
+/// It deliberately does not spend the token. Only the reset itself does, so a
+/// user who fetches this and then mistypes their code can try again.
+export async function loadResetContext(rawToken: string): Promise<ResetContextDto> {
+  const record = await requireResetToken(rawToken);
+  const device = await activeDeviceFor(record.userId);
+
+  if (!device) throw identityUnavailable();
+
+  return {
+    email: record.user.email,
+    deviceId: device.id,
+    publicKey: device.publicKey,
+    wrappedPrivateKeyRecovery: device.wrappedPrivateKeyRecovery,
+  };
+}
+
+/// Both reset paths land here, and neither of them is "the server sets a new
+/// password": the server has never held one. What arrives is a new authHash
+/// plus the blobs the client re-wrapped on its own device, and the server's
+/// job is to swap them in together or not at all.
+///
+/// `identityReset` says which path ran. False means the recovery code opened
+/// blob_B and the same keypair survived, so message history stays readable.
+/// True means a fresh keypair was generated, and every message already sealed
+/// to the old public key is permanently unreadable. That is the design working
+/// rather than failing, and it is the client's job to have said so plainly
+/// before getting here.
+export async function resetPassword(
+  input: ResetPasswordInput,
+  ctx: RequestContext,
+): Promise<void> {
+  const record = await requireResetToken(input.token);
+  const device = await activeDeviceFor(record.userId);
+
+  // Narrowed out of the union before the transaction, where the discriminant
+  // is no longer in scope.
+  const newPublicKey = input.identityReset ? input.publicKey : null;
+
+  if (!device && !newPublicKey) throw identityUnavailable();
+
+  const authVerifier = await hashPassword(input.authHash);
+  const now = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    // Spending the token is conditional on it still being unspent, so two
+    // requests racing the same link cannot both apply. Doing it first means
+    // the loser fails before touching any credential.
+    const spent = await tx.emailToken.updateMany({
+      where: { id: record.id, usedAt: null },
+      data: { usedAt: now },
+    });
+
+    if (spent.count === 0) {
+      throw badRequest('invalid_token', 'This reset link is invalid or has expired.');
+    }
+
+    await tx.user.update({
+      where: { id: record.userId },
+      data: {
+        authVerifier,
+        recoveryCodeHash: input.recoveryCodeHash,
+        // Whoever gets here proved control of the inbox, so a lockout from
+        // someone else's guessing should not outlive the reset.
+        failedLoginCount: 0,
+        lockedUntil: null,
+      },
+    });
+
+    if (device) {
+      await tx.device.update({
+        where: { id: device.id },
+        data: {
+          wrappedPrivateKey: input.wrappedPrivateKey,
+          wrappedPrivateKeyRecovery: input.wrappedPrivateKeyRecovery,
+          ...(newPublicKey ? { publicKey: newPublicKey } : {}),
+        },
+      });
+    } else if (newPublicKey) {
+      // No device and a brand new keypair: the account had nothing to lose, so
+      // give it key material rather than leaving it able to sign in and read
+      // nothing. The guard above makes these two branches exhaustive; the
+      // condition is repeated here because only it narrows the public key.
+      await tx.device.create({
+        data: {
+          userId: record.userId,
+          label: 'Recovered account',
+          publicKey: newPublicKey,
+          wrappedPrivateKey: input.wrappedPrivateKey,
+          wrappedPrivateKeyRecovery: input.wrappedPrivateKeyRecovery,
+        },
+      });
+    }
+
+    // Everyone signed in with the old password is signed out, including
+    // whoever prompted the reset by being somewhere they should not be. A
+    // reset that leaves an intruder's session alive has changed a password and
+    // nothing else.
+    await tx.session.updateMany({
+      where: { userId: record.userId, revokedAt: null },
+      data: { revokedAt: now },
+    });
+  });
+
+  await recordCredentialAudit({
+    action: 'auth.reset_completed',
+    targetUserId: record.userId,
+    ip: ctx.ip,
+    meta: { identityReset: input.identityReset },
   });
 }
 

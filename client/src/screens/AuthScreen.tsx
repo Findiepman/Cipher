@@ -19,7 +19,7 @@ import { checkPassword } from '../lib/session/passwordPolicy';
 import { useSession } from '../state/SessionProvider';
 import '../styles/auth.css';
 
-type Mode = 'signin' | 'create';
+type Mode = 'signin' | 'create' | 'forgot';
 type Step = { kind: 'form' } | { kind: 'recovery'; code: string } | { kind: 'check-email' };
 
 export function AuthScreen() {
@@ -41,8 +41,12 @@ export function AuthScreen() {
     );
   }
 
+  if (mode === 'forgot') {
+    return <ForgotPasswordPanel onBack={() => setMode('signin')} />;
+  }
+
   return mode === 'signin' ? (
-    <SignInPanel onSwitch={() => setMode('create')} />
+    <SignInPanel onSwitch={() => setMode('create')} onForgot={() => setMode('forgot')} />
   ) : (
     <CreateAccountPanel
       onSwitch={() => setMode('signin')}
@@ -109,7 +113,7 @@ function fieldMessages(details: unknown): string[] {
 
 /* ------------------------------------------------------------ sign in ---- */
 
-function SignInPanel({ onSwitch }: { onSwitch: () => void }) {
+function SignInPanel({ onSwitch, onForgot }: { onSwitch: () => void; onForgot: () => void }) {
   const { login, busy, auth } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -179,6 +183,12 @@ function SignInPanel({ onSwitch }: { onSwitch: () => void }) {
           Resend the verification email
         </button>
       )}
+
+      <p className="auth-aside">
+        <button type="button" onClick={onForgot}>
+          Forgot your password?
+        </button>
+      </p>
 
       <p className="auth-switch">
         No account yet?{' '}
@@ -305,16 +315,34 @@ function CreateAccountPanel({
 
 /* ----------------------------------------------------- the recovery code -- */
 
-function RecoveryCodeStep({ code, onDone }: { code: string; onDone: () => void }) {
+/**
+ * The one screen that shows a recovery code.
+ *
+ * Signup is not the only place a code is minted: a password reset spends the
+ * old one and hands back a new one, and so does rotating it from settings. The
+ * words around it change, the checkbox and the fact that this is the only time
+ * anyone will ever see the value do not, so the panel is shared rather than
+ * copied and left to drift.
+ */
+function RecoveryCodeStep({
+  code,
+  onDone,
+  title = 'Save your recovery code',
+  lede = 'This is shown once, and it is the only way back into your messages if you forget your password. Nobody can send it to you later.',
+  actionLabel = 'Continue',
+}: {
+  code: string;
+  onDone: () => void;
+  title?: string;
+  lede?: string;
+  actionLabel?: string;
+}) {
   const [acknowledged, setAcknowledged] = useState(false);
 
   return (
     <Shell wide>
-      <h1 className="auth-title">Save your recovery code</h1>
-      <p className="auth-lede">
-        This is shown once, and it is the only way back into your messages if you
-        forget your password. Nobody can send it to you later.
-      </p>
+      <h1 className="auth-title">{title}</h1>
+      <p className="auth-lede">{lede}</p>
 
       <p className="auth-code">{code}</p>
 
@@ -334,8 +362,98 @@ function RecoveryCodeStep({ code, onDone }: { code: string; onDone: () => void }
       </label>
 
       <button className="auth-submit" type="button" onClick={onDone} disabled={!acknowledged}>
-        Continue
+        {actionLabel}
       </button>
+    </Shell>
+  );
+}
+
+/* ---------------------------------------------------- forgot password ---- */
+
+/**
+ * Asking for a reset link.
+ *
+ * The server answers identically whether or not the address has an account, so
+ * this screen cannot say "no such address" and does not pretend to. What it can
+ * do is set the expectation the reset screen will hold the user to: the link
+ * gets the account back, the recovery code is what gets the messages back.
+ */
+function ForgotPasswordPanel({ onBack }: { onBack: () => void }) {
+  const { auth } = useSession();
+  const [email, setEmail] = useState('');
+  const [sent, setSent] = useState(false);
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setWorking(true);
+    try {
+      await auth.forgotPassword(email);
+      setSent(true);
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  if (sent) {
+    return (
+      <Shell>
+        <h1 className="auth-title">Check your email</h1>
+        <p className="auth-lede">
+          If there is an account for {email}, a link to set a new password is on
+          its way. It works once and expires in an hour.
+        </p>
+        <p className="auth-note">
+          Have your recovery code ready. It is the only thing that can carry your
+          existing messages over to the new password, and nobody here can send it
+          to you.
+        </p>
+        <button className="auth-submit" type="button" onClick={onBack}>
+          Back to sign in
+        </button>
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell>
+      <h1 className="auth-title">Forgot your password</h1>
+      <p className="auth-lede">
+        Give us the address on the account and we will send a link to set a new
+        password.
+      </p>
+
+      <ErrorNote error={error} />
+
+      <form onSubmit={submit}>
+        <label className="auth-field">
+          <span className="auth-label">Email</span>
+          <input
+            className="auth-input"
+            type="email"
+            autoComplete="username"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={working}
+            required
+            autoFocus
+          />
+        </label>
+
+        <button className="auth-submit" type="submit" disabled={working || !email}>
+          {working ? 'Sending…' : 'Send the link'}
+        </button>
+      </form>
+
+      <p className="auth-aside">
+        <button type="button" onClick={onBack}>
+          Back to sign in
+        </button>
+      </p>
     </Shell>
   );
 }
@@ -370,4 +488,8 @@ function CheckEmailStep({ onSignIn }: { onSignIn: () => void }) {
   );
 }
 
-export { Shell as AuthShell, ErrorNote as AuthErrorNote };
+export {
+  Shell as AuthShell,
+  ErrorNote as AuthErrorNote,
+  RecoveryCodeStep as AuthRecoveryCodeStep,
+};

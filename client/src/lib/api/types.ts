@@ -257,6 +257,19 @@ export interface SetNicknameResponse {
   nickname: string;
 }
 
+/**
+ * Someone you have blocked.
+ *
+ * Only ever your own blocks. There is no endpoint that answers "who has blocked
+ * me", and there should not be: that list is useful to exactly one person, and
+ * it is the one working around it.
+ */
+export interface BlockedUserDto {
+  id: string;
+  username: string;
+  blockedAt: string;
+}
+
 export interface FriendRequestDto {
   id: string;
   direction: 'incoming' | 'outgoing';
@@ -307,7 +320,29 @@ export interface ConversationDto {
    * conversation list is rendered from this client's own decrypted history.
    */
   lastMessage: { id: string; authorId: string; sentAt: string } | null;
+  /**
+   * Where *you* have read up to and how many messages by anyone else sit
+   * after it. Both are the caller's own: the other participant's position is
+   * theirs and never comes down here.
+   *
+   * The count rides along with the list so drawing twenty unread dots costs
+   * one request rather than twenty-one.
+   */
+  lastReadMessageId: string | null;
+  unread: number;
   createdAt: string;
+}
+
+/** What POST /conversations/:id/read sends: how far the caller has read. */
+export interface MarkReadRequest {
+  messageId: string;
+}
+
+/** The caller's read position after marking and what is still unread. */
+export interface ReadStateDto {
+  conversationId: string;
+  lastReadMessageId: string;
+  unread: number;
 }
 
 /** A stored message, carrying the single envelope addressed to this caller. */

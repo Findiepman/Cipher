@@ -51,8 +51,6 @@ export interface Channel {
   topic?: string;
   /** The other participant. Set only when `kind` is `'dm'`. */
   recipientId?: string;
-  unread?: boolean;
-  mentions?: number;
 }
 
 /**

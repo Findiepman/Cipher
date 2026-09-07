@@ -210,6 +210,36 @@
   background: var(--hover);
 }
 
+/* A quiet link under a form: "forgot your password", "I do not have my
+   recovery code". Deliberately not .auth-switch, which draws a rule above
+   itself to separate one whole screen from another. Two of those stacked on
+   the sign-in panel read as two separators for one gap. */
+.auth-aside {
+  margin: 14px 0 0;
+  color: var(--text-mute);
+  font-size: 13px;
+  text-align: center;
+}
+
+.auth-aside button {
+  color: var(--text-link);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.auth-aside button:hover {
+  text-decoration: underline;
+}
+
+/* A recovery code being typed back in. Mono and spaced to match the block it
+   was first shown in, so the thing on the paper and the thing in the field
+   look like the same thing. */
+.auth-input--code {
+  font-family: var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .auth-switch {
   margin: 20px 0 0;
   padding-top: 18px;

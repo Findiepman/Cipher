@@ -202,3 +202,189 @@ describe('reconnect backlog', () => {
     expect(messages.map((m) => m.body)).toEqual(['mine', 'theirs']);
   });
 });
+
+describe('read state', () => {
+  function sealed(body: string): string {
+    return JSON.stringify({ v: 1, alg: 'none', nonce: null, body: btoa(body) });
+  }
+
+  /// Delivers a message from somebody else and waits for it to land.
+  async function arrive(
+    controller: ChatController,
+    transport: MockTransport,
+    id: string,
+    body: string,
+    channelId = 'c-general',
+  ): Promise<void> {
+    const before = messagesForChannel(controller.snapshot, channelId).length;
+    transport.receive({
+      id,
+      channelId,
+      authorId: 'u-ren',
+      sentAt: new Date().toISOString(),
+      ciphertext: sealed(body),
+    });
+    await vi.waitFor(() => {
+      expect(messagesForChannel(controller.snapshot, channelId)).toHaveLength(before + 1);
+    });
+  }
+
+  it('tells the transport how far we have read when a channel is focused', async () => {
+    const { controller, transport } = await setup();
+    await arrive(controller, transport, 'srv-300', 'anyone there');
+
+    controller.focus('c-general');
+
+    await vi.waitFor(() => {
+      expect(transport.reads).toEqual([{ channelId: 'c-general', messageId: 'srv-300' }]);
+    });
+    expect(controller.snapshot.unread['c-general']).toBeUndefined();
+  });
+
+  it('does not report the same position twice', async () => {
+    const { controller, transport } = await setup();
+    await arrive(controller, transport, 'srv-301', 'one');
+
+    controller.focus('c-general');
+    await vi.waitFor(() => expect(transport.reads).toHaveLength(1));
+
+    controller.focus(null);
+    controller.focus('c-general');
+    await vi.waitFor(() => expect(transport.reads).toHaveLength(1));
+  });
+
+  it('keeps up as messages arrive in the channel on screen', async () => {
+    const { controller, transport } = await setup();
+
+    controller.focus('c-general');
+    await arrive(controller, transport, 'srv-302', 'one');
+    await vi.waitFor(() => expect(transport.reads.at(-1)?.messageId).toBe('srv-302'));
+
+    await arrive(controller, transport, 'srv-303', 'two');
+    await vi.waitFor(() => expect(transport.reads.at(-1)?.messageId).toBe('srv-303'));
+  });
+
+  it('says nothing while the window is in the background', async () => {
+    const { controller, transport } = await setup();
+
+    controller.focus(null);
+    await arrive(controller, transport, 'srv-304', 'while you were out');
+
+    expect(transport.reads).toHaveLength(0);
+    expect(controller.snapshot.unread['c-general']).toBe(1);
+  });
+
+  it('never reports an id the server has not seen', async () => {
+    // An optimistic message is identified by a local id the server has never
+    // heard of. Marking read against one would be rejected, and the position
+    // it claimed would be a lie either way.
+    const { controller, transport } = await setup({ offline: true });
+    await controller.send('c-general', 'queued');
+
+    controller.focus('c-general');
+    await vi.waitFor(() => expect(controller.queuedCount).toBe(1));
+
+    expect(transport.reads).toHaveLength(0);
+  });
+
+  it('tries again after a report that failed', async () => {
+    const { controller, transport } = await setup();
+    await arrive(controller, transport, 'srv-305', 'one');
+    const markRead = vi
+      .spyOn(transport, 'markRead')
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue(undefined);
+
+    controller.focus('c-general');
+    await vi.waitFor(() => expect(markRead).toHaveBeenCalledTimes(1));
+
+    // Read state is not worth failing anything over, so a failure is forgotten
+    // rather than retried on a timer: the next focus has another go.
+    controller.focus(null);
+    controller.focus('c-general');
+    await vi.waitFor(() => expect(markRead).toHaveBeenCalledTimes(2));
+  });
+
+  it('reports on the backlog pulled when a conversation is opened', async () => {
+    // At focus time a conversation opened for the first time has no confirmed
+    // message id to point at, so this is where its marker actually gets set.
+    const { controller, transport } = await setup();
+    transport.receive({
+      id: 'srv-306',
+      channelId: 'c-crypto',
+      authorId: 'u-ren',
+      sentAt: new Date().toISOString(),
+      ciphertext: sealed('opened later'),
+    });
+
+    controller.focus('c-crypto');
+    await controller.syncChannel('c-crypto');
+
+    await vi.waitFor(() => {
+      expect(transport.reads).toContainEqual({ channelId: 'c-crypto', messageId: 'srv-306' });
+    });
+  });
+});
+
+describe('a read from somewhere else', () => {
+  /// Two messages waiting, with nobody looking at the conversation: the state
+  /// another device is about to clear.
+  async function withTwoWaiting() {
+    const { controller, transport } = await setup();
+    controller.focus(null);
+
+    for (const [id, body] of [
+      ['srv-400', 'one'],
+      ['srv-401', 'two'],
+    ]) {
+      transport.receive({
+        id,
+        channelId: 'c-general',
+        authorId: 'u-ren',
+        sentAt: new Date().toISOString(),
+        ciphertext: JSON.stringify({ v: 1, alg: 'none', nonce: null, body: btoa(body) }),
+      });
+    }
+    await vi.waitFor(() => expect(controller.snapshot.unread['c-general']).toBe(2));
+
+    return { controller, transport };
+  }
+
+  it('clears this tab when the other one has read everything', async () => {
+    const { controller, transport } = await withTwoWaiting();
+
+    transport.receiveRead({
+      channelId: 'c-general',
+      userId: 'u-me',
+      lastReadMessageId: 'srv-401',
+    });
+
+    expect(controller.snapshot.unread['c-general']).toBeUndefined();
+  });
+
+  it('leaves what the other tab has not got to yet', async () => {
+    const { controller, transport } = await withTwoWaiting();
+
+    transport.receiveRead({
+      channelId: 'c-general',
+      userId: 'u-me',
+      lastReadMessageId: 'srv-400',
+    });
+
+    expect(controller.snapshot.unread['c-general']).toBe(1);
+  });
+
+  it('ignores somebody else reading', async () => {
+    // Their read position is theirs. This client draws it nowhere, and it must
+    // certainly not clear our own badge.
+    const { controller, transport } = await withTwoWaiting();
+
+    transport.receiveRead({
+      channelId: 'c-general',
+      userId: 'u-ren',
+      lastReadMessageId: 'srv-401',
+    });
+
+    expect(controller.snapshot.unread['c-general']).toBe(2);
+  });
+});

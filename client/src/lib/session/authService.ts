@@ -25,7 +25,7 @@ import {
 } from '@cipher/crypto';
 import { ApiClient, api } from '../api';
 import { createAccountApi, createAuthApi } from '../api/endpoints';
-import type { AccountDto, DeviceDto } from '../api/types';
+import type { AccountDto, DeviceDto, ResetContextResponse } from '../api/types';
 import { KeyManager, keyManager as defaultKeyManager } from './keyManager';
 
 export interface RegisterInput {
@@ -205,19 +205,41 @@ export class AuthService {
   }
 
   /**
+   * What a reset token is worth: the account's email and blob_B, which is
+   * still sealed under a recovery code the server has never seen.
+   *
+   * A reset screen calls this first, for two reasons that both matter. It says
+   * whether the link is any good before the user types a password into a form
+   * that is going to fail, and it supplies the email address the new authHash
+   * has to be derived under, which a signed-out device on a machine that has
+   * never held this account has no other way to learn.
+   *
+   * The token is not spent by this, only by the reset itself.
+   */
+  resetContext(token: string): Promise<ResetContextResponse> {
+    return this.auth.resetContext({ token });
+  }
+
+  /**
    * Password reset WITH the recovery code. blob_B is fetched against the reset
    * token, opened with the code and the key is re-wrapped under the new
    * password. Identity and message history survive.
    *
    * The old recovery code is spent by this, so a fresh one is minted and
    * returned to show the user once.
+   *
+   * Pass `context` if you already hold one. A caller that does not is charged a
+   * round trip per attempt, and a mistyped recovery code is the likeliest way
+   * to get here twice: the unwrap that catches it happens on this device, so
+   * with the context in hand a wrong code costs nothing at all.
    */
   async resetPasswordWithRecoveryCode(input: {
     token: string;
     recoveryCode: string;
     newPassword: string;
+    context?: ResetContextResponse;
   }): Promise<{ recoveryCode: string }> {
-    const context = await this.auth.resetContext({ token: input.token });
+    const context = input.context ?? (await this.auth.resetContext({ token: input.token }));
 
     let privateKey: Uint8Array;
     try {

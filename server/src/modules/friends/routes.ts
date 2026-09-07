@@ -8,7 +8,9 @@ import {
 } from './schemas.js';
 import {
   blockUser,
+  cancelRequest,
   clearNickname,
+  listBlocked,
   listFriends,
   listRequests,
   removeFriend,
@@ -34,6 +36,13 @@ export const friendRoutes: FastifyPluginAsync = async (fastify) => {
     return listRequests(request.currentUser!.id);
   });
 
+  /// Static, so it is declared before the `/:userId` routes below. Fastify's
+  /// router prefers a literal segment over a parameter anyway; the ordering is
+  /// for whoever reads this next.
+  fastify.get('/blocked', async (request) => {
+    return { blocked: await listBlocked(request.currentUser!.id) };
+  });
+
   fastify.post('/requests', async (request, reply) => {
     const { username } = parseBody(sendFriendRequestSchema, request.body);
 
@@ -54,6 +63,16 @@ export const friendRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = parseBody(friendshipIdSchema, request.params);
 
     await respondToRequest(request.currentUser!.id, id, false, request.ip);
+
+    return reply.send({ ok: true });
+  });
+
+  /// Withdrawing a request you sent. Not the same call as declining: only the
+  /// person who asked can cancel, and only the person who was asked can answer.
+  fastify.post('/requests/:id/cancel', async (request, reply) => {
+    const { id } = parseBody(friendshipIdSchema, request.params);
+
+    await cancelRequest(request.currentUser!.id, id, request.ip);
 
     return reply.send({ ok: true });
   });

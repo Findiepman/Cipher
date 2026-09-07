@@ -37,6 +37,15 @@ export interface FriendDto {
 /// bio. Trimmed here so " " cannot be stored as a name that renders as nothing.
 const NICKNAME_MAX = 32;
 
+/// Someone the caller has blocked. Only ever returned to the account that
+/// applied the block: a list of who has blocked you is not a thing this server
+/// will answer, because it is only useful to the person working around it.
+export interface BlockedUserDto {
+  id: string;
+  username: string;
+  blockedAt: string;
+}
+
 export interface FriendRequestDto {
   id: string;
   direction: 'incoming' | 'outgoing';
@@ -137,6 +146,28 @@ export async function listRequests(userId: string): Promise<{
   }
 
   return { incoming, outgoing };
+}
+
+export async function listBlocked(userId: string): Promise<BlockedUserDto[]> {
+  const rows = await prisma.friendship.findMany({
+    // `blockedById` and not just the status: a row where the *other* party did
+    // the blocking is invisible here, which is the whole point.
+    where: { status: 'BLOCKED', blockedById: userId },
+    include: {
+      userA: { select: { id: true, username: true } },
+      userB: { select: { id: true, username: true } },
+    },
+    orderBy: { respondedAt: 'desc' },
+  });
+
+  return rows.map((row) => {
+    const other = row.userAId === userId ? row.userB : row.userA;
+    return {
+      id: other.id,
+      username: other.username,
+      blockedAt: (row.respondedAt ?? row.createdAt).toISOString(),
+    };
+  });
 }
 
 export type SendRequestOutcome = 'pending' | 'accepted' | 'already_friends';
@@ -270,6 +301,45 @@ export async function respondToRequest(
 
   await recordAudit({
     action: accept ? 'friend.accepted' : 'friend.declined',
+    actorUserId: userId,
+    targetUserId: otherId,
+    ip,
+  });
+}
+
+/**
+ * Taking back a request you sent.
+ *
+ * Separate from respondToRequest, which refuses the requester on purpose: the
+ * person who asked cannot answer their own question, and letting them through
+ * that path would let someone accept a friendship one-sidedly. Withdrawing is a
+ * different act, and it is only ever available to the person who asked.
+ */
+export async function cancelRequest(
+  userId: string,
+  friendshipId: string,
+  ip: string | null,
+): Promise<void> {
+  const friendship = await prisma.friendship.findUnique({
+    where: { id: friendshipId },
+  });
+
+  const unknown = notFound('request_not_found', 'That friend request no longer exists.');
+
+  if (!friendship || friendship.status !== 'PENDING') throw unknown;
+  // Someone else's request is reported as absent rather than as forbidden. A
+  // 403 here would confirm that a given id is a live request between two other
+  // people, which is not the caller's business.
+  if (friendship.requestedById !== userId) throw unknown;
+
+  const otherId = friendship.userAId === userId ? friendship.userBId : friendship.userAId;
+
+  // Deleted, like a decline, so neither side is left holding a record of a
+  // request that no longer exists and either of you can ask again.
+  await prisma.friendship.delete({ where: { id: friendship.id } });
+
+  await recordAudit({
+    action: 'friend.request_cancelled',
     actorUserId: userId,
     targetUserId: otherId,
     ip,

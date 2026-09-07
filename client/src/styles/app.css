@@ -37,6 +37,22 @@
   background: var(--bg-panel-alt);
 }
 
+/* The profile column. Narrower than the conversation list because it holds one
+   person, not a list, and it is the first thing to go when the window is not
+   wide enough for three columns: the same card is still reachable from the
+   right-click menu on any row. */
+.panel--profile {
+  width: 260px;
+  flex: 0 0 260px;
+  overflow-y: auto;
+}
+
+@media (max-width: 1100px) {
+  .panel--profile {
+    display: none;
+  }
+}
+
 /* Narrow windows drop the conversation list; the top bar keeps working, so
    you can still move between workspaces. */
 @media (max-width: 820px) {

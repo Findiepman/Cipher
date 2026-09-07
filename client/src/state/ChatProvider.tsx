@@ -23,6 +23,7 @@ import {
 import { fromBase64 } from '@cipher/crypto';
 import { conversationsApi, friendsApi } from '../lib/api';
 import type {
+  BlockedUserDto,
   ConversationDto,
   FriendDto,
   FriendRequestDto,
@@ -36,7 +37,7 @@ import { createSecureStore } from '../lib/storage/secureStore';
 import { keyManager as defaultKeyManager, type KeyManager } from '../lib/session/keyManager';
 import type { Channel, Message, User } from '../types';
 import { ChatController, type Recipient } from './chatController';
-import { messagesForChannel } from './chatStore';
+import { initialChatState, messagesForChannel, type ChatState } from './chatStore';
 import { useSession } from './SessionProvider';
 
 /** How long a typing indicator survives without a fresh signal. */
@@ -54,6 +55,8 @@ export interface ChatContextValue {
   friends: FriendDto[];
   incoming: FriendRequestDto[];
   outgoing: FriendRequestDto[];
+  /** People you have blocked. Never anyone who has blocked you. */
+  blocked: BlockedUserDto[];
   /** Everyone the UI might need to draw, friends and self alike. */
   usersById: Map<string, User>;
   self: User | null;
@@ -61,6 +64,11 @@ export interface ChatContextValue {
   activeChannelId: string | null;
   selectChannel: (channelId: string) => void;
   messagesFor: (channelId: string) => Message[];
+  /**
+   * Unread per channel. Seeded from the server on load and kept up by the
+   * store after that, so the list draws its dots without asking again.
+   */
+  unread: Record<string, number>;
   /** Usernames currently typing in a channel. */
   typingIn: (channelId: string) => string[];
 
@@ -71,8 +79,11 @@ export interface ChatContextValue {
   addFriend: (username: string) => Promise<SendFriendRequestResponse>;
   acceptRequest: (id: string) => Promise<void>;
   declineRequest: (id: string) => Promise<void>;
+  /** Withdrawing a request you sent. Not the same call as declining one. */
+  cancelRequest: (id: string) => Promise<void>;
   removeFriend: (userId: string) => Promise<void>;
   blockUser: (userId: string) => Promise<void>;
+  unblockUser: (userId: string) => Promise<void>;
   /** Your own private label for someone. An empty string clears it. */
   setNickname: (userId: string, nickname: string) => Promise<void>;
 }
@@ -91,9 +102,10 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
   const [friends, setFriends] = useState<FriendDto[]>([]);
   const [incoming, setIncoming] = useState<FriendRequestDto[]>([]);
   const [outgoing, setOutgoing] = useState<FriendRequestDto[]>([]);
+  const [blocked, setBlocked] = useState<BlockedUserDto[]>([]);
   const [online, setOnline] = useState<Set<string>>(new Set());
   const [typing, setTyping] = useState<{ channelId: string; userId: string; at: number }[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [chatState, setChatState] = useState<ChatState>(initialChatState);
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
   const [connection, setConnection] = useState<ConnectionState>('idle');
   const [queued, setQueued] = useState(0);
@@ -136,21 +148,40 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
     };
   });
 
+  /// One reload for the whole friend graph. Blocking moves a row out of the
+  /// friend list and into the blocked list in a single write, so refreshing
+  /// half of it would leave the screen showing a person in two places or in
+  /// neither.
   const reloadFriends = useCallback(async () => {
-    const [{ friends: list }, requests] = await Promise.all([
+    const [{ friends: list }, requests, { blocked: blockedList }] = await Promise.all([
       friendsApi.list(),
       friendsApi.requests(),
+      friendsApi.blocked(),
     ]);
     setFriends(list);
     setIncoming(requests.incoming);
     setOutgoing(requests.outgoing);
+    setBlocked(blockedList);
   }, []);
 
-  const reloadConversations = useCallback(async () => {
-    const { conversations: list } = await conversationsApi.list();
-    setConversations(list);
-    return list;
-  }, []);
+  const reloadConversations = useCallback(
+    async () => {
+      const { conversations: list } = await conversationsApi.list();
+      setConversations(list);
+      // The server's counts are authoritative on a fresh load: this device may
+      // have been closed while a conversation filled up, and it has no local
+      // history of what it missed.
+      controller.chat.seedUnread(
+        Object.fromEntries(
+          list
+            .filter((conversation) => conversation.unread > 0)
+            .map((conversation) => [conversation.id, conversation.unread]),
+        ),
+      );
+      return list;
+    },
+    [controller],
+  );
 
   /* --------------------------------------------------------------- start -- */
 
@@ -162,7 +193,7 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
 
     const unsubscribeState = chat.subscribe((state) => {
       if (!live) return;
-      setMessages(state.messages);
+      setChatState(state);
       setQueued(chat.queuedCount);
     });
 
@@ -349,6 +380,28 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
     selectChannel(channels[0].id);
   }, [activeChannelId, channels, selectChannel]);
 
+  /// Read means on screen *and* in front. A conversation sitting open behind
+  /// another window has not been read, so its count survives until the tab
+  /// comes back, which is also when the server hears about it.
+  useEffect(() => {
+    const { chat } = controller;
+
+    const apply = () => {
+      chat.focus(document.hasFocus() && !document.hidden ? activeChannelId : null);
+    };
+
+    apply();
+    window.addEventListener('focus', apply);
+    window.addEventListener('blur', apply);
+    document.addEventListener('visibilitychange', apply);
+
+    return () => {
+      window.removeEventListener('focus', apply);
+      window.removeEventListener('blur', apply);
+      document.removeEventListener('visibilitychange', apply);
+    };
+  }, [activeChannelId, controller]);
+
   const send = useCallback(
     async (body: string) => {
       if (!activeChannelId) return;
@@ -395,6 +448,14 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
     [reloadFriends],
   );
 
+  const cancelRequest = useCallback(
+    async (id: string) => {
+      await friendsApi.cancel(id);
+      await reloadFriends();
+    },
+    [reloadFriends],
+  );
+
   const removeFriend = useCallback(
     async (userId: string) => {
       await friendsApi.remove(userId);
@@ -413,6 +474,17 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
     [reloadConversations, reloadFriends],
   );
 
+  const unblockUser = useCallback(
+    async (userId: string) => {
+      await friendsApi.unblock(userId);
+      // Unblocking deletes the row outright rather than restoring what was
+      // there before, so afterwards the two of you are strangers and either can
+      // send a request. The screen says so.
+      await reloadFriends();
+    },
+    [reloadFriends],
+  );
+
   const setNickname = useCallback(
     async (userId: string, nickname: string) => {
       const trimmed = nickname.trim();
@@ -424,8 +496,8 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
   );
 
   const messagesFor = useCallback(
-    (channelId: string) => messagesForChannel({ messages, cursors: {} }, channelId),
-    [messages],
+    (channelId: string) => messagesForChannel(chatState, channelId),
+    [chatState],
   );
 
   const typingIn = useCallback(
@@ -452,11 +524,13 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
       friends,
       incoming,
       outgoing,
+      blocked,
       usersById,
       self,
       activeChannelId,
       selectChannel,
       messagesFor,
+      unread: chatState.unread,
       typingIn,
       send,
       notifyTyping,
@@ -464,8 +538,10 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
       addFriend,
       acceptRequest,
       declineRequest,
+      cancelRequest,
       removeFriend,
       blockUser,
+      unblockUser,
       setNickname,
     }),
     [
@@ -478,11 +554,13 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
       friends,
       incoming,
       outgoing,
+      blocked,
       usersById,
       self,
       activeChannelId,
       selectChannel,
       messagesFor,
+      chatState.unread,
       typingIn,
       send,
       notifyTyping,
@@ -490,8 +568,10 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
       addFriend,
       acceptRequest,
       declineRequest,
+      cancelRequest,
       removeFriend,
       blockUser,
+      unblockUser,
       setNickname,
     ],
   );

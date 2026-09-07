@@ -1,0 +1,150 @@
+/* The profile card.
+ *
+ * It is a prefab, so it owns no positioning: the panel around it decides where
+ * it sits and how wide it is. Everything here is internal layout.
+ */
+
+.profile {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.profile__banner {
+  height: 68px;
+  flex: 0 0 68px;
+  position: relative;
+  /* The person's own colour, dimmed so a bright tint does not shout over the
+     panel it sits in. */
+  opacity: 0.75;
+}
+
+.profile__close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+}
+.profile__close:hover {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* Pulled up over the banner, punched out of it with a ring of the panel
+   colour, which is the shape people already read as "profile". */
+.profile__avatar {
+  margin: -36px 0 0 18px;
+  width: 72px;
+  height: 72px;
+  border-radius: 24px;
+  box-shadow: 0 0 0 4px var(--bg-panel);
+}
+
+.profile__body {
+  padding: 12px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.profile__name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-hi);
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.profile__handle {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-mute);
+  word-break: break-all;
+}
+
+.profile__facts {
+  margin: 18px 0 0;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--line-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profile__fact {
+  margin: 0;
+}
+
+.profile__fact dt {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.profile__fact dd {
+  margin: 3px 0 0;
+  font-size: 13.5px;
+  color: var(--text);
+}
+
+.profile__note {
+  margin-left: 7px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.profile__actions {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.profile__button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: 13.5px;
+  text-align: left;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+.profile__button:hover {
+  background: var(--hover);
+  color: var(--text-hi);
+}
+
+.profile__button--primary {
+  border-color: transparent;
+  background: var(--ember);
+  color: var(--ember-ink);
+  font-weight: 600;
+}
+.profile__button--primary:hover {
+  background: var(--ember-hover);
+  color: var(--ember-ink);
+}
+
+.profile__button--danger {
+  color: var(--red);
+}
+.profile__button--danger:hover {
+  border-color: color-mix(in srgb, var(--red) 45%, transparent);
+  background: color-mix(in srgb, var(--red) 10%, transparent);
+  color: var(--red);
+}

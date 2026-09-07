@@ -1,5 +1,6 @@
 import type { Channel, User } from '../types';
 import { Avatar } from './Avatar';
+import { ProfileIcon } from './Icons';
 import { usePersonMenu } from './PersonMenu';
 import '../styles/chat-header.css';
 
@@ -9,9 +10,18 @@ type Props = {
   channel: Channel;
   recipient?: User;
   members: User[];
+  /** Whether the profile panel is showing. Null when there is nobody to show. */
+  profileOpen?: boolean;
+  onToggleProfile?: () => void;
 };
 
-export function ChatHeader({ channel, recipient, members }: Props) {
+export function ChatHeader({
+  channel,
+  recipient,
+  members,
+  profileOpen = false,
+  onToggleProfile,
+}: Props) {
   const menu = usePersonMenu();
   const shown = members.slice(0, STACK_LIMIT);
   const overflow = members.length - shown.length;
@@ -51,6 +61,21 @@ export function ChatHeader({ channel, recipient, members }: Props) {
                 <span className="avatar-stack__more mono">+{overflow}</span>
               </span>
             )}
+          </button>
+        )}
+
+        {onToggleProfile && (
+          <button
+            type="button"
+            className={`icon-button icon-button--framed${
+              profileOpen ? ' icon-button--active' : ''
+            }`}
+            onClick={onToggleProfile}
+            aria-pressed={profileOpen}
+            title={profileOpen ? 'Hide profile' : 'Show profile'}
+            aria-label={profileOpen ? 'Hide profile' : 'Show profile'}
+          >
+            <ProfileIcon size={16} />
           </button>
         )}
       </div>

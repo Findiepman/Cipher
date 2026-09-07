@@ -75,6 +75,15 @@ export interface TransportEvents {
    * not a claim that they are reading anything.
    */
   presence: { userId: string; online: boolean };
+  /**
+   * Somebody moved their read position in a channel.
+   *
+   * Sent to every participant, the reader included, which is the case this
+   * mostly exists for: reading a conversation on one device is what clears the
+   * unread count on the other. The position is a message id, because the
+   * server can order messages but cannot read them.
+   */
+  read: { channelId: string; userId: string; lastReadMessageId: string };
 }
 
 export type TransportEventName = keyof TransportEvents;
@@ -91,6 +100,15 @@ export interface Transport {
    * cannot read, so the cursor is the client's own last-seen id.
    */
   backlog(channelId: string, cursor?: string): Promise<IncomingMessage[]>;
+  /**
+   * How far this client has read in a channel. A message id, for the same
+   * reason the cursor above is one.
+   *
+   * Rejects on failure, so a caller can try again later. Read state is not
+   * worth blocking anything on, but silently losing it means an unread count
+   * that never clears.
+   */
+  markRead(channelId: string, messageId: string): Promise<void>;
   on<E extends TransportEventName>(
     event: E,
     handler: (payload: TransportEvents[E]) => void,

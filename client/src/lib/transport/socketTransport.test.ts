@@ -301,3 +301,68 @@ describe('receiving', () => {
     expect(presence).toHaveBeenCalledWith({ userId: 'u-nova', online: true });
   });
 });
+
+describe('read positions', () => {
+  it('sends one over the socket, in the server\'s vocabulary', async () => {
+    const { socket, transport } = setup();
+    const connecting = transport.connect();
+    socket.goOnline();
+    await connecting;
+
+    await transport.markRead('conv-1', 'srv-9');
+
+    expect(socket.sent).toContainEqual({
+      event: 'read',
+      payload: { conversationId: 'conv-1', messageId: 'srv-9' },
+    });
+  });
+
+  it('falls back to HTTP when there is no live socket', async () => {
+    // The same split as send(), and for the same reason: both paths land in
+    // the same handler, so a marker that travels either way ends up in one
+    // place.
+    const calls: string[] = [];
+    const api = fakeApi((url) => {
+      calls.push(url);
+      return json({ conversationId: 'conv-1', lastReadMessageId: 'srv-9', unread: 0 });
+    });
+    const { transport } = setup({ api });
+    await transport.connect();
+
+    await transport.markRead('conv-1', 'srv-9');
+
+    expect(calls[0]).toBe('http://localhost:3000/conversations/conv-1/read');
+  });
+
+  it('rejects a failed HTTP marker so the caller can try again', async () => {
+    const api = fakeApi(() => {
+      throw new TypeError('Failed to fetch');
+    });
+    const { transport } = setup({ api });
+    await transport.connect();
+
+    await expect(transport.markRead('conv-1', 'srv-9')).rejects.toBeTruthy();
+  });
+
+  it('relays an incoming one, mapping the conversation onto the channel', async () => {
+    const { socket, transport } = setup();
+    const read = vi.fn();
+    transport.on('read', read);
+
+    const connecting = transport.connect();
+    socket.goOnline();
+    await connecting;
+
+    socket.fire('read', {
+      conversationId: 'conv-1',
+      userId: 'u-me',
+      lastReadMessageId: 'srv-9',
+    });
+
+    expect(read).toHaveBeenCalledWith({
+      channelId: 'conv-1',
+      userId: 'u-me',
+      lastReadMessageId: 'srv-9',
+    });
+  });
+});

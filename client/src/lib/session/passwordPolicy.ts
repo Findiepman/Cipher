@@ -1,6 +1,6 @@
 /**
  * Client-side password rules, mirroring the server's ("minimum 12 chars,
- * weak-password rejection" — backend-plan.md).
+ * weak-password rejection", backend-plan.md).
  *
  * The server is still the authority; this exists so the user gets told before
  * an argon2id derivation and a round trip, and so the signup form can show a
@@ -33,7 +33,7 @@ export interface PasswordCheck {
   ok: boolean;
   /** Human-readable reasons, in the order worth showing them. */
   problems: string[];
-  /** 0–4, for a strength meter. Not a security claim. */
+  /** 0 to 4, for a strength meter. Not a security claim. */
   score: number;
 }
 

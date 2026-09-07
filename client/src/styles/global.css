@@ -56,8 +56,8 @@ a:hover {
   background-clip: padding-box;
 }
 
-/* Machine facts — key ids, timestamps, protocol names — are always mono.
-   Human writing never is. */
+/* Machine facts (handles, timestamps, counts) are always mono. Human writing
+   never is. */
 .mono {
   font-family: var(--font-mono);
   font-variant-ligatures: none;
@@ -70,23 +70,6 @@ a:hover {
   text-transform: uppercase;
   color: var(--text-mute);
   white-space: nowrap;
-}
-
-/* The single teal-green badge that means "the crypto layer is on". */
-.seal-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
-  border-radius: 11px;
-  background: var(--sage-bg);
-  color: var(--sage);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  flex: 0 0 auto;
-  cursor: default;
 }
 
 .icon-button {

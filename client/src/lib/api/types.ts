@@ -4,13 +4,13 @@
  * This file is the frontend's half of the agreement described in
  * backend-plan.md. Every field here is something the client either sends or
  * expects back. Where the backend plan named an endpoint but not its payload,
- * the shape below is a proposal — frontend-plan.md lists the open questions in
+ * the shape below is a proposal. frontend-plan.md lists the open questions in
  * one place so they can be settled in a single pass rather than discovered
  * during integration.
  *
  * Two invariants this file exists to make visible:
- *   1. No request type carries a private key, a password, or a recovery code.
- *      The server receives `authHash`, opaque wrapped blobs, and hashes.
+ *   1. No request type carries a private key, a password or a recovery code.
+ *      The server receives `authHash`, opaque wrapped blobs and hashes.
  *   2. No response type carries another user's wrapped private key. The key
  *      registry hands out public keys only (see PublicDeviceDto).
  */
@@ -51,9 +51,9 @@ export interface DeviceDto {
   label: string;
   /** base64 X25519 public key. */
   publicKey: string;
-  /** blob_A — the private key wrapped under the account password. */
+  /** blob_A: the private key wrapped under the account password. */
   wrappedPrivateKey: string;
-  /** blob_B — the same private key wrapped under the recovery code. */
+  /** blob_B: the same private key wrapped under the recovery code. */
   wrappedPrivateKeyRecovery: string;
   createdAt: string;
   revokedAt: string | null;
@@ -156,8 +156,8 @@ export interface ForgotPasswordRequest {
  * Both reset paths from backend-plan.md land here.
  *
  * With the recovery code (`identityReset: false`): the client unwrapped blob_B
- * locally, re-wrapped under the new password, and sends the new blob_A. The
- * keypair — and therefore the message history — survives.
+ * locally, re-wrapped it under the new password and sends the new blob_A. The
+ * keypair, and therefore the message history, survives.
  *
  * Without it (`identityReset: true`): the client generated a brand new keypair.
  * Old ciphertext stays on the server permanently unreadable, and contacts must
@@ -168,7 +168,7 @@ export interface ForgotPasswordRequest {
  *
  * This endpoint is NOT in backend-plan.md and has to be added: a password reset
  * happens while signed out, often on a new device, so the client has no way to
- * reach blob_B — and without blob_B the recovery code cannot save the identity,
+ * reach blob_B, and without blob_B the recovery code cannot save the identity,
  * which is the entire point of having one. Handing out blob_B in exchange for a
  * valid, unexpired, single-use reset token leaks nothing: it is opaque without
  * the recovery code, which the server has never seen.
@@ -219,7 +219,7 @@ export interface ChangeEmailRequest {
 /**
  * Confirming an email change needs a freshly derived authHash, because the auth
  * salt is derived from the email (see packages/crypto/src/kdf.ts). The wrapped
- * key blobs are unaffected — they carry their own random salts.
+ * key blobs are unaffected: they carry their own random salts.
  */
 export interface ConfirmEmailChangeRequest {
   token: string;
@@ -245,7 +245,16 @@ export interface FriendDto {
   username: string;
   /** base64 X25519 public key, or null for an account with no active device. */
   publicKey: string | null;
+  /**
+   * What you call this person. Yours alone: they are never told, and nobody
+   * else is ever shown it. Null means you have not renamed them.
+   */
+  nickname: string | null;
   friendsSince: string;
+}
+
+export interface SetNicknameResponse {
+  nickname: string;
 }
 
 export interface FriendRequestDto {
@@ -261,7 +270,7 @@ export interface FriendRequestsResponse {
 }
 
 /**
- * Adding by exact username, never by email — an email lookup would turn this
+ * Adding by exact username, never by email. An email lookup would turn this
  * into a "does this person have an account here" oracle, which is the one
  * question the auth design refuses to answer everywhere else.
  */
@@ -293,7 +302,7 @@ export interface ConversationDto {
   /** Everyone in it, the caller included. */
   participants: ConversationParticipantDto[];
   /**
-   * The newest message's id and time — not a preview. The server holds only
+   * The newest message's id and time, not a preview. The server holds only
    * ciphertext, so it has no readable text to summarise; the preview in the
    * conversation list is rendered from this client's own decrypted history.
    */
@@ -318,7 +327,7 @@ export interface BacklogResponse {
 }
 
 /**
- * One sealed copy per participant, the sender included — see the note on
+ * One sealed copy per participant, the sender included. See the note on
  * `Envelope` in lib/transport/types.ts for why the sender's own copy is not
  * optional.
  */

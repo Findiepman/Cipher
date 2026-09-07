@@ -4,7 +4,7 @@
  * It owns the ChatController and the three server-backed lists the UI renders
  * (conversations, friends, pending requests), and it is where the identity from
  * SessionProvider meets the transport. Components below this read state and
- * call actions; none of them touch the API, the socket, or the crypto module.
+ * call actions; none of them touch the API, the socket or the crypto module.
  *
  * The controller, store and outbox underneath were written and tested long
  * before there was a server. This is the wiring that finally points them at
@@ -28,7 +28,7 @@ import type {
   FriendRequestDto,
   SendFriendRequestResponse,
 } from '../lib/api/types';
-import { friendToUser, shortFingerprint } from '../lib/presentation';
+import { friendToUser } from '../lib/presentation';
 import { Outbox, SecureOutboxStorage } from '../lib/transport/outbox';
 import { SocketTransport } from '../lib/transport/socketTransport';
 import type { ConnectionState } from '../lib/transport/types';
@@ -72,6 +72,9 @@ export interface ChatContextValue {
   acceptRequest: (id: string) => Promise<void>;
   declineRequest: (id: string) => Promise<void>;
   removeFriend: (userId: string) => Promise<void>;
+  blockUser: (userId: string) => Promise<void>;
+  /** Your own private label for someone. An empty string clears it. */
+  setNickname: (userId: string, nickname: string) => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -88,8 +91,6 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
   const [friends, setFriends] = useState<FriendDto[]>([]);
   const [incoming, setIncoming] = useState<FriendRequestDto[]>([]);
   const [outgoing, setOutgoing] = useState<FriendRequestDto[]>([]);
-  const [fingerprints, setFingerprints] = useState<Map<string, string>>(new Map());
-  const [ownFingerprint, setOwnFingerprint] = useState('····');
   const [online, setOnline] = useState<Set<string>>(new Set());
   const [typing, setTyping] = useState<{ channelId: string; userId: string; at: number }[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -235,37 +236,6 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
     keysByUser.current = map;
   }, [friends, conversations]);
 
-  // Fingerprints are derived from a key by hashing, so they are computed once
-  // per key rather than on every render.
-  useEffect(() => {
-    let cancelled = false;
-
-    async function compute() {
-      const entries = await Promise.all(
-        [...keysByUser.current.entries()].map(
-          async ([userId, publicKey]) =>
-            [userId, await shortFingerprint(publicKey)] as const,
-        ),
-      );
-      if (!cancelled) setFingerprints(new Map(entries));
-    }
-
-    void compute();
-    return () => {
-      cancelled = true;
-    };
-  }, [friends, conversations]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void shortFingerprint(keys.current?.publicKey ?? null).then((value) => {
-      if (!cancelled) setOwnFingerprint(value);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [keys, account]);
-
   // A typing indicator that nobody refreshes has to expire on its own, or the
   // "… is typing" line stays up after the other person has given up.
   useEffect(() => {
@@ -276,11 +246,23 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
     return () => clearTimeout(timer);
   }, [typing]);
 
+  /// Nicknames come down with the friend list, so they are already loaded by
+  /// the time anybody is rendered. Kept as its own map because a conversation
+  /// participant who is no longer a friend still has to be drawn under whatever
+  /// you called them.
+  const nicknames = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const friend of friends) {
+      if (friend.nickname) map.set(friend.id, friend.nickname);
+    }
+    return map;
+  }, [friends]);
+
   const usersById = useMemo(() => {
     const map = new Map<string, User>();
 
     // Yourself first. You are not in your own friend list, and you are only in
-    // a conversation once you have started one - so without this the account
+    // a conversation once you have started one, so without this the account
     // avatar and your own message bubbles have nobody to render until then.
     if (account) {
       map.set(
@@ -290,16 +272,16 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
             id: account.id,
             username: account.username,
             publicKey: keys.current?.publicKey ?? null,
+            nickname: null,
             friendsSince: account.createdAt,
           },
-          ownFingerprint,
           true,
         ),
       );
     }
 
     for (const friend of friends) {
-      map.set(friend.id, friendToUser(friend, fingerprints.get(friend.id) ?? '····', online.has(friend.id)));
+      map.set(friend.id, friendToUser(friend, online.has(friend.id)));
     }
 
     // Anyone in a conversation who is no longer a friend still has to render,
@@ -310,8 +292,11 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
         map.set(
           participant.id,
           friendToUser(
-            { ...participant, friendsSince: conversation.createdAt },
-            fingerprints.get(participant.id) ?? '····',
+            {
+              ...participant,
+              nickname: nicknames.get(participant.id) ?? null,
+              friendsSince: conversation.createdAt,
+            },
             online.has(participant.id),
           ),
         );
@@ -319,7 +304,7 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
     }
 
     return map;
-  }, [account, keys, ownFingerprint, friends, conversations, fingerprints, online]);
+  }, [account, keys, friends, conversations, nicknames, online]);
 
   const self = account ? (usersById.get(account.id) ?? null) : null;
 
@@ -334,11 +319,14 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
           id: conversation.id,
           serverId: '@me',
           kind: 'dm',
-          name: other?.username ?? 'unknown',
+          // What you call them, if you have renamed them. The list, the header
+          // and the composer placeholder all read from here, so one lookup is
+          // what makes a nickname show up everywhere at once.
+          name: (other && nicknames.get(other.id)) ?? other?.username ?? 'unknown',
           recipientId: other?.id,
         };
       }),
-    [conversations, account?.id],
+    [conversations, account?.id, nicknames],
   );
 
   /* ------------------------------------------------------------- actions -- */
@@ -415,6 +403,26 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
     [reloadFriends],
   );
 
+  const blockUser = useCallback(
+    async (userId: string) => {
+      await friendsApi.block(userId);
+      // Blocking replaces the friendship row, so both lists move: they leave
+      // your friends, and any request between you is gone.
+      await Promise.all([reloadFriends(), reloadConversations()]);
+    },
+    [reloadConversations, reloadFriends],
+  );
+
+  const setNickname = useCallback(
+    async (userId: string, nickname: string) => {
+      const trimmed = nickname.trim();
+      if (trimmed) await friendsApi.setNickname(userId, trimmed);
+      else await friendsApi.clearNickname(userId);
+      await reloadFriends();
+    },
+    [reloadFriends],
+  );
+
   const messagesFor = useCallback(
     (channelId: string) => messagesForChannel({ messages, cursors: {} }, channelId),
     [messages],
@@ -457,6 +465,8 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
       acceptRequest,
       declineRequest,
       removeFriend,
+      blockUser,
+      setNickname,
     }),
     [
       ready,
@@ -481,6 +491,8 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
       acceptRequest,
       declineRequest,
       removeFriend,
+      blockUser,
+      setNickname,
     ],
   );
 

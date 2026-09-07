@@ -170,7 +170,7 @@ describe('token refresh', () => {
     await expect(client.get('/account/me')).rejects.toBeInstanceOf(ApiError);
     expect(onSessionExpired).toHaveBeenCalledTimes(1);
     expect(client.hasAccessToken).toBe(false);
-    // One original call, one refresh — and no retry loop.
+    // One original call, one refresh and no retry loop.
     expect(calls).toHaveLength(2);
   });
 

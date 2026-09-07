@@ -1,9 +1,9 @@
 import { API_ERROR_CODES, type ApiErrorBody, type ApiErrorCode } from './types';
 
 /**
- * Every failure the API layer produces — HTTP, network, or timeout — arrives as
+ * Every failure the API layer produces (HTTP, network or timeout) arrives as
  * one of these, so callers never have to guess whether they caught a Response,
- * a TypeError from fetch, or an AbortError.
+ * a TypeError from fetch or an AbortError.
  */
 export class ApiError extends Error {
   readonly status: number;
@@ -90,7 +90,7 @@ function defaultCodeForStatus(status: number): { code: ApiErrorCode; message: st
 
 /**
  * Thrown when a request is about to carry something that must never leave the
- * device. This is a bug in the caller, not a runtime condition — it is not an
+ * device. This is a bug in the caller, not a runtime condition. It is not an
  * ApiError, and it should never be caught and shown to a user.
  */
 export class SecretLeakError extends Error {

@@ -1,6 +1,6 @@
 /**
- * A transport that answers locally, so the whole client — optimistic send,
- * acks, the offline queue, reconnect backlog — can be built and tested before
+ * A transport that answers locally, so the whole client (optimistic send,
+ * acks, the offline queue, reconnect backlog) can be built and tested before
  * server/ has a messaging layer at all.
  *
  * It is also the thing to reach for when reproducing a delivery bug: latency

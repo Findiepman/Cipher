@@ -7,8 +7,8 @@ import type { OutgoingMessage } from './types';
 /**
  * A socket whose acks the test decides. The real protocol is covered end to
  * end by the server suite; what is worth pinning down here is the half a real
- * server makes hard to reproduce — a refusal, a malformed ack, a reply that
- * never comes — and the vocabulary mapping either side of it.
+ * server makes hard to reproduce (a refusal, a malformed ack, a reply that
+ * never comes) and the vocabulary mapping either side of it.
  */
 class FakeSocket implements SocketLike {
   connected = false;

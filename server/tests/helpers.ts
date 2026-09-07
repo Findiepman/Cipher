@@ -5,6 +5,7 @@ import { buildApp } from '../src/app.js';
 import { prisma } from '../src/db.js';
 import { InMemoryMailer } from '../src/lib/mailer.js';
 import { attachRealtime, type Realtime } from '../src/realtime/index.js';
+import { screenUsername } from '../src/lib/usernameFilter.js';
 
 export interface TestContext {
   app: FastifyInstance;
@@ -68,8 +69,21 @@ export async function resetDatabase(): Promise<void> {
   await prisma.$executeRawUnsafe(
     'TRUNCATE TABLE "AuditLog", "EmailToken", "Session", "Device", ' +
       '"MessageEnvelope", "Message", "ConversationParticipant", "Conversation", ' +
-      '"Friendship", "User" RESTART IDENTITY CASCADE',
+      '"ContactNickname", "Friendship", "User" RESTART IDENTITY CASCADE',
   );
+}
+
+/// Registration screens usernames for slurs, and these are generated from
+/// random hex. The filter normalizes digits to letters (4 to a, 6 and 9 to g,
+/// 0 to o), so a random suffix can land on a real blocked term perfectly by
+/// accident. Rare enough to never show up in review and common enough to fail a
+/// CI run, so it is designed out here rather than left to chance.
+function screenedHandle(candidate: string): string {
+  let handle = candidate;
+  while (screenUsername(handle) !== null) {
+    handle = `user-x${randomBytes(6).toString('hex')}`;
+  }
+  return handle;
 }
 
 /// Base64 of 32 random bytes - the shape of every digest and key crossing the
@@ -102,7 +116,7 @@ export interface RegisteredUser {
 export function newUser(suffix = Date.now().toString(36)): RegisteredUser {
   return {
     email: `user-${suffix}@example.test`,
-    username: `user-${suffix}`,
+    username: screenedHandle(`user-${suffix}`),
     authHash: base64Bytes(),
     recoveryCodeHash: base64Bytes(),
     device: {

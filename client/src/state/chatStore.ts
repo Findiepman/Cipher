@@ -8,7 +8,7 @@
  *     collapse into one bubble, whichever arrives first.
  *   - A backlog pull on reconnect overlaps with what is already on screen.
  *   - A message that cannot be decrypted still has to render. Dropping it
- *     silently is the one behaviour an E2EE client must never have — the user
+ *     silently is the one behaviour an E2EE client must never have. The user
  *     needs to see that something arrived and could not be opened.
  */
 import type { Message } from '../types';
@@ -16,7 +16,7 @@ import type { Message } from '../types';
 export interface ChatState {
   /** Flat and sorted; components filter by channel. */
   messages: Message[];
-  /** Last server id seen per channel — the cursor for the next backlog pull. */
+  /** Last server id seen per channel: the cursor for the next backlog pull. */
   cursors: Record<string, string>;
 }
 
@@ -69,7 +69,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 
 /**
  * Merges server messages into local state, collapsing anything we already hold.
- * Matching is by server id first, then by clientId — that second pass is what
+ * Matching is by server id first, then by clientId. That second pass is what
  * turns an optimistic bubble into the confirmed one instead of a duplicate.
  */
 function mergeInto(state: ChatState, incoming: Message[]): ChatState {
@@ -89,7 +89,7 @@ function mergeInto(state: ChatState, incoming: Message[]): ChatState {
       const index = next.indexOf(existing);
       // The server's copy wins on identity and ordering. The local copy wins on
       // `body` and on a decrypted state, because only this device ever had the
-      // plaintext — re-receiving our own message must not re-lock it.
+      // plaintext, so re-receiving our own message must not re-lock it.
       const alreadyReadable = existing.state === 'decrypted' || existing.body !== null;
       next[index] = {
         ...existing,
@@ -120,7 +120,7 @@ export function sortMessages(messages: Message[]): Message[] {
 function cursorsFrom(messages: Message[]): Record<string, string> {
   const cursors: Record<string, string> = {};
   for (const message of sortMessages(messages)) {
-    // Optimistic messages have no server id yet, so they cannot be a cursor —
+    // Optimistic messages have no server id yet, so they cannot be a cursor.
     // using one would make the next backlog pull skip real history.
     if (message.state === 'sending' || message.state === 'failed') continue;
     cursors[message.channelId] = message.id;

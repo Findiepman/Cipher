@@ -9,7 +9,7 @@ type Props = {
   typing?: string[];
   /** Fired as the user types, throttled here rather than by the caller. */
   onTyping?: () => void;
-  /** Replaces the "sealed on this device" line. Used for queue depth. */
+  /** Shown on the right of the footer. Used for queue depth. */
   notice?: string;
 };
 
@@ -81,8 +81,8 @@ export function Composer({ placeholder, onSend, typing = [], onTyping, notice }:
           className="composer__send"
           onClick={send}
           disabled={empty}
-          aria-label="Seal and send"
-          title="Seal and send"
+          aria-label="Send"
+          title="Send"
         >
           <svg
             width="16"
@@ -114,16 +114,14 @@ export function Composer({ placeholder, onSend, typing = [], onTyping, notice }:
             </>
           )}
         </span>
-        <span
-          className="composer__sealed mono"
-          title={
-            notice
-              ? 'Queued locally. They will go out as soon as there is a connection.'
-              : 'Encrypted on this device before sending'
-          }
-        >
-          {notice ?? 'sealed on this device · x25519'}
-        </span>
+        {notice && (
+          <span
+            className="composer__notice mono"
+            title="Queued on this device. They go out as soon as there is a connection."
+          >
+            {notice}
+          </span>
+        )}
       </div>
     </div>
   );

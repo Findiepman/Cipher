@@ -1,6 +1,7 @@
 import type { Channel, User } from '../types';
 import { Avatar } from './Avatar';
-import { LockIcon, SettingsIcon, SpeakerIcon } from './Icons';
+import { usePersonMenu } from './PersonMenu';
+import { SettingsIcon, SpeakerIcon } from './Icons';
 import '../styles/conversation-list.css';
 
 export type Preview = { text: string; at: string };
@@ -12,7 +13,7 @@ type Props = {
   onSelect: (channelId: string) => void;
   usersById: Map<string, User>;
   previews: Map<string, Preview>;
-  /** Null on the first paint, before the account and its key have loaded. */
+  /** Null on the first paint, before the account has loaded. */
   currentUser: User | null;
 };
 
@@ -58,11 +59,9 @@ export function ConversationList({
           ))}
       </div>
 
-      <div className="key-status">
-        <LockIcon size={15} />
-        <span className="mono">
-          {currentUser ? `key ${currentUser.fingerprint} · unlocked` : 'loading…'}
-        </span>
+      <div className="list-foot">
+        {currentUser && <Avatar user={currentUser} size={26} showPresence />}
+        <span className="list-foot__name">{currentUser?.name ?? 'loading…'}</span>
         <button type="button" className="icon-button" aria-label="Settings">
           <SettingsIcon size={16} />
         </button>
@@ -84,6 +83,7 @@ function ConversationRow({
   preview?: Preview;
   onSelect: () => void;
 }) {
+  const menu = usePersonMenu();
   const unread = channel.unread && !active;
 
   return (
@@ -91,6 +91,9 @@ function ConversationRow({
       type="button"
       className={`conversation${active ? ' conversation--active' : ''}`}
       onClick={onSelect}
+      // Right-clicking a row acts on the person in it, which is why a group
+      // channel does not get a menu: there is no single "them" to act on.
+      onContextMenu={recipient ? (event) => menu.open(event, recipient.id) : undefined}
       aria-current={active || undefined}
     >
       {recipient ? (
@@ -135,7 +138,7 @@ function ConversationRow({
   );
 }
 
-/** Clock time for today, then day counts — the resolution people actually use. */
+/** Clock time for today, then day counts: the resolution people actually use. */
 function shortTime(iso: string): string {
   const then = new Date(iso);
   const now = new Date();

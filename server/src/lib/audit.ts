@@ -21,7 +21,9 @@ export type AuditAction =
   | 'friend.declined'
   | 'friend.removed'
   | 'friend.blocked'
-  | 'friend.unblocked';
+  | 'friend.unblocked'
+  | 'friend.nickname_set'
+  | 'friend.nickname_cleared';
 
 export interface AuditEntry {
   action: AuditAction;

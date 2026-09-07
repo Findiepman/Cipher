@@ -1,5 +1,5 @@
 /* The shell: a top bar, then two panels floating on the backdrop with a
-   gutter between them. Nothing is flush against anything else — that gutter
+   gutter between them. Nothing is flush against anything else, and that gutter
    is doing most of the work of not looking like every other chat app. */
 .app {
   height: 100%;

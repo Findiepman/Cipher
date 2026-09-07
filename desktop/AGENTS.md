@@ -1,4 +1,4 @@
-# AGENTS.md — desktop shell
+# AGENTS.md: desktop shell
 
 Read the root `AGENTS.md` first. This directory is the native desktop wrapper (Tauri, or Electron if that's the choice made) around the `client/` build output. It should stay thin.
 

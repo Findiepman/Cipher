@@ -2,7 +2,7 @@
  * The real transport: Socket.io for live delivery, HTTP for the backlog.
  *
  * It implements the same `Transport` interface `MockTransport` does, so the
- * controller, the store and the UI do not know which one they got — which is
+ * controller, the store and the UI do not know which one they got, which is
  * what let all of that be built and tested before this file existed.
  *
  * Two vocabularies meet here and this is the only place they touch. The server
@@ -32,7 +32,7 @@ const ACK_TIMEOUT_MS = 10_000;
 /**
  * How long connect() waits for a verdict before handing control back.
  *
- * It resolves either way — this only bounds how long the caller is made to
+ * It resolves either way: this only bounds how long the caller is made to
  * wait. ChatController.start() awaits connect() before pulling the backlog and
  * flushing the outbox, so a connect that never settles would take the whole
  * chat startup with it. The socket keeps trying to reconnect regardless.
@@ -88,7 +88,7 @@ interface SendAck {
 
 /**
  * A send the server actively refused. `isTransient: false` is the signal the
- * outbox reads to stop retrying — a malformed or unauthorised message will be
+ * outbox reads to stop retrying. A malformed or unauthorised message will be
  * just as malformed in thirty seconds, and retrying it forever would block
  * every message queued behind it.
  */
@@ -283,7 +283,7 @@ function defaultSocketFactory(url: string, token: string | null): SocketLike {
 
   // An empty url is the same-origin production build (see lib/config.ts).
   // socket.io's one-argument form connects to the page's own origin, which is
-  // exactly right there — and is a different overload, not an empty string.
+  // exactly right there, and is a different overload, not an empty string.
   return (url ? io(url, options) : io(options)) as unknown as SocketLike;
 }
 

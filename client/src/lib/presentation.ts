@@ -4,10 +4,9 @@
  * The server stores a username and a public key. It does not store an avatar
  * colour, and it should not: that is a rendering detail, and inventing a place
  * to keep one would be a column of no consequence on a table that matters.
- * So the colour is derived from the user id — stable for a given person on
- * every device, with no round trip and nothing to migrate.
+ * So the colour is derived from the user id, which is stable for a given person
+ * on every device, with no round trip and nothing to migrate.
  */
-import { fromBase64, keyFingerprint } from '@cipher/crypto';
 import type { FriendDto } from './api/types';
 import type { Presence, User } from '../types';
 
@@ -35,53 +34,31 @@ export function colorFor(userId: string): string {
   return PALETTE[hash % PALETTE.length];
 }
 
-/**
- * The security number, short form — the first two blocks, which is what fits
- * beside a name. The full one belongs in a verification screen where two
- * people read it to each other; a truncated fingerprint is a label, not a
- * check, and the UI should not imply otherwise.
- */
-export async function shortFingerprint(publicKey: string | null): Promise<string> {
-  if (!publicKey) return '····';
-  try {
-    const full = await keyFingerprint(await fromBase64(publicKey));
-    return full.split(' ').slice(0, 2).join(' ');
-  } catch {
-    // A key we cannot parse is not a crash; it is a person whose key we cannot
-    // show, and the row still has to render.
-    return '····';
-  }
-}
-
 export interface PresentableUser {
   id: string;
   username: string;
   publicKey: string | null;
+  nickname?: string | null;
 }
 
 /**
- * `verified` is deliberately absent rather than false-by-default: nobody's key
- * has been compared out of band yet, and the UI says "unverified" instead of
- * implying a check that has not happened.
+ * `name` is resolved once, here. Every component downstream draws `name` and
+ * never has to ask whether it is looking at a nickname or a handle; the two
+ * places that genuinely need the real handle (the context menu and the friends
+ * list) read `username` explicitly.
  */
-export function toUser(
-  person: PresentableUser,
-  fingerprint: string,
-  presence: Presence,
-): User {
+export function toUser(person: PresentableUser, presence: Presence): User {
+  const nickname = person.nickname?.trim() || undefined;
   return {
     id: person.id,
-    name: person.username,
+    name: nickname ?? person.username,
+    username: person.username,
+    nickname,
     color: colorFor(person.id),
-    fingerprint,
     presence,
   };
 }
 
-export function friendToUser(
-  friend: FriendDto,
-  fingerprint: string,
-  online: boolean,
-): User {
-  return toUser(friend, fingerprint, online ? 'online' : 'offline');
+export function friendToUser(friend: FriendDto, online: boolean): User {
+  return toUser(friend, online ? 'online' : 'offline');
 }

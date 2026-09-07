@@ -8,6 +8,7 @@
  */
 import { useState, type FormEvent } from 'react';
 import { Avatar } from '../components/Avatar';
+import { usePersonMenu } from '../components/PersonMenu';
 import { ApiError } from '../lib/api';
 import { colorFor } from '../lib/presentation';
 import { useChat } from '../state/ChatProvider';
@@ -15,7 +16,8 @@ import type { FriendRequestDto } from '../lib/api/types';
 import '../styles/friends.css';
 
 export function FriendsScreen() {
-  const { friends, incoming, outgoing, usersById, openDmWith, removeFriend } = useChat();
+  const { friends, incoming, outgoing, usersById, openDmWith } = useChat();
+  const menu = usePersonMenu();
 
   return (
     <div className="friends scroller">
@@ -40,15 +42,17 @@ export function FriendsScreen() {
           friends.map((friend) => {
             const user = usersById.get(friend.id);
             return (
-              <div key={friend.id} className="friends__row">
+              <div
+                key={friend.id}
+                className="friends__row"
+                onContextMenu={(event) => menu.open(event, friend.id)}
+              >
                 {user && <Avatar user={user} size={34} showPresence />}
                 <span className="friends__text">
-                  <span className="friends__name">{friend.username}</span>
-                  {/* Truncated, and labelled as unchecked: a fingerprint nobody
-                      has compared out of band is a label, not a guarantee. */}
-                  <span className="friends__key mono" title="Not verified out of band">
-                    key {user?.fingerprint ?? '····'} · unverified
-                  </span>
+                  <span className="friends__name">{friend.nickname ?? friend.username}</span>
+                  {/* The handle stays visible under a nickname. Renaming someone
+                      should not make it harder to check who they are. */}
+                  <span className="friends__handle mono">{friend.username}</span>
                 </span>
                 <button type="button" onClick={() => void openDmWith(friend.id)}>
                   Message
@@ -56,9 +60,10 @@ export function FriendsScreen() {
                 <button
                   type="button"
                   className="friends__quiet"
-                  onClick={() => void removeFriend(friend.id)}
+                  onClick={(event) => menu.open(event, friend.id)}
+                  aria-label={`More actions for ${friend.nickname ?? friend.username}`}
                 >
-                  Remove
+                  More
                 </button>
               </div>
             );
@@ -133,15 +138,15 @@ function RequestSection({ title, requests }: { title: string; requests: FriendRe
             user={{
               id: request.user.id,
               name: request.user.username,
+              username: request.user.username,
               color: colorFor(request.user.id),
-              fingerprint: '····',
               presence: 'offline',
             }}
             size={34}
           />
           <span className="friends__text">
             <span className="friends__name">{request.user.username}</span>
-            <span className="friends__key mono">
+            <span className="friends__handle mono">
               {request.direction === 'incoming' ? 'sent you a request' : 'request sent'}
             </span>
           </span>
@@ -179,7 +184,7 @@ function outcomeText(status: string, username: string): string {
     case 'accepted':
       // They had already asked. Both sides saying yes is consent, so there is
       // nothing left to wait for.
-      return `You and ${username} are now friends — they had already asked.`;
+      return `You and ${username} are now friends, because they had already asked.`;
     case 'already_friends':
       return `You are already friends with ${username}.`;
     default:
@@ -192,7 +197,7 @@ function failureText(error: unknown): string {
 
   switch (error.code) {
     case 'user_not_found':
-      return 'No account with that username. Check the spelling — it has to be exact.';
+      return 'No account with that username. Check the spelling, it has to be exact.';
     case 'cannot_friend_self':
       return 'That is you.';
     case 'blocked':

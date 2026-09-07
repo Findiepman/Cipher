@@ -2,12 +2,13 @@
  * The screen a conventional app does not have.
  *
  * After a reload the server can restore the session, but the private key was
- * only ever in memory — so the user is signed in and cannot read a thing until
+ * only ever in memory, so the user is signed in and cannot read a thing until
  * they type their password again. That is not a bug to design around, it is the
- * property that makes "the server cannot read your messages" true, so this
- * screen says so rather than pretending to be a second login.
+ * property the whole app rests on, so this screen asks plainly rather than
+ * pretending to be a second login.
  */
 import { useState, type FormEvent } from 'react';
+import { PasswordField } from '../components/PasswordField';
 import { useSession } from '../state/SessionProvider';
 import { AuthErrorNote, AuthShell } from './AuthScreen';
 import '../styles/auth.css';
@@ -31,26 +32,22 @@ export function UnlockScreen() {
     <AuthShell>
       <h1 className="auth-title">Unlock your messages</h1>
       <p className="auth-lede">
-        Signed in as {account?.email ?? 'this account'}. Your key is not in
-        memory yet — nothing can be decrypted until you enter your password.
+        Signed in as {account?.email ?? 'this account'}. Enter your password to
+        pick up where you left off.
       </p>
 
       <AuthErrorNote error={error} />
 
       <form onSubmit={submit}>
-        <label className="auth-field">
-          <span className="auth-label">Password</span>
-          <input
-            className="auth-input"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={busy}
-            autoFocus
-            required
-          />
-        </label>
+        <PasswordField
+          label="Password"
+          value={password}
+          onChange={setPassword}
+          autoComplete="current-password"
+          disabled={busy}
+          autoFocus
+          required
+        />
 
         <button className="auth-submit" type="submit" disabled={busy || !password}>
           {busy ? 'Unlocking…' : 'Unlock'}

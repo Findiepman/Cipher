@@ -6,7 +6,7 @@
   gap: 7px;
 }
 
-/* A pill, not a framed box — it belongs to the same family as the workspace
+/* A pill, not a framed box: it belongs to the same family as the workspace
    pills in the top bar. */
 .composer__pill {
   display: flex;
@@ -121,8 +121,8 @@
   }
 }
 
-.composer__sealed {
+.composer__notice {
   flex: 0 0 auto;
-  color: var(--sage);
+  color: var(--sand);
   cursor: default;
 }

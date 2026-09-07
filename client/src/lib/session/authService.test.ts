@@ -3,8 +3,8 @@
  *
  * The fake implements only what the contract says the server must do: compare
  * the `authHash` it was given at registration, and hand back the opaque blobs
- * it stored. It has no access to the password, the recovery code, or the
- * private key — so if these tests pass, the flows work under a server that
+ * it stored. It has no access to the password, the recovery code or the
+ * private key, so if these tests pass, the flows work under a server that
  * genuinely cannot read anything.
  */
 import { toBase64 } from '@cipher/crypto';
@@ -180,7 +180,7 @@ describe('register and log in', () => {
     expect(env.keys.current?.deviceId).toBe('dev-1');
   });
 
-  it('never sends the password, the recovery code, or the private key', { timeout: 60_000 }, async () => {
+  it('never sends the password, the recovery code or the private key', { timeout: 60_000 }, async () => {
     const { recoveryCode } = await env.auth.register({
       email: EMAIL,
       username: USERNAME,
@@ -223,7 +223,7 @@ describe('register and log in', () => {
 });
 
 describe('changing the password', () => {
-  it('re-wraps the key, keeps the identity, and invalidates the old password', { timeout: 90_000 }, async () => {
+  it('re-wraps the key, keeps the identity and invalidates the old password', { timeout: 90_000 }, async () => {
     const env = harness();
     await env.auth.register({ email: EMAIL, username: USERNAME, password: PASSWORD });
     await env.auth.login({ email: EMAIL, password: PASSWORD });
@@ -299,7 +299,7 @@ describe('password reset', () => {
     });
 
     // The old key is gone from this device, and the registry now holds a
-    // different public key — this is what the "security number changed"
+    // different public key. This is what the "security number changed"
     // warning to contacts is derived from.
     expect(env.keys.state).toBe('empty');
     expect(env.server.account!.device.publicKey).not.toBe(oldPublicKey);

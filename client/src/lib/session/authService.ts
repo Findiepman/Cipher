@@ -3,8 +3,8 @@
  * the client actually does with a password.
  *
  * The rule that shapes all of it: the password is never sent anywhere. It is
- * turned into two unrelated values locally — `authHash`, which goes to the
- * server, and a wrapping key, which does not — and only the first one leaves
+ * turned into two unrelated values locally (`authHash`, which goes to the
+ * server, and a wrapping key, which does not) and only the first one leaves
  * the device. Same for the recovery code: the server gets its SHA-256, never
  * the code.
  *
@@ -44,7 +44,7 @@ export interface LoginInput {
 /**
  * Thrown when the server accepted the password but the stored blob_A will not
  * open with it. It means the account's key material is out of step with its
- * credentials — rare, but the UI must offer the recovery-code path rather than
+ * credentials. Rare, but the UI must offer the recovery-code path rather than
  * saying "wrong password", which would be a lie.
  */
 export class IdentityUnavailableError extends Error {
@@ -67,9 +67,9 @@ export class AuthService {
   }
 
   /**
-   * Signup. The keypair is generated here, wrapped twice, and only the wrapped
+   * Signup. The keypair is generated here, wrapped twice and only the wrapped
    * forms are uploaded. The recovery code is returned to the caller to show
-   * once and never again — it is not stored anywhere, by design.
+   * once and never again: it is not stored anywhere, by design.
    */
   async register(input: RegisterInput): Promise<{ recoveryCode: string }> {
     const { email, username, password } = input;
@@ -99,7 +99,7 @@ export class AuthService {
 
     // The identity is deliberately not adopted here. Registration returns a
     // generic acknowledgement (no account id, so account enumeration stays
-    // impossible), and the wrapped blobs are safe on the server — the first
+    // impossible), and the wrapped blobs are safe on the server. The first
     // successful login downloads and unwraps them.
     return { recoveryCode };
   }
@@ -125,8 +125,8 @@ export class AuthService {
     await this.keys.unlock(password);
   }
 
-  lock(): void {
-    this.keys.lock();
+  lock(): Promise<void> {
+    return this.keys.lock();
   }
 
   async logout(): Promise<void> {
@@ -196,7 +196,7 @@ export class AuthService {
   /**
    * Step 2. The auth salt is derived from the email, so the new address needs a
    * newly derived authHash. The wrapped key blobs carry their own random salts
-   * and are unaffected — no re-wrapping, and the recovery code still works.
+   * and are unaffected: no re-wrapping, and the recovery code still works.
    */
   async confirmEmailChange(token: string, newEmail: string, password: string): Promise<void> {
     const newAuthHash = await deriveAuthHash(newEmail, password);
@@ -206,7 +206,7 @@ export class AuthService {
 
   /**
    * Password reset WITH the recovery code. blob_B is fetched against the reset
-   * token, opened with the code, and the key is re-wrapped under the new
+   * token, opened with the code and the key is re-wrapped under the new
    * password. Identity and message history survive.
    *
    * The old recovery code is spent by this, so a fresh one is minted and
@@ -254,7 +254,7 @@ export class AuthService {
 
   /**
    * Password reset WITHOUT the recovery code. There is no way back to the old
-   * private key — that is the design working, not a failure. A fresh keypair is
+   * private key, and that is the design working, not a failure. A fresh keypair is
    * generated, every message encrypted to the old key stays permanently
    * unreadable, and contacts must be shown a "security number changed" warning.
    *

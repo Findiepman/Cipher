@@ -6,7 +6,7 @@
  * on "Verifying…" forever, because a `cancelled` flag was being set by the
  * cleanup React runs between StrictMode's two effect passes. The account was
  * live and the user had no way to know. Every test here is rendered inside
- * <StrictMode> for that reason — under a single effect pass the broken version
+ * <StrictMode> for that reason: under a single effect pass the broken version
  * passed too.
  */
 import { StrictMode } from 'react';

@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { previewCiphertext } from '../lib/envelope';
 import type { Channel, Message, User } from '../types';
 import { Avatar } from './Avatar';
 import { BrandMark } from './BrandMark';
 import { LockIcon } from './Icons';
+import { usePersonMenu } from './PersonMenu';
 import '../styles/messages.css';
 
 type Props = {
@@ -12,7 +12,6 @@ type Props = {
   usersById: Map<string, User>;
   currentUserId: string;
   currentUserName: string;
-  showCiphertext: boolean;
 };
 
 /** Consecutive messages from one author stay in the same run for this long. */
@@ -24,7 +23,6 @@ export function MessageList({
   usersById,
   currentUserId,
   currentUserName,
-  showCiphertext,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -55,7 +53,6 @@ export function MessageList({
               runStart={runStart}
               runEnd={runEnd}
               mentionsMe={mentions(message, currentUserName)}
-              showCiphertext={showCiphertext}
             />
           </div>
         );
@@ -73,7 +70,6 @@ function Bubble({
   runStart,
   runEnd,
   mentionsMe,
-  showCiphertext,
 }: {
   message: Message;
   author?: User;
@@ -81,8 +77,8 @@ function Bubble({
   runStart: boolean;
   runEnd: boolean;
   mentionsMe: boolean;
-  showCiphertext: boolean;
 }) {
+  const menu = usePersonMenu();
   const locked = message.state === 'encrypted' || message.state === 'failed';
 
   return (
@@ -95,6 +91,7 @@ function Bubble({
       ]
         .filter(Boolean)
         .join(' ')}
+      onContextMenu={author && !own ? (event) => menu.open(event, author.id) : undefined}
     >
       {/* The avatar sits beside the LAST bubble of a run, so a burst of
           messages reads as one turn in the conversation. */}
@@ -109,12 +106,11 @@ function Bubble({
         {runStart && !own && author && (
           <span className="message__author" style={{ color: author.color }}>
             {author.name}
-            <span className="message__key mono">{author.fingerprint}</span>
             {author.bot && <span className="message__bot mono">bot</span>}
           </span>
         )}
 
-        {locked && !showCiphertext ? (
+        {locked ? (
           <LockedBubble state={message.state} tail={runEnd} />
         ) : (
           <div
@@ -127,13 +123,7 @@ function Bubble({
               .filter(Boolean)
               .join(' ')}
           >
-            {showCiphertext ? (
-              <span className="bubble__ciphertext mono">
-                {previewCiphertext(message.ciphertext, 180)}
-              </span>
-            ) : (
-              <span className="bubble__body">{message.body}</span>
-            )}
+            <span className="bubble__body">{message.body}</span>
             <span className="bubble__meta mono">
               {message.edited && 'edited · '}
               {formatTime(message.sentAt)}
@@ -164,14 +154,9 @@ function LockedBubble({ state, tail }: { state: Message['state']; tail: boolean 
         .join(' ')}
     >
       <LockIcon size={15} />
-      <span className="locked-bubble__text mono">
-        {failed ? 'decrypt failed · signature did not verify' : 'no key · unregistered device'}
+      <span className="locked-bubble__text">
+        {failed ? 'This message could not be opened.' : 'This message cannot be read here.'}
       </span>
-      {!failed && (
-        <button type="button" className="locked-bubble__action mono">
-          request key
-        </button>
-      )}
     </div>
   );
 }
@@ -183,10 +168,7 @@ function ChannelIntro({ channel }: { channel: Channel }) {
         <BrandMark size={34} />
       </div>
       <h2>{channel.name}</h2>
-      <p>
-        The start of this conversation. Everything below was sealed on someone's
-        device before it was sent — the server only ever held the blob.
-      </p>
+      <p>This is the beginning of your conversation with {channel.name}.</p>
     </div>
   );
 }

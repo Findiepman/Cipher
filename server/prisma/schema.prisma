@@ -66,6 +66,9 @@ model User {
   friendshipsAsA Friendship[] @relation("FriendshipUserA")
   friendshipsAsB Friendship[] @relation("FriendshipUserB")
 
+  nicknamesGiven    ContactNickname[] @relation("NicknameOwner")
+  nicknamesReceived ContactNickname[] @relation("NicknameSubject")
+
   conversations ConversationParticipant[]
   messages      Message[]
   envelopes     MessageEnvelope[]
@@ -108,6 +111,32 @@ model Friendship {
   @@unique([userAId, userBId])
   @@index([userAId, status])
   @@index([userBId, status])
+}
+
+/// One person's private label for another.
+///
+/// Directional, unlike Friendship: `ownerId` chose the name and is the only
+/// account that ever sees it. That is why it is not a column on Friendship,
+/// which is one row per pair and so has no side to hang a per-viewer label on.
+///
+/// The nickname is stored in the clear. It is profile metadata, not message
+/// content, so it sits alongside a username rather than under the rule in
+/// server/AGENTS.md about bodies. It is still worth knowing that the server
+/// learns what you call people, which a device-local label would not have told
+/// it; that was the trade taken to make nicknames survive a cleared browser.
+model ContactNickname {
+  ownerId   String @db.Uuid
+  owner     User   @relation("NicknameOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  subjectId String @db.Uuid
+  subject   User   @relation("NicknameSubject", fields: [subjectId], references: [id], onDelete: Cascade)
+
+  nickname String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([ownerId, subjectId])
+  @@index([subjectId])
 }
 
 /// Generic on purpose, but v1 only ever creates two-participant rows.

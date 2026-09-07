@@ -158,7 +158,7 @@ describe('receiving', () => {
 
   it('renders a message it cannot open instead of dropping it', async () => {
     // The one behaviour an E2EE client must never have is a silently vanishing
-    // message — a missing or rotated key has to be visible.
+    // message. A missing or rotated key has to be visible.
     const { controller, transport } = await setup();
 
     transport.receive({

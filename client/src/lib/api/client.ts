@@ -5,14 +5,14 @@
  * once they are scattered across feature code:
  *
  *   1. Access-token refresh, single-flighted. Ten components hitting a 401 at
- *      once produce one refresh, not ten — and ten of them would trip the
+ *      once produce one refresh, not ten. Ten of them would trip the
  *      backend's refresh-token reuse detection, which revokes the whole session
  *      family (backend-plan.md, "Auth mechanics"). Getting this wrong logs the
  *      user out rather than degrading quietly.
  *   2. Cookie vs. bearer transport. The web build authenticates with httpOnly
  *      cookies plus a CSRF header; the desktop shell has no usable cookie jar
  *      and uses `Authorization: Bearer`. One switch, set from env.
- *   3. Uniform errors — see ApiError.
+ *   3. Uniform errors: see ApiError.
  *   4. The outgoing-secret guard. Registered secrets (the private key, the
  *      password, the recovery code) are checked against every request body
  *      before it is sent. client/AGENTS.md asks for a test proving the private
@@ -94,7 +94,7 @@ export class ApiClient {
   }
 
   /**
-   * Access tokens are held in memory only — never localStorage, which any
+   * Access tokens are held in memory only, never localStorage, which any
    * injected script can read. A page reload costs one refresh call, which is
    * the correct trade.
    */
@@ -222,8 +222,8 @@ export class ApiClient {
     const relative = path.startsWith('/') ? path : `/${path}`;
     // `baseUrl` is empty in the same-origin production build, and `new URL()`
     // cannot parse a bare path without a base. Supplying one unconditionally
-    // costs nothing when baseUrl is absolute — an absolute first argument
-    // makes the base irrelevant — and is the whole fix when it is not.
+    // costs nothing when baseUrl is absolute (an absolute first argument
+    // makes the base irrelevant) and is the whole fix when it is not.
     const url = new URL(`${this.baseUrl}${relative}`, pageOrigin());
     for (const [key, value] of Object.entries(query ?? {})) {
       if (value !== undefined) url.searchParams.set(key, String(value));
@@ -275,7 +275,7 @@ export class ApiClient {
 
   /**
    * Single-flight refresh. Concurrent callers await the same promise, so the
-   * backend sees exactly one use of the refresh token — which is what keeps
+   * backend sees exactly one use of the refresh token, which is what keeps
    * rotation-with-reuse-detection from mistaking us for a replay attack.
    */
   private ensureRefreshed(): Promise<boolean> {

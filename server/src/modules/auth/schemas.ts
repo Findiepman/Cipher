@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { screenUsername, usernameRejectionMessage } from '../../lib/usernameFilter.js';
 
 /// Usernames are the handle other people see and search for. Deliberately
 /// narrow: no leading/trailing separators, no consecutive separators, so
@@ -12,6 +13,18 @@ export const usernameSchema = z
     /^[a-zA-Z0-9](?:[a-zA-Z0-9]|[._-](?![._-]))*[a-zA-Z0-9]$/,
     'Username may use letters, numbers, and single . _ - between them.',
   );
+
+/// The format rule plus the word filter.
+///
+/// Kept separate from `usernameSchema` on purpose: that one is also what a
+/// friend lookup parses, and a lookup has to be able to name a handle that
+/// already exists. Only the act of claiming a new one is screened.
+export const newUsernameSchema = usernameSchema.superRefine((value, ctx) => {
+  const rejection = screenUsername(value);
+  if (rejection) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: usernameRejectionMessage(rejection) });
+  }
+});
 
 export const emailSchema = z
   .string()
@@ -52,7 +65,7 @@ export const deviceRegistrationSchema = z.object({
 /// never holding a password, and it is the trade this project has chosen.
 export const registerSchema = z.object({
   email: emailSchema,
-  username: usernameSchema,
+  username: newUsernameSchema,
   authHash: base64_32,
   recoveryCodeHash: base64_32,
   device: deviceRegistrationSchema,

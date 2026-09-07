@@ -2,12 +2,12 @@
  * The real-time transport, behind an interface.
  *
  * server/ will speak Socket.io (stack.md), but the messaging endpoints do not
- * exist yet — the backend is building accounts and auth first. So the app talks
+ * exist yet: the backend is building accounts and auth first. So the app talks
  * to this interface, `MockTransport` implements it against local fixtures, and
  * a `SocketTransport` drops in later without the store or the UI changing.
  *
  * Everything crossing this boundary is already sealed. The transport moves
- * opaque blobs and never sees plaintext, which is what makes it swappable — and
+ * opaque blobs and never sees plaintext, which is what makes it swappable, and
  * what stops "just log the message to debug it" from being possible here.
  */
 
@@ -71,7 +71,7 @@ export interface TransportEvents {
   typing: { channelId: string; userId: string };
   /**
    * Derived from live connections and sent to friends only. It says whether
-   * someone has a client connected, which is all the server can know — it is
+   * someone has a client connected, which is all the server can know. It is
    * not a claim that they are reading anything.
    */
   presence: { userId: string; online: boolean };
@@ -87,7 +87,7 @@ export interface Transport {
   send(message: OutgoingMessage): Promise<MessageAck>;
   /**
    * Everything in a channel after `cursor` (a message id). The client asks for
-   * this on reconnect — the server cannot tell us "what's new" for a channel it
+   * this on reconnect: the server cannot tell us "what's new" for a channel it
    * cannot read, so the cursor is the client's own last-seen id.
    */
   backlog(channelId: string, cursor?: string): Promise<IncomingMessage[]>;

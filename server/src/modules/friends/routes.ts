@@ -3,15 +3,18 @@ import { parseBody } from '../../lib/validate.js';
 import {
   friendshipIdSchema,
   sendFriendRequestSchema,
+  setNicknameSchema,
   userIdSchema,
 } from './schemas.js';
 import {
   blockUser,
+  clearNickname,
   listFriends,
   listRequests,
   removeFriend,
   respondToRequest,
   sendRequest,
+  setNickname,
   unblockUser,
 } from './service.js';
 
@@ -59,6 +62,23 @@ export const friendRoutes: FastifyPluginAsync = async (fastify) => {
     const { userId } = parseBody(userIdSchema, request.params);
 
     await removeFriend(request.currentUser!.id, userId, request.ip);
+
+    return reply.send({ ok: true });
+  });
+
+  fastify.patch('/:userId/nickname', async (request, reply) => {
+    const { userId } = parseBody(userIdSchema, request.params);
+    const { nickname } = parseBody(setNicknameSchema, request.body);
+
+    const saved = await setNickname(request.currentUser!.id, userId, nickname, request.ip);
+
+    return reply.send({ nickname: saved });
+  });
+
+  fastify.delete('/:userId/nickname', async (request, reply) => {
+    const { userId } = parseBody(userIdSchema, request.params);
+
+    await clearNickname(request.currentUser!.id, userId, request.ip);
 
     return reply.send({ ok: true });
   });

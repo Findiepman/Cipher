@@ -2,31 +2,29 @@ export type Presence = 'online' | 'idle' | 'dnd' | 'offline';
 
 export interface User {
   id: string;
+  /**
+   * What to draw. The nickname when there is one, the username otherwise, so
+   * no component has to decide which of the two it is looking at.
+   */
   name: string;
+  /** The handle they actually registered. Never rewritten by a nickname. */
+  username: string;
+  /** Set only when you have renamed this person. Yours alone; they never see it. */
+  nickname?: string;
   /** Fallback avatar tint; real avatars replace this later. */
   color: string;
-  /** Short form of the device key's fingerprint, shown beside the name. */
-  fingerprint: string;
   presence: Presence;
-  /**
-   * Whether this account's key has been checked out of band. Unverified is a
-   * real state, not an error — the UI says so rather than implying safety it
-   * cannot promise.
-   */
-  verified?: boolean;
   /** Short status line under the name. */
   activity?: string;
   bot?: boolean;
 }
 
-/** A server in the sidebar. Grouping only — it holds no key material. */
+/** A server in the sidebar. Grouping only: it holds no key material. */
 export interface Server {
   id: string;
   name: string;
   /** Two-letter fallback shown before an icon is uploaded. */
   monogram: string;
-  /** Short form of the server key's fingerprint, shown on hover. */
-  keyId: string;
   /** Fallback tint for the monogram. */
   color: string;
   unread?: boolean;

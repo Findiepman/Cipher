@@ -3,7 +3,7 @@
  *
  * `backend: "http"` is the default: the client and server now speak the same
  * protocol, so talking to server/ is the normal case. Set VITE_BACKEND=mock
- * (see .env.example) to run the chat UI off local fixtures with no server —
+ * (see .env.example) to run the chat UI off local fixtures with no server.
  * useful for pure design work, but nothing signs in in that mode.
  */
 
@@ -23,7 +23,7 @@ export const config = {
    * Where the API lives. An **empty string means same-origin**, which is what
    * the production build uses: one host serves the static client and proxies
    * `/auth`, `/socket.io` and the rest to Fastify. That is not a cosmetic
-   * choice — same-origin is what keeps the auth cookies first-party, removes
+   * choice: same-origin is what keeps the auth cookies first-party, removes
    * CORS entirely, and makes `SameSite=Lax` an actual defence, which matters
    * while CSRF tokens are still unbuilt (backend-plan.md step 6).
    *

@@ -35,9 +35,12 @@
   flex: 0 0 auto;
 }
 
-.chat-header__key {
+/* The real handle, beside a nickname. Faint: it is there to be checked, not
+   read. */
+.chat-header__handle {
   font-size: 11px;
   color: var(--text-faint);
+  white-space: nowrap;
 }
 
 .avatar-stack {

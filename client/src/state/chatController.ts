@@ -44,7 +44,7 @@ export interface ChatControllerOptions {
   transport: Transport;
   outbox?: Outbox;
   /**
-   * Everyone a message in this channel has to be sealed for — the sender
+   * Everyone a message in this channel has to be sealed for, the sender
    * included, or they lose their own history on the next device. Phase 1
    * ignores the keys; phase 2 cannot seal without them, which is why the seam
    * exists now.
@@ -54,7 +54,7 @@ export interface ChatControllerOptions {
   resolveRecipients?: (channelId: string) => Promise<Recipient[]>;
   /**
    * The public key to open an incoming message against. Opening needs the
-   * *author's* key, not the channel's — which is why this is keyed on author.
+   * *author's* key, not the channel's, which is why this is keyed on author.
    */
   resolveAuthorKey?: (authorId: string) => Promise<Uint8Array | null>;
 }
@@ -135,8 +135,8 @@ export class ChatController {
   }
 
   /**
-   * Seals, shows, queues, and tries to send. Returns once the message is
-   * durably queued — not once it is delivered — so the UI never blocks on the
+   * Seals, shows, queues and tries to send. Returns once the message is
+   * durably queued (not once it is delivered) so the UI never blocks on the
    * network.
    */
   async send(channelId: string, body: string): Promise<void> {
@@ -195,7 +195,7 @@ export class ChatController {
       : [...resolved, self];
   }
 
-  /** Drains the outbox. Safe to call on reconnect, on a timer, or on send. */
+  /** Drains the outbox. Safe to call on reconnect, on a timer or on send. */
   async flush(): Promise<void> {
     const result = await this.outbox.flush((message: OutgoingMessage) =>
       this.transport.send(message),
@@ -218,7 +218,7 @@ export class ChatController {
   /**
    * Keeps the queue moving on its own. Without this, a message that failed into
    * a backoff window would wait for the user to do something else before it was
-   * tried again — which is exactly when they have stopped watching.
+   * tried again, which is exactly when they have stopped watching.
    */
   private scheduleRetry(): void {
     if (this.retryTimer !== null) {
@@ -248,8 +248,8 @@ export class ChatController {
 
   /**
    * Turns a sealed blob into a renderable message. A failure here is a normal,
-   * expected outcome — a key we do not have, a rotated key, a device we have
-   * never seen — so it produces a locked bubble, never a dropped message and
+   * expected outcome (a key we do not have, a rotated key, a device we have
+   * never seen) so it produces a locked bubble, never a dropped message and
    * never a thrown error that would take the channel down with it.
    */
   private async open(incoming: IncomingMessage): Promise<Message> {

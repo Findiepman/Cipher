@@ -1,10 +1,9 @@
 /* Auth screens.
  *
  * Same Ember rules as the app: one floating panel on the backdrop, --ember for
- * the single action that matters, --sage only ever for encryption, mono for
- * machine facts. The recovery code is the one place a whole block is mono,
- * because it is the most machine-shaped thing a user of this app ever has to
- * hold onto.
+ * the single action that matters, mono for machine facts. The recovery code is
+ * the one place a whole block is mono, because it is the most machine-shaped
+ * thing a user of this app ever has to hold onto.
  */
 
 .auth {
@@ -97,6 +96,45 @@
 
 .auth-input:disabled {
   opacity: 0.55;
+}
+
+/* --- the password reveal ------------------------------------------------ */
+
+.auth-password {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Room for the button, so a long password scrolls under the field rather than
+   under the eye. */
+.auth-input--password {
+  padding-right: 44px;
+}
+
+.auth-reveal {
+  position: absolute;
+  right: 4px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  color: var(--text-faint);
+  transition: color 130ms ease;
+}
+
+.auth-reveal:hover:not(:disabled) {
+  color: var(--text-hi);
+}
+
+.auth-reveal[aria-pressed='true'] {
+  color: var(--ember);
+}
+
+.auth-reveal:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .auth-hint {
@@ -202,6 +240,16 @@
   line-height: 1.5;
 }
 
+.auth-error__summary {
+  margin: 0;
+}
+
+.auth-error__fields {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  color: var(--text);
+}
+
 .auth-note {
   margin: 0 0 18px;
   padding: 11px 13px;
@@ -276,19 +324,6 @@
 .account-strip-who strong {
   color: var(--text-hi);
   font-weight: 600;
-}
-
-.account-strip-key {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 8px;
-  border: 1px solid var(--sage-line);
-  border-radius: var(--r-pill);
-  background: var(--sage-bg);
-  color: var(--sage);
-  font-family: var(--font-mono);
-  font-size: 11px;
 }
 
 .account-strip-spacer {

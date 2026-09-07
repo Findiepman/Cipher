@@ -1,6 +1,6 @@
 /**
  * Thin, typed wrappers over the endpoints in backend-plan.md. No logic beyond
- * shaping the call — the orchestration (derive, wrap, store) lives in
+ * shaping the call. The orchestration (derive, wrap, store) lives in
  * src/lib/session, and the crypto lives in packages/crypto.
  *
  * Everything is built from a factory taking an ApiClient so tests can drive the
@@ -39,6 +39,7 @@ import type {
   SendFriendRequestResponse,
   SendMessageRequest,
   SessionDto,
+  SetNicknameResponse,
   UpdateProfileRequest,
   VerifyEmailRequest,
 } from './types';
@@ -66,7 +67,7 @@ export function createAuthApi(client: ApiClient) {
     forgotPassword(body: ForgotPasswordRequest) {
       return client.post<AcknowledgedResponse>('/auth/forgot-password', body);
     },
-    /** See ResetContextRequest — this one still needs adding server-side. */
+    /** See ResetContextRequest: this one still needs adding server-side. */
     resetContext(body: ResetContextRequest) {
       return client.post<ResetContextResponse>('/auth/reset-password/context', body);
     },
@@ -117,7 +118,7 @@ export function createKeysApi(client: ApiClient) {
       return client.post<DeviceDto>('/keys/device', body);
     },
     /**
-     * The public-key registry. Returns public keys only — if a response here
+     * The public-key registry. Returns public keys only. If a response here
      * ever contained a wrapped private key, that would be a server bug worth
      * stopping for, so the type deliberately cannot express one.
      */
@@ -154,6 +155,18 @@ export function createFriendsApi(client: ApiClient) {
     },
     remove(userId: string) {
       return client.delete<AcknowledgedResponse>(`/friends/${encodeURIComponent(userId)}`);
+    },
+    /** Your own private label for someone. Sending null clears it. */
+    setNickname(userId: string, nickname: string) {
+      return client.patch<SetNicknameResponse>(
+        `/friends/${encodeURIComponent(userId)}/nickname`,
+        { nickname },
+      );
+    },
+    clearNickname(userId: string) {
+      return client.delete<AcknowledgedResponse>(
+        `/friends/${encodeURIComponent(userId)}/nickname`,
+      );
     },
     block(userId: string) {
       return client.post<AcknowledgedResponse>(`/friends/${encodeURIComponent(userId)}/block`);

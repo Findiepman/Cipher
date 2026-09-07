@@ -32,7 +32,7 @@ export interface OutboxStorage {
 
 export interface FlushResult {
   sent: MessageAck[];
-  /** Permanently rejected — surfaced to the user as a failed message. */
+  /** Permanently rejected, and surfaced to the user as a failed message. */
   failed: { entry: OutboxEntry; error: unknown }[];
   /** Still queued, waiting on connectivity or a backoff window. */
   pending: number;
@@ -73,7 +73,7 @@ const STORAGE_KEY = 'outbox/v1';
  *
  * Persisting matters more than it looks. A queue that only lives in memory
  * makes "messages sent while offline queue locally and flush on reconnect"
- * (client/AGENTS.md) true only until the tab is closed — which is exactly when
+ * (client/AGENTS.md) true only until the tab is closed, which is exactly when
  * someone with no signal puts their phone away.
  *
  * What is stored is sealed blobs, never plaintext.
@@ -128,7 +128,7 @@ export class Outbox {
 
   /**
    * When the next entry is eligible for another attempt, or null if the queue
-   * is empty. The caller uses this to set a timer — without one, a queue that
+   * is empty. The caller uses this to set a timer. Without one, a queue that
    * failed into a backoff window would sit there until the user did something.
    */
   nextDueAt(): number | null {
@@ -159,7 +159,7 @@ export class Outbox {
 
   /**
    * Attempts delivery, oldest first, stopping at the first entry that is not
-   * due or that fails transiently. Concurrent calls are collapsed — a reconnect
+   * due or that fails transiently. Concurrent calls are collapsed: a reconnect
    * event and a timer firing together must not double-send.
    */
   async flush(

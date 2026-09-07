@@ -62,7 +62,7 @@ function connectionLabel(connection: string): string {
     case 'connecting':
       return 'connecting…';
     case 'offline':
-      return 'offline — messages will queue';
+      return 'offline, messages will queue';
     default:
       return 'not connected';
   }

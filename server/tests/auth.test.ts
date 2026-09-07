@@ -131,6 +131,38 @@ describe('registration', () => {
     expect(response.json().error.code).toBe('validation_failed');
   });
 
+  /// The word filter proper is covered in usernameFilter.test.ts. This is the
+  /// wiring: that registerSchema actually runs it, and that the reason reaches
+  /// the caller as a field message rather than as a bare "invalid".
+  it('rejects an offensive username and says which field failed', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/auth/register',
+      payload: { ...newUser('slur'), username: 'n1gg3r-99' },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('validation_failed');
+    expect(response.json().error.details).toContainEqual({
+      field: 'username',
+      message: 'That username is not available. Please pick another one.',
+    });
+  });
+
+  it('rejects a reserved username with its own message', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/auth/register',
+      payload: { ...newUser('reserved'), username: 'admin' },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.details).toContainEqual({
+      field: 'username',
+      message: 'That username is reserved. Please pick another one.',
+    });
+  });
+
   it('does not reveal that an email is already registered', async () => {
     const user = newUser('duplicate');
 

@@ -128,23 +128,25 @@
   color: var(--text);
 }
 
-/* The panel's foot is a statement about the key, so it is sage, not ember. */
-.key-status {
+/* The panel's foot: who you are, and the way to settings. */
+.list-foot {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 9px;
   padding: 10px;
   border-top: 1px solid var(--line);
-  color: var(--sage);
 }
-.key-status .mono {
-  font-size: 11px;
+.list-foot__name {
   flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.key-status .icon-button {
+.list-foot .icon-button {
   color: var(--text-mute);
 }

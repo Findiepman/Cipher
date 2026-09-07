@@ -1,4 +1,4 @@
-# AGENTS.md — server (backend)
+# AGENTS.md: server (backend)
 
 Read the root `AGENTS.md` first. This file covers `server/`: the Node backend.
 
@@ -12,7 +12,7 @@ Read the root `AGENTS.md` first. This file covers `server/`: the Node backend.
 
 Once phase 2 (real encryption) lands, the server's job for message bodies is: accept a ciphertext blob from the sender, store it, and hand it to the recipient. It never decrypts, never inspects, never transforms message content. Concretely:
 
-- Never add a feature that requires reading message content server-side (server-side search, moderation scanning of message text, link-preview generation from message content, etc.) without first raising it — the honest answer for most of these in an E2EE app is "do it client-side" or "it's not supported," not "make an exception."
+- Never add a feature that requires reading message content server-side (server-side search, moderation scanning of message text, link-preview generation from message content, etc.) without first raising it. The honest answer for most of these in an E2EE app is "do it client-side" or "it's not supported," not "make an exception."
 - Never log message bodies, even at debug level, even temporarily while chasing a bug.
 - The server does store and serve public keys (the key registry) and encrypted blobs. It never stores or sees a private key.
 
@@ -22,8 +22,8 @@ Once phase 2 (real encryption) lands, the server's job for message bodies is: ac
 - The server validates that a message's recipient set equals the conversation's participant set, and hands each caller only the envelope addressed to them. Never `include: { envelopes: true }` without a `where` on the caller.
 - Don't add a plaintext fallback column "just in case."
 - Message order is `seq` (autoincrement), not `sentAt`: several sends land in the same millisecond and a timestamp cannot break that tie. Cursors are message ids.
-- `users`/`devices`/`keys`: track public keys per user (and per device, if/when multi-device is supported — see root AGENTS.md on deferring that). Rotating or revoking a key should be possible without a schema change; don't hardcode "one key per user forever."
-- During phase 1, the body column holds plaintext (since `encryptMessage()` is a no-op upstream). Don't let that tempt you into building server-side features that read it — see above.
+- `users`/`devices`/`keys`: track public keys per user (and per device, if/when multi-device is supported, see root AGENTS.md on deferring that). Rotating or revoking a key should be possible without a schema change; don't hardcode "one key per user forever."
+- During phase 1, the body column holds plaintext (since `encryptMessage()` is a no-op upstream). Don't let that tempt you into building server-side features that read it. See above.
 
 ## Real-time delivery
 
@@ -38,11 +38,11 @@ Once phase 2 (real encryption) lands, the server's job for message bodies is: ac
 The server never receives a password. This is the one thing to understand before changing anything under `modules/auth/`.
 
 - The client derives `authHash = argon2id(password, salt from email, domain "auth")` on the device and sends only that. The server hashes it again and stores the result as `User.authVerifier`, so a database dump is not a set of working credentials. `/auth/register` and `/auth/login` take `authHash`; neither has a `password` field, and neither should ever grow one.
-- Because of that, **the server cannot judge password strength** — a weak password and a strong one produce indistinguishable base64. That rule lives in `client/src/lib/session/passwordPolicy.ts` and is advisory only; a hostile client can ignore it. Don't "fix" this by asking for the password.
-- Login is by email, not "email or username". The auth salt is derived from the email address, so a client holding only a handle cannot compute an authHash — and accepting one would mean telling an anonymous caller which address sits behind a username.
-- `Device` holds the account keypair: the public key (the registry other users look up) and the same private key wrapped twice, under the password and under the recovery code. Both blobs are opaque here. Registration creates the user and the device in one transaction — an account that can sign in but decrypt nothing is worse than one that does not exist.
+- Because of that, **the server cannot judge password strength**, because a weak password and a strong one produce indistinguishable base64. That rule lives in `client/src/lib/session/passwordPolicy.ts` and is advisory only; a hostile client can ignore it. Don't "fix" this by asking for the password.
+- Login is by email, not "email or username". The auth salt is derived from the email address, so a client holding only a handle cannot compute an authHash, and accepting one would mean telling an anonymous caller which address sits behind a username.
+- `Device` holds the account keypair: the public key (the registry other users look up) and the same private key wrapped twice, under the password and under the recovery code. Both blobs are opaque here. Registration creates the user and the device in one transaction. An account that can sign in but decrypt nothing is worse than one that does not exist.
 - Login returns the caller's own device inline so the client can unwrap without a second round trip. Never return anyone else's wrapped blobs from any endpoint; the public registry hands out `publicKey` only.
-- Credentials and encryption keys are still separate concerns in one respect: JWT/session cookies handle API auth, and rotating a session touches no key material. But a password change is no longer purely a credentials operation — it re-wraps blob_A, so the client sends a new wrapped key with it.
+- Credentials and encryption keys are still separate concerns in one respect: JWT/session cookies handle API auth, and rotating a session touches no key material. But a password change is no longer purely a credentials operation: it re-wraps blob_A, so the client sends a new wrapped key with it.
 
 ## Testing
 

@@ -1,6 +1,6 @@
 import type { Channel, User } from '../types';
 import { Avatar } from './Avatar';
-import { EyeIcon, LockIcon } from './Icons';
+import { usePersonMenu } from './PersonMenu';
 import '../styles/chat-header.css';
 
 const STACK_LIMIT = 4;
@@ -9,37 +9,33 @@ type Props = {
   channel: Channel;
   recipient?: User;
   members: User[];
-  showCiphertext: boolean;
-  onToggleCiphertext: () => void;
 };
 
-export function ChatHeader({
-  channel,
-  recipient,
-  members,
-  showCiphertext,
-  onToggleCiphertext,
-}: Props) {
+export function ChatHeader({ channel, recipient, members }: Props) {
+  const menu = usePersonMenu();
   const shown = members.slice(0, STACK_LIMIT);
   const overflow = members.length - shown.length;
 
   return (
-    <header className="chat-header">
+    <header
+      className="chat-header"
+      onContextMenu={recipient ? (event) => menu.open(event, recipient.id) : undefined}
+    >
       <h1 className="chat-header__name">{channel.name}</h1>
 
-      <span className="seal-pill" title="End-to-end encrypted">
-        <LockIcon size={10} />
-        sealed
-      </span>
+      {/* The handle, but only when it is not already the title. A nickname that
+          silently replaced the username everywhere would leave nowhere to check
+          who you are actually talking to. */}
+      {recipient && recipient.nickname && (
+        <span className="chat-header__handle mono">{recipient.username}</span>
+      )}
 
       {channel.topic && <p className="chat-header__topic">{channel.topic}</p>}
 
       <div className="chat-header__right">
         {/* Members are a stack you glance at, not a column that eats a
             quarter of the window. */}
-        {channel.kind === 'dm' && recipient ? (
-          <span className="chat-header__key mono">key {recipient.fingerprint}</span>
-        ) : (
+        {channel.kind !== 'dm' && (
           <button
             type="button"
             className="avatar-stack"
@@ -57,22 +53,6 @@ export function ChatHeader({
             )}
           </button>
         )}
-
-        <button
-          type="button"
-          className={`icon-button icon-button--framed${
-            showCiphertext ? ' icon-button--active' : ''
-          }`}
-          onClick={onToggleCiphertext}
-          aria-pressed={showCiphertext}
-          title={
-            showCiphertext
-              ? 'Show decrypted messages'
-              : 'Show what the server stores (ciphertext)'
-          }
-        >
-          <EyeIcon size={16} />
-        </button>
       </div>
     </header>
   );

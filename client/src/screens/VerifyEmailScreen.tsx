@@ -66,7 +66,7 @@ export function VerifyEmailScreen({ token, onContinue }: { token: string; onCont
         <>
           <h1 className="auth-title">That link did not work</h1>
           <p className="auth-lede">
-            Most likely it has already been used — verification links work once
+            Most likely it has already been used. Verification links work once
             and then expire, so if you have opened this one before, your address
             is verified and you can just sign in. Otherwise ask for a new link
             from the sign-in screen; links also expire after 24 hours.

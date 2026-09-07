@@ -26,8 +26,16 @@ export interface FriendDto {
   /// Included here because the client needs it for every conversation anyway;
   /// /keys/user/:userId exists for the one-off lookup.
   publicKey: string | null;
+  /// What the *caller* calls this person, or null if they have not renamed
+  /// them. Private to the caller: the subject is never told, and nobody else
+  /// ever sees it.
+  nickname: string | null;
   friendsSince: string;
 }
+
+/// Nicknames are capped short because they are a label beside a name, not a
+/// bio. Trimmed here so " " cannot be stored as a name that renders as nothing.
+const NICKNAME_MAX = 32;
 
 export interface FriendRequestDto {
   id: string;
@@ -62,6 +70,15 @@ export async function requireFriendship(x: string, y: string): Promise<void> {
 }
 
 export async function listFriends(userId: string): Promise<FriendDto[]> {
+  const nicknames = new Map(
+    (
+      await prisma.contactNickname.findMany({
+        where: { ownerId: userId },
+        select: { subjectId: true, nickname: true },
+      })
+    ).map((row) => [row.subjectId, row.nickname]),
+  );
+
   const rows = await prisma.friendship.findMany({
     where: {
       status: 'ACCEPTED',
@@ -80,10 +97,13 @@ export async function listFriends(userId: string): Promise<FriendDto[]> {
         id: other.id,
         username: other.username,
         publicKey: other.devices[0]?.publicKey ?? null,
+        nickname: nicknames.get(other.id) ?? null,
         friendsSince: (row.respondedAt ?? row.createdAt).toISOString(),
       };
     })
-    .sort((a, b) => a.username.localeCompare(b.username));
+    // Sorted by what the caller actually reads. A list ordered by a name only
+    // the server uses would look unsorted to the person looking at it.
+    .sort((a, b) => (a.nickname ?? a.username).localeCompare(b.nickname ?? b.username));
 }
 
 export async function listRequests(userId: string): Promise<{
@@ -276,6 +296,74 @@ export async function removeFriend(
 
   await recordAudit({
     action: 'friend.removed',
+    actorUserId: userId,
+    targetUserId: otherUserId,
+    ip,
+  });
+}
+
+/**
+ * Renaming somebody, for your eyes only.
+ *
+ * Friendship is the gate, the same as it is for keys and conversations: a
+ * nickname for an account you have no relationship with would be a private note
+ * about a stranger, and the row would keep their id alive in your data after
+ * they had every reason to expect otherwise.
+ */
+export async function setNickname(
+  userId: string,
+  otherUserId: string,
+  nickname: string,
+  ip: string | null,
+): Promise<string> {
+  if (userId === otherUserId) {
+    throw badRequest('cannot_nickname_self', 'You cannot rename yourself here.');
+  }
+
+  await requireFriendship(userId, otherUserId);
+
+  const trimmed = nickname.trim();
+  if (trimmed.length === 0 || trimmed.length > NICKNAME_MAX) {
+    throw badRequest(
+      'validation_failed',
+      `A nickname has to be between 1 and ${NICKNAME_MAX} characters.`,
+    );
+  }
+
+  await prisma.contactNickname.upsert({
+    where: { ownerId_subjectId: { ownerId: userId, subjectId: otherUserId } },
+    create: { ownerId: userId, subjectId: otherUserId, nickname: trimmed },
+    update: { nickname: trimmed },
+  });
+
+  // The nickname itself is not written to the audit log. It is the caller's
+  // private label, and an audit row is the one place in this codebase that
+  // deliberately outlives the thing it describes.
+  await recordAudit({
+    action: 'friend.nickname_set',
+    actorUserId: userId,
+    targetUserId: otherUserId,
+    ip,
+  });
+
+  return trimmed;
+}
+
+/// Clearing a nickname is not an error when there was none: the caller asked
+/// for this person to be shown under their username, and afterwards they are.
+export async function clearNickname(
+  userId: string,
+  otherUserId: string,
+  ip: string | null,
+): Promise<void> {
+  const deleted = await prisma.contactNickname.deleteMany({
+    where: { ownerId: userId, subjectId: otherUserId },
+  });
+
+  if (deleted.count === 0) return;
+
+  await recordAudit({
+    action: 'friend.nickname_cleared',
     actorUserId: userId,
     targetUserId: otherUserId,
     ip,

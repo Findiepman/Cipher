@@ -1,0 +1,98 @@
+/* Modal dialogs: the nickname box, and the two confirmations.
+ *
+ * Small on purpose. A confirmation that fills the window reads as an alarm, and
+ * neither unfriending nor blocking is one.
+ */
+
+.dialog__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.dialog {
+  width: 100%;
+  max-width: 380px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--bg-panel);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+
+.dialog__title {
+  margin: 0 0 8px;
+  color: var(--text-hi);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.dialog__body {
+  margin: 0 0 16px;
+  color: var(--text-mute);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.dialog__input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg-raised);
+  color: var(--text-hi);
+  font: inherit;
+  font-size: 14px;
+}
+
+.dialog__input:focus {
+  outline: none;
+  border-color: var(--ember);
+}
+
+.dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.dialog__button {
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: 13.5px;
+}
+
+.dialog__button:hover {
+  background: var(--hover);
+  color: var(--text-hi);
+}
+
+.dialog__button--primary {
+  border-color: transparent;
+  background: var(--ember);
+  color: var(--ember-ink);
+  font-weight: 600;
+}
+
+.dialog__button--primary:hover {
+  background: var(--ember-hover);
+  color: var(--ember-ink);
+}
+
+.dialog__button--danger {
+  border-color: color-mix(in srgb, var(--red) 45%, transparent);
+  color: var(--red);
+  font-weight: 600;
+}
+
+.dialog__button--danger:hover {
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  color: var(--red);
+}

@@ -22,4 +22,10 @@ export const friendshipIdSchema = z.object({
   id: z.string().uuid(),
 });
 
+/// Your own private label for somebody. Not screened by the username filter:
+/// nobody else ever reads it, so there is nobody to offend with it.
+export const setNicknameSchema = z.object({
+  nickname: z.string().trim().min(1, 'A nickname cannot be empty.').max(32),
+});
+
 export type SendFriendRequestInput = z.infer<typeof sendFriendRequestSchema>;

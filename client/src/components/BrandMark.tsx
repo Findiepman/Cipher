@@ -15,7 +15,7 @@ type Props = {
  * The app mark, in one place.
  *
  * It is served from `public/`, not imported, so the same file backs the favicon,
- * the apple-touch icon, the manifest and every in-app use — one asset to swap
+ * the apple-touch icon, the manifest and every in-app use: one asset to swap
  * when the logo changes, instead of four that drift.
  *
  * `width`/`height` are set as attributes as well as in CSS so the surrounding

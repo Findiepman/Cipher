@@ -276,6 +276,18 @@ UI change twice.
   `deploy/Caddyfile`. Adding a server module means adding it there too, or it
   404s in production while working perfectly in development. The API is not
   under `/api` because the refresh cookie is scoped to `Path=/auth`.
+- **`prisma generate` needs `tsconfig.json` present, or it emits `.ts` import
+  specifiers.** The prisma-client generator reads tsconfig to decide how to
+  write relative imports. Without one it writes `from './enums.ts'`, `tsc`
+  copies that specifier through untouched, and `node dist/index.js` dies with
+  ERR_MODULE_NOT_FOUND — *after* migrations have applied. It is invisible in
+  development because `tsx` and vitest both resolve `.ts` happily; only the
+  compiled output cares. `server/Dockerfile` therefore regenerates after
+  copying the full source, and asserts `dist/` contains no `.ts` specifiers.
+- **`npm run build` passing does not mean the server runs.** Nothing in the
+  test suite or the build ever executed `node dist/index.js` until the first
+  deploy, which is how the above shipped. If you change module resolution,
+  the generator, or the build, run the compiled entrypoint once.
 - **The lockfile is Windows-only, and Docker builds on Linux.** `npm ci`
   installs exactly what `package-lock.json` lists, and a lockfile generated on
   Windows records only `win32` builds of every native package — npm/cli#4828.

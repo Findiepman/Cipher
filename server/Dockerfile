@@ -43,7 +43,33 @@ RUN mkdir -p server/node_modules
 
 COPY packages/crypto packages/crypto/
 COPY server server/
+
+# Regenerate the Prisma client now that the full server source - crucially
+# tsconfig.json - is present.
+#
+# `npm ci` above already ran `prisma generate` as server/'s postinstall, but at
+# that point only prisma/ and the manifests had been copied. The prisma-client
+# generator reads tsconfig to decide how to write relative imports, and without
+# one it emits `from './enums.ts'`. tsc passes those specifiers through
+# untouched, so dist/ ends up importing .ts files that only exist as .js, and
+# the server dies at startup with ERR_MODULE_NOT_FOUND - after migrations have
+# already been applied.
+#
+# It is invisible locally because dev runs tsx and tests run vitest; both
+# resolve .ts happily. Only `node dist/index.js` cares.
+RUN npm run db:generate --workspace @cipher/server
+
 RUN npm run build --workspace @cipher/server
+
+# Prove the emitted output is actually loadable by node before shipping it.
+# `tsc` succeeding says nothing about whether the specifiers it copied through
+# resolve at runtime, which is exactly the gap that let the above ship.
+RUN set -eux; \
+    if grep -rEn --include="*.js" "from '[^']*\.ts'" server/dist/ ; then \
+      echo "dist/ imports .ts specifiers - they will not resolve under node" >&2; \
+      exit 1; \
+    fi; \
+    node --input-type=module -e "await import('/repo/server/dist/generated/prisma/client.js'); console.log('generated prisma client loads under node OK')"
 
 # Everything the running server does not need, minus one exception: `prisma`
 # is a runtime dependency here because the container applies migrations on

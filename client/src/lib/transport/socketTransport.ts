@@ -270,7 +270,7 @@ export class SocketTransport implements Transport {
 }
 
 function defaultSocketFactory(url: string, token: string | null): SocketLike {
-  return io(url, {
+  const options = {
     // Cookie mode needs the browser to attach the httpOnly access cookie to
     // the handshake; bearer mode passes the token explicitly instead.
     withCredentials: config.authMode === 'cookie',
@@ -279,7 +279,12 @@ function defaultSocketFactory(url: string, token: string | null): SocketLike {
     reconnection: true,
     reconnectionDelay: 500,
     reconnectionDelayMax: 10_000,
-  }) as unknown as SocketLike;
+  };
+
+  // An empty url is the same-origin production build (see lib/config.ts).
+  // socket.io's one-argument form connects to the page's own origin, which is
+  // exactly right there — and is a different overload, not an empty string.
+  return (url ? io(url, options) : io(options)) as unknown as SocketLike;
 }
 
 /** The one place `conversationId` becomes `channelId`. */

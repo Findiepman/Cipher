@@ -87,6 +87,23 @@ describe('headers', () => {
 
     expect(calls[0].url).toBe('http://api.test/admin/users?q=a+b&page=2');
   });
+
+  // The production build ships VITE_API_URL empty and is served by the host
+  // that also proxies the API. That used to throw: `new URL('/auth/login')`
+  // with no base is a TypeError, so the whole app would have failed on its
+  // first request rather than anywhere findable.
+  it('resolves paths against the page origin when the base is empty', async () => {
+    vi.stubGlobal('window', { location: { origin: 'https://chat.example.com' } });
+
+    const { impl, calls } = fakeFetch(() => json({ ok: true }));
+    const client = new ApiClient({ baseUrl: '', fetchImpl: impl });
+
+    await client.get('/conversations', { query: { limit: 20 } });
+
+    expect(calls[0].url).toBe('https://chat.example.com/conversations?limit=20');
+
+    vi.unstubAllGlobals();
+  });
 });
 
 describe('token refresh', () => {

@@ -54,6 +54,19 @@ const REFRESH_SKEW_MS = 30_000;
 const CSRF_COOKIE = 'csrf_token';
 const CSRF_HEADER = 'x-csrf-token';
 
+/**
+ * Base for resolving same-origin request paths.
+ *
+ * Only reached when `baseUrl` is empty, which happens in the browser. Node
+ * contexts (tests, scripts) always construct the client with an explicit
+ * baseUrl, so the fallback just has to be a syntactically valid origin.
+ */
+function pageOrigin(): string {
+  return typeof window === 'undefined'
+    ? 'http://localhost'
+    : window.location.origin;
+}
+
 export class ApiClient {
   private readonly baseUrl: string;
   private readonly authMode: AuthMode;
@@ -206,7 +219,12 @@ export class ApiClient {
   }
 
   private url(path: string, query: RequestOptions['query']): string {
-    const url = new URL(`${this.baseUrl}${path.startsWith('/') ? path : `/${path}`}`);
+    const relative = path.startsWith('/') ? path : `/${path}`;
+    // `baseUrl` is empty in the same-origin production build, and `new URL()`
+    // cannot parse a bare path without a base. Supplying one unconditionally
+    // costs nothing when baseUrl is absolute — an absolute first argument
+    // makes the base irrelevant — and is the whole fix when it is not.
+    const url = new URL(`${this.baseUrl}${relative}`, pageOrigin());
     for (const [key, value] of Object.entries(query ?? {})) {
       if (value !== undefined) url.searchParams.set(key, String(value));
     }

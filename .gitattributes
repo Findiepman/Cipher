@@ -1,0 +1,8 @@
+# Normalise to LF in the repository. Both maintainers are on Windows, where a
+# checkout is CRLF, and a shell script committed with CRLF fails on the Ubuntu
+# box with "bad interpreter: /usr/bin/env bash^M" - which reads as a missing
+# bash rather than a line-ending problem and costs an hour.
+* text=auto eol=lf
+
+*.png binary
+*.ico binary

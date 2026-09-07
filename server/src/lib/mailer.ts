@@ -252,7 +252,11 @@ function renderHtml(template: Template): string {
                   border:1px solid ${BORDER};border-radius:12px;">
       <tr>
         <td style="padding:28px 32px;">
-          <img src="${escapeHtml(env.APP_URL)}/logo.png" width="36" height="36" alt=""
+          <!-- alt is the brand name, not empty: images are blocked by default
+               in a lot of clients, and an undeployed or unreachable APP_URL
+               makes this fail too. alt="" renders a broken-image box; this
+               degrades to the word instead. -->
+          <img src="${escapeHtml(env.APP_URL)}/logo.png" width="36" height="36" alt="Cipher"
                style="display:block;margin:0 0 20px;border-radius:8px;">
           <h1 style="margin:0 0 16px;font-size:20px;line-height:1.3;color:${INK};">${escapeHtml(
             template.heading,

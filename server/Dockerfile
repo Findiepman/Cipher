@@ -62,17 +62,25 @@ RUN npm prune --omit=dev
 # The first symptom is that nobody can register or log in, since argon2 hashes
 # the authVerifier on both paths.
 #
-# It must come AFTER `npm prune`, not before: prune removes anything absent
-# from package.json, and --no-save deliberately keeps it out of there.
+# Two traps here, both of which have already bitten:
+#
+#   1. It must come AFTER `npm prune`, not before. Prune removes anything
+#      absent from package.json, and --no-save deliberately keeps it out.
+#   2. npm does NOT hoist @node-rs/argon2 to /repo/node_modules - it lives
+#      in /repo/server/node_modules, so a bare require() from /repo cannot
+#      see it. The version lookup resolves from /repo/server explicitly,
+#      and the check runs from there. Installing at the root is still
+#      correct: node walks up from server/node_modules and finds it.
 RUN set -eux; \
     case "$(uname -m)" in \
       x86_64)  target=linux-x64 ;; \
       aarch64) target=linux-arm64 ;; \
       *) echo "unsupported build arch: $(uname -m)" >&2; exit 1 ;; \
     esac; \
-    argon2_version="$(node -p "require('@node-rs/argon2/package.json').version")"; \
-    npm install --no-save --no-audit --no-fund \
+    argon2_version="$(node -p "require(require.resolve('@node-rs/argon2/package.json', { paths: ['/repo/server'] })).version")"; \
+    npm install --no-save --omit=dev --no-audit --no-fund \
       "@node-rs/argon2-${target}-gnu@${argon2_version}"; \
+    cd /repo/server; \
     node -e "import('@node-rs/argon2').then(m => m.hash('probe')).then(() => console.log('argon2 native binding loads OK'), e => { console.error(e); process.exit(1); })"
 
 

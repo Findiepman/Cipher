@@ -118,8 +118,13 @@ Two end-to-end proofs, both against a running server over real HTTP:
   no unread state.
 - **Backups are not scheduled.** `deploy/backup.sh` and `restore.sh` exist and
   `deploy.sh` calls the former before every deploy, but **no cron entry is
-  installed**, so nothing runs nightly and the restore path has never been
-  tested. `DEPLOY.md` §6. Until that is done, one bad disk loses everything.
+  installed on the box**, so nothing runs nightly. Until it is, the only dumps
+  that exist are the ones a deploy happened to write, they sit on the same disk
+  as the volume they protect, and every run prunes anything older than 14 days.
+  One bad disk still loses everything. The tooling is ready and untried:
+  `deploy/setup-backups.sh <dir>` does the whole thing in one command, and
+  `./restore.sh --rehearse <dump>` reads a dump back into a scratch database
+  without touching the live one. Both are unrun against the box. `DEPLOY.md` §6.
 - **Registration is open to anyone who finds the URL.** There is no invite
   system, the hostname is public DNS, and the repository is public. Email
   verification and the rate limits are the only friction. `DEPLOY.md`
@@ -430,12 +435,11 @@ Pick one; they are roughly independent.
    composer placeholder, then unfriend and block someone. None of that has been
    seen in a browser, and the React layer has no other coverage.
 
-1. **Install the backup cron and test the restore.** `DEPLOY.md` §6, then
-   `restore.sh` once while nothing is at stake. This is the last unfinished
-   piece of the deployment and the only one where the cost of leaving it is
-   losing everything: no cron entry means the only dumps that exist are the
-   ones a deploy happened to write, they sit on the same disk as the volume
-   they protect, and every run prunes anything older than 14 days.
+1. **Run `deploy/setup-backups.sh` on the box.** One command, and it is the
+   last unfinished piece of the deployment: it checks the target disk, takes a
+   dump, rehearses restoring it, and installs the cron entry only if all three
+   worked. This is the only outstanding item where the cost of leaving it is
+   losing everything.
 2. **Phase 2 encryption.** DMs now work end to end in phase 1, which
    `AGENTS.md` names as the precondition. The registry and the envelope model
    are already in place, so this is `encryptMessage`/`decryptMessage` plus the

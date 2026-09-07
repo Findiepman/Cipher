@@ -410,30 +410,53 @@ documents the hostname.
 
 ## Step 6 — Backups
 
+One command, on the box. Point it at a disk that is not the one Docker lives
+on:
+
 ```bash
-crontab -e
+cd ~/cipher/deploy
+./setup-backups.sh /mnt/backup/cipher
 ```
 
-```cron
-17 3 * * * BACKUP_DIR=/mnt/backup/cipher /home/YOU/cipher/deploy/backup.sh >> /home/YOU/cipher-backup.log 2>&1
-```
+It checks the directory is writable and is not on the same filesystem as the
+database volume, takes a dump immediately, rehearses restoring that dump, and
+only then installs the crontab entry. The order is the point: a cron line is
+worth trusting once the command inside it has run and its output has been read
+back.
+
+It refuses a target on the same disk as the database, because a backup that
+dies with the drive it was protecting against is not a backup. If one disk is
+genuinely all you have, `--same-disk-ok` installs it anyway. That still covers a
+bad migration, a dropped table, and a container that eats itself.
 
 `backup.sh` writes a gzipped `pg_dump`, checks it is not empty, and only then
-deletes dumps older than 14 days. It defaults to `$HOME/cipher-backups` —
-writable without root, because a backup step that fails silently every night is
-worse than no backup step at all.
+deletes dumps older than 14 days. `deploy.sh` also calls it before every deploy,
+so a migration that goes wrong has something to go back to.
 
-**Point `BACKUP_DIR` at another disk**, as the cron line above does. The
-default sits on the same drive as the Docker volume, and a backup that dies
-with the drive it was protecting against is not a backup.
-
-Test the restore path once, now, while nothing is at stake:
+### Reading a backup back
 
 ```bash
-./deploy/restore.sh ~/cipher-backups/messenger-<stamp>.sql.gz
+./restore.sh --rehearse ~/cipher-backups/messenger-<stamp>.sql.gz
 ```
 
-An untested backup is a guess.
+Loads the dump into a scratch database beside the live one, prints how many
+tables, accounts, devices and messages arrived, and drops the scratch database
+again. Nothing is stopped and nothing is replaced, so it is safe to run against
+the live box at any time. Run it after a migration, and any time you want to
+know that the file on disk is still a database.
+
+The real thing, when you actually need it:
+
+```bash
+./restore.sh ~/cipher-backups/messenger-<stamp>.sql.gz
+```
+
+That one is destructive. It stops the server, drops and recreates everything the
+dump contains, and starts the server again. Both paths run psql with
+`ON_ERROR_STOP=1`, so a dump that will not load stops rather than reporting
+success over a half-filled database.
+
+**An untested backup is a guess.** Rehearse one now, while nothing is at stake.
 
 ---
 

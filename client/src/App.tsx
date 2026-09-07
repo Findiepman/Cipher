@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChatHeader } from './components/ChatHeader';
 import { Composer } from './components/Composer';
 import { ConversationList, type Preview } from './components/ConversationList';
@@ -13,6 +13,9 @@ import {
   usersById,
 } from './data/mockData';
 import { fakeSeal } from './lib/envelope';
+import { withProfile } from './lib/settings/profile';
+import { SettingsScreen } from './screens/settings/SettingsScreen';
+import { useSettings } from './state/SettingsProvider';
 import type { Channel, Message } from './types';
 import './styles/global.css';
 import './styles/app.css';
@@ -32,9 +35,29 @@ export default function App() {
     '@me': 'd-nova',
   });
   const [messages, setMessages] = useState<Message[]>(seedMessages);
-  const [showCiphertext, setShowCiphertext] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const { settings, update } = useSettings();
+  const showCiphertext = settings.appearance.showCiphertext;
 
-  const currentUser = usersById.get(CURRENT_USER_ID)!;
+  // Your own row, avatar and bubbles all read from one User, so the profile
+  // settings are folded in once here rather than special-cased per component.
+  const baseUser = usersById.get(CURRENT_USER_ID)!;
+  const currentUser = useMemo(
+    () => withProfile(baseUser, settings.profile),
+    [baseUser, settings.profile],
+  );
+
+  // The shortcut everyone tries first.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === ',') {
+        event.preventDefault();
+        setSettingsOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const serverChannels = useMemo(
     () => allChannels.filter((channel) => channel.serverId === activeServerId),
@@ -46,7 +69,7 @@ export default function App() {
     serverChannels.find((channel) => channel.id === activeChannelId) ?? serverChannels[0];
 
   const channelMessages = useMemo(
-    () => messages.filter((message) => message.channelId === activeChannel?.id),
+    () => messages.filter((message) => message.conversationId === activeChannel?.id),
     [messages, activeChannel?.id],
   );
 
@@ -54,7 +77,7 @@ export default function App() {
   const previews = useMemo(() => {
     const latest = new Map<string, Preview>();
     for (const message of messages) {
-      const channel = allChannels.find((c) => c.id === message.channelId);
+      const channel = allChannels.find((c) => c.id === message.conversationId);
       if (!channel) continue;
 
       const author = usersById.get(message.authorId);
@@ -90,7 +113,7 @@ export default function App() {
     const id = `m-local-${Date.now()}`;
     const message: Message = {
       id,
-      channelId: activeChannel.id,
+      conversationId: activeChannel.id,
       authorId: CURRENT_USER_ID,
       sentAt: new Date().toISOString(),
       state: 'sending',
@@ -130,12 +153,13 @@ export default function App() {
           <ConversationList
             sections={sections}
             activeChannelId={activeChannel.id}
-            onSelect={(channelId) =>
-              setLastChannel((prev) => ({ ...prev, [activeServerId]: channelId }))
+            onSelect={(conversationId) =>
+              setLastChannel((prev) => ({ ...prev, [activeServerId]: conversationId }))
             }
             usersById={usersById}
             previews={previews}
             currentUser={currentUser}
+            onOpenSettings={() => setSettingsOpen(true)}
           />
         </div>
 
@@ -145,7 +169,9 @@ export default function App() {
             recipient={recipient}
             members={members}
             showCiphertext={showCiphertext}
-            onToggleCiphertext={() => setShowCiphertext((v) => !v)}
+            onToggleCiphertext={() =>
+              update('appearance', { showCiphertext: !showCiphertext })
+            }
           />
 
           <MessageList
@@ -160,10 +186,14 @@ export default function App() {
           <Composer
             placeholder={`message ${activeChannel.name}`}
             onSend={handleSend}
-            typing={TYPING[activeChannel.id]}
+            typing={settings.privacy.typingIndicators ? TYPING[activeChannel.id] : undefined}
           />
         </main>
       </div>
+
+      {settingsOpen && (
+        <SettingsScreen user={currentUser} onClose={() => setSettingsOpen(false)} />
+      )}
     </div>
   );
 }

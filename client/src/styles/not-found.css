@@ -1,0 +1,130 @@
+/* The 404.
+ *
+ * Same Ember shape as the auth screens: one panel floating on the backdrop,
+ * nothing flush against anything. Two rules decide the colour here:
+ *   - the status code is a machine fact, so it is mono and quiet, not a
+ *     decorative headline
+ *   - it is not --red. A wrong address is not a message that failed to
+ *     decrypt, and --red means only that.
+ * --ember is left for the one action worth taking.
+ */
+
+/* Centred in the viewport, and still reachable when the viewport is shorter
+   than the panel: the grid row grows past `min-height` rather than centring
+   into an overflow, so the top never ends up scrolled off where it cannot be
+   got back. The panel below is kept short enough that a laptop-sized window
+   lands in the centring case rather than the scrolling one. */
+.not-found {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding: 28px 20px;
+  background: var(--bg-app);
+  overflow-y: auto;
+}
+
+.not-found-panel {
+  width: 100%;
+  max-width: 440px;
+  padding: 28px 30px 26px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--bg-panel);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  text-align: center;
+}
+
+/* The logo goes in as it is: no tile behind it, and no re-tinting per theme —
+   a mark that changes with the theme stops reading as a mark. The shield is
+   taller than it is wide, so the height is what is fixed. */
+.not-found-mark {
+  display: block;
+  width: auto;
+  height: 48px;
+  margin: 0 auto 14px;
+}
+
+/* Quiet, wide, and mono — the same voice as a key id or a timestamp. */
+.not-found-code {
+  margin: 0 0 12px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 40px;
+  font-variant-ligatures: none;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  /* letter-spacing pads the right edge; pull the glyphs back to centre. */
+  text-indent: 0.1em;
+}
+
+.not-found-title {
+  margin: 0 0 8px;
+  color: var(--text-hi);
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.not-found-lede {
+  margin: 0;
+  color: var(--text-mute);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+/* The address that missed, carried like any other machine fact. */
+.not-found-path {
+  display: inline-block;
+  max-width: 100%;
+  margin: 16px 0 0;
+  padding: 4px 10px;
+  border-radius: var(--r-sm);
+  background: var(--bg-raised);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-variant-ligatures: none;
+  overflow-wrap: anywhere;
+}
+
+.not-found-actions {
+  margin-top: 22px;
+}
+
+.not-found-primary {
+  width: 100%;
+  padding: 12px;
+  border-radius: var(--r-sm);
+  background: var(--ember);
+  color: var(--ember-ink);
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.not-found-primary:hover {
+  background: var(--ember-hover);
+}
+
+.not-found-secondary {
+  width: 100%;
+  margin-top: 10px;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.not-found-secondary:hover {
+  background: var(--hover);
+}
+
+/* The reassurance, set apart the way the auth screens set apart their switch. */
+.not-found-foot {
+  margin: 18px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--text-faint);
+  font-size: 12.5px;
+  line-height: 1.5;
+}

@@ -15,6 +15,12 @@
   user-select: none;
 }
 
+/* A picture fills the same rounded square the letter would have. */
+img.avatar__image {
+  object-fit: cover;
+  background: var(--bg-raised);
+}
+
 .avatar__presence {
   position: absolute;
   right: -2px;

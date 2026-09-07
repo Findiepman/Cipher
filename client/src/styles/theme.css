@@ -54,6 +54,11 @@
   --font: "Outfit", "Segoe UI", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", "Consolas", ui-monospace, monospace;
 
+  /* Driven by Appearance settings; see state/SettingsProvider.tsx. Message text
+     scales, the furniture around it does not — a bigger UI is the browser's
+     zoom to give, and this is the setting for reading what people wrote. */
+  --font-scale: 1;
+
   color-scheme: dark;
 }
 

@@ -119,7 +119,7 @@
 .bubble {
   padding: 10px 14px;
   border-radius: var(--r-lg);
-  font-size: 14.5px;
+  font-size: calc(14.5px * var(--font-scale));
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -204,4 +204,25 @@
 .locked-bubble--failed {
   border-color: rgba(229, 72, 77, 0.45);
   color: var(--red);
+}
+
+/* --- what Appearance settings change ------------------------------------ *
+ * Compact trades the air between turns for more of them on screen. Only the
+ * spacing moves; the bubbles keep their shape, so a compact conversation still
+ * reads as this app rather than as a log file.
+ */
+:root[data-density='compact'] .message {
+  margin-top: 2px;
+}
+:root[data-density='compact'] .message--run-end {
+  margin-bottom: 6px;
+}
+:root[data-density='compact'] .bubble {
+  padding: 7px 12px;
+}
+:root[data-density='compact'] .messages__intro {
+  padding: 18px 4px 8px;
+}
+:root[data-density='compact'] .messages__divider {
+  margin: 12px 0 8px;
 }

@@ -129,6 +129,15 @@ export class AuthService {
     this.keys.lock();
   }
 
+  /**
+   * Re-confirms the password without unlocking, signing in, or calling the
+   * server. Used to gate revealing something on a device that is already
+   * unlocked — see DevicesSection.
+   */
+  verifyPassword(password: string): Promise<boolean> {
+    return this.keys.verifyPassword(password);
+  }
+
   async logout(): Promise<void> {
     try {
       await this.auth.logout();
@@ -326,6 +335,14 @@ export class AuthService {
 
   me(): Promise<AccountDto> {
     return this.account.me();
+  }
+
+  /**
+   * Profile fields the server owns. Nothing here is key material, so unlike
+   * every other account change it needs no password and no re-wrapping.
+   */
+  updateProfile(input: { username?: string }): Promise<AccountDto> {
+    return this.account.updateProfile(input);
   }
 
   sessions() {

@@ -14,9 +14,9 @@
 import type { Message } from '../types';
 
 export interface ChatState {
-  /** Flat and sorted; components filter by channel. */
+  /** Flat and sorted; components filter by conversation. */
   messages: Message[];
-  /** Last server id seen per channel — the cursor for the next backlog pull. */
+  /** Last server id seen per conversation — the cursor for the next backlog pull. */
   cursors: Record<string, string>;
 }
 
@@ -26,7 +26,7 @@ export type ChatAction =
   | { type: 'sent'; clientId: string; id: string; sentAt: string }
   | { type: 'sendFailed'; clientId: string; error: string }
   | { type: 'received'; message: Message }
-  | { type: 'backlog'; channelId: string; messages: Message[] };
+  | { type: 'backlog'; conversationId: string; messages: Message[] };
 
 export const initialChatState: ChatState = { messages: [], cursors: {} };
 
@@ -123,12 +123,12 @@ function cursorsFrom(messages: Message[]): Record<string, string> {
     // Optimistic messages have no server id yet, so they cannot be a cursor —
     // using one would make the next backlog pull skip real history.
     if (message.state === 'sending' || message.state === 'failed') continue;
-    cursors[message.channelId] = message.id;
+    cursors[message.conversationId] = message.id;
   }
   return cursors;
 }
 
-/** Messages for one channel, in order. */
-export function messagesForChannel(state: ChatState, channelId: string): Message[] {
-  return state.messages.filter((message) => message.channelId === channelId);
+/** Messages for one conversation, in order. */
+export function messagesForConversation(state: ChatState, conversationId: string): Message[] {
+  return state.messages.filter((message) => message.conversationId === conversationId);
 }

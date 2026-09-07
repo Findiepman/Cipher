@@ -21,7 +21,7 @@ export interface MockTransportOptions {
   latencyMs?: number;
   /** When true, sends reject the way a dropped connection would. */
   offline?: boolean;
-  /** Seeded history, keyed by channel. */
+  /** Seeded history, keyed by conversation. */
   history?: IncomingMessage[];
 }
 
@@ -69,7 +69,7 @@ export class MockTransport implements Transport {
     this.delivered.push({
       id: ack.id,
       clientId: message.clientId,
-      channelId: message.channelId,
+      conversationId: message.conversationId,
       authorId: 'self',
       sentAt: ack.sentAt,
       ciphertext: message.ciphertext,
@@ -77,12 +77,12 @@ export class MockTransport implements Transport {
     return ack;
   }
 
-  async backlog(channelId: string, cursor?: string): Promise<IncomingMessage[]> {
+  async backlog(conversationId: string, cursor?: string): Promise<IncomingMessage[]> {
     await delay(this.latencyMs);
-    const inChannel = this.delivered.filter((m) => m.channelId === channelId);
-    if (!cursor) return inChannel;
-    const index = inChannel.findIndex((m) => m.id === cursor);
-    return index === -1 ? inChannel : inChannel.slice(index + 1);
+    const inConversation = this.delivered.filter((m) => m.conversationId === conversationId);
+    if (!cursor) return inConversation;
+    const index = inConversation.findIndex((m) => m.id === cursor);
+    return index === -1 ? inConversation : inConversation.slice(index + 1);
   }
 
   on<E extends TransportEventName>(

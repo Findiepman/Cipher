@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Message } from '../types';
-import { chatReducer, initialChatState, messagesForChannel, sortMessages } from './chatStore';
+import { chatReducer, initialChatState, messagesForConversation, sortMessages } from './chatStore';
 
 function message(overrides: Partial<Message> & Pick<Message, 'id'>): Message {
   return {
-    channelId: 'c-general',
+    conversationId: 'c-general',
     authorId: 'u-me',
     sentAt: '2026-09-06T10:00:00.000Z',
     state: 'decrypted',
@@ -93,14 +93,14 @@ describe('merging server messages', () => {
 });
 
 describe('backlog cursors', () => {
-  it('advances the cursor to the newest confirmed message per channel', () => {
+  it('advances the cursor to the newest confirmed message per conversation', () => {
     const state = chatReducer(initialChatState, {
       type: 'backlog',
-      channelId: 'c-general',
+      conversationId: 'c-general',
       messages: [
         message({ id: 'srv-1', sentAt: '2026-09-06T10:00:00.000Z' }),
         message({ id: 'srv-2', sentAt: '2026-09-06T10:00:05.000Z' }),
-        message({ id: 'srv-3', channelId: 'c-crypto', sentAt: '2026-09-06T10:00:03.000Z' }),
+        message({ id: 'srv-3', conversationId: 'c-crypto', sentAt: '2026-09-06T10:00:03.000Z' }),
       ],
     });
 
@@ -121,16 +121,16 @@ describe('backlog cursors', () => {
   });
 });
 
-describe('messagesForChannel', () => {
+describe('messagesForConversation', () => {
   it('filters to one channel, in order', () => {
     const state = chatReducer(initialChatState, {
       type: 'seed',
       messages: [
-        message({ id: 'a', channelId: 'c-general', sentAt: '2026-09-06T10:00:00.000Z' }),
-        message({ id: 'b', channelId: 'c-crypto', sentAt: '2026-09-06T10:00:01.000Z' }),
-        message({ id: 'c', channelId: 'c-general', sentAt: '2026-09-06T10:00:02.000Z' }),
+        message({ id: 'a', conversationId: 'c-general', sentAt: '2026-09-06T10:00:00.000Z' }),
+        message({ id: 'b', conversationId: 'c-crypto', sentAt: '2026-09-06T10:00:01.000Z' }),
+        message({ id: 'c', conversationId: 'c-general', sentAt: '2026-09-06T10:00:02.000Z' }),
       ],
     });
-    expect(messagesForChannel(state, 'c-general').map((m) => m.id)).toEqual(['a', 'c']);
+    expect(messagesForConversation(state, 'c-general').map((m) => m.id)).toEqual(['a', 'c']);
   });
 });

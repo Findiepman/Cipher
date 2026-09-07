@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { MockTransport } from '../lib/transport/mockTransport';
 import { Outbox } from '../lib/transport/outbox';
 import { ChatController } from './chatController';
-import { messagesForChannel } from './chatStore';
+import { messagesForConversation } from './chatStore';
 
 async function setup(options: { offline?: boolean } = {}) {
   const keyPair = await generateKeyPair();
@@ -23,7 +23,7 @@ describe('sending', () => {
     const { controller } = await setup();
     await controller.send('c-general', 'ok the rail is done');
 
-    const messages = messagesForChannel(controller.snapshot, 'c-general');
+    const messages = messagesForConversation(controller.snapshot, 'c-general');
     expect(messages).toHaveLength(1);
     expect(messages[0]).toMatchObject({ state: 'decrypted', body: 'ok the rail is done' });
     expect(messages[0].id).toMatch(/^srv-/);
@@ -57,7 +57,7 @@ describe('offline behaviour', () => {
 
     await controller.send('c-general', 'sent with no signal');
 
-    let messages = messagesForChannel(controller.snapshot, 'c-general');
+    let messages = messagesForConversation(controller.snapshot, 'c-general');
     expect(messages[0]).toMatchObject({ state: 'sending', body: 'sent with no signal' });
     expect(controller.queuedCount).toBe(1);
 
@@ -66,7 +66,7 @@ describe('offline behaviour', () => {
     await vi.waitFor(() => {
       expect(controller.queuedCount).toBe(0);
     });
-    messages = messagesForChannel(controller.snapshot, 'c-general');
+    messages = messagesForConversation(controller.snapshot, 'c-general');
     expect(messages).toHaveLength(1);
     expect(messages[0]).toMatchObject({ state: 'decrypted', body: 'sent with no signal' });
     expect(messages[0].id).toMatch(/^srv-/);
@@ -83,7 +83,7 @@ describe('offline behaviour', () => {
       expect(controller.queuedCount).toBe(0);
     });
 
-    expect(messagesForChannel(controller.snapshot, 'c-general').map((m) => m.body)).toEqual([
+    expect(messagesForConversation(controller.snapshot, 'c-general').map((m) => m.body)).toEqual([
       'first',
       'second',
       'third',
@@ -99,7 +99,7 @@ describe('receiving', () => {
 
     transport.receive({
       id: 'srv-100',
-      channelId: 'c-general',
+      conversationId: 'c-general',
       authorId: 'u-nova',
       sentAt: new Date().toISOString(),
       ciphertext: sealed,
@@ -107,9 +107,9 @@ describe('receiving', () => {
     void other;
 
     await vi.waitFor(() => {
-      expect(messagesForChannel(controller.snapshot, 'c-general')).toHaveLength(1);
+      expect(messagesForConversation(controller.snapshot, 'c-general')).toHaveLength(1);
     });
-    expect(messagesForChannel(controller.snapshot, 'c-general')[0]).toMatchObject({
+    expect(messagesForConversation(controller.snapshot, 'c-general')[0]).toMatchObject({
       state: 'decrypted',
       body: 'hey',
     });
@@ -122,16 +122,16 @@ describe('receiving', () => {
 
     transport.receive({
       id: 'srv-101',
-      channelId: 'c-general',
+      conversationId: 'c-general',
       authorId: 'u-quill',
       sentAt: new Date().toISOString(),
       ciphertext: 'not even json',
     });
 
     await vi.waitFor(() => {
-      expect(messagesForChannel(controller.snapshot, 'c-general')).toHaveLength(1);
+      expect(messagesForConversation(controller.snapshot, 'c-general')).toHaveLength(1);
     });
-    const message = messagesForChannel(controller.snapshot, 'c-general')[0];
+    const message = messagesForConversation(controller.snapshot, 'c-general')[0];
     expect(message.state).toBe('failed');
     expect(message.body).toBeNull();
     expect(message.ciphertext).toBe('not even json');
@@ -145,18 +145,18 @@ describe('reconnect backlog', () => {
 
     transport.receive({
       id: 'srv-200',
-      channelId: 'c-general',
+      conversationId: 'c-general',
       authorId: 'u-ren',
       sentAt: new Date(Date.now() + 1000).toISOString(),
       ciphertext: JSON.stringify({ v: 1, alg: 'none', nonce: null, body: btoa('theirs') }),
     });
     await vi.waitFor(() => {
-      expect(messagesForChannel(controller.snapshot, 'c-general')).toHaveLength(2);
+      expect(messagesForConversation(controller.snapshot, 'c-general')).toHaveLength(2);
     });
 
-    await controller.syncChannel('c-general');
+    await controller.syncConversation('c-general');
 
-    const messages = messagesForChannel(controller.snapshot, 'c-general');
+    const messages = messagesForConversation(controller.snapshot, 'c-general');
     expect(messages).toHaveLength(2);
     expect(messages.map((m) => m.body)).toEqual(['mine', 'theirs']);
   });

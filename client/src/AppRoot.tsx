@@ -15,11 +15,19 @@ import { useCallback, useState } from 'react';
 import App from './App';
 import { AccountStrip } from './components/AccountStrip';
 import { AuthScreen } from './screens/AuthScreen';
+import { NotFoundScreen } from './screens/NotFoundScreen';
 import { UnlockScreen } from './screens/UnlockScreen';
 import { VerifyEmailScreen } from './screens/VerifyEmailScreen';
 import { isMockBackend } from './lib/config';
 import { useSession } from './state/SessionProvider';
 import './styles/auth.css';
+
+/**
+ * Every path this app answers to. Anything else is a 404 — which is only worth
+ * stating because without the list, an unknown path silently renders the chat
+ * app and looks like it worked.
+ */
+const KNOWN_PATHS = new Set(['/', '/verify-email']);
 
 /** No router yet: the one deep link that exists is matched by hand. */
 function readVerifyToken(): string | null {
@@ -41,6 +49,12 @@ export function AppRoot() {
 
   if (verifyToken) {
     return <VerifyEmailScreen token={verifyToken} onContinue={leaveVerify} />;
+  }
+
+  // Checked before the session states below: an address that does not exist is
+  // not a reason to ask someone to sign in first.
+  if (typeof window !== 'undefined' && !KNOWN_PATHS.has(window.location.pathname)) {
+    return <NotFoundScreen />;
   }
 
   // VITE_BACKEND=mock has no server to sign in against, so the chat UI is

@@ -135,14 +135,14 @@ export const serverMembers: Record<string, string[]> = {
 
 let seq = 0;
 function msg(
-  channelId: string,
+  conversationId: string,
   authorId: string,
   minutesAgo: number,
   body: string,
 ): Message {
   return {
     id: `m-${++seq}`,
-    channelId,
+    conversationId,
     authorId,
     sentAt: new Date(Date.now() - minutesAgo * 60_000).toISOString(),
     state: 'decrypted',
@@ -203,7 +203,7 @@ export const messages: Message[] = [
 messages.push(
   {
     id: 'm-locked',
-    channelId: 'c-general',
+    conversationId: 'c-general',
     authorId: 'u-quill',
     sentAt: new Date(Date.now() - 200 * 60_000).toISOString(),
     state: 'encrypted',
@@ -212,7 +212,7 @@ messages.push(
   },
   {
     id: 'm-failed',
-    channelId: 'c-crypto',
+    conversationId: 'c-crypto',
     authorId: 'u-atlas',
     sentAt: new Date(Date.now() - 60 * 60_000).toISOString(),
     state: 'failed',

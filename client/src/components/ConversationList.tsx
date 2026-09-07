@@ -9,10 +9,11 @@ type Props = {
   /** Rendered in order; a section with no channels is skipped. */
   sections: { label: string; channels: Channel[] }[];
   activeChannelId: string;
-  onSelect: (channelId: string) => void;
+  onSelect: (conversationId: string) => void;
   usersById: Map<string, User>;
   previews: Map<string, Preview>;
   currentUser: User;
+  onOpenSettings: () => void;
 };
 
 /**
@@ -26,6 +27,7 @@ export function ConversationList({
   usersById,
   previews,
   currentUser,
+  onOpenSettings,
 }: Props) {
   return (
     <>
@@ -60,7 +62,12 @@ export function ConversationList({
       <div className="key-status">
         <LockIcon size={15} />
         <span className="mono">key {currentUser.fingerprint} · unlocked</span>
-        <button type="button" className="icon-button" aria-label="Settings">
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="Settings"
+          onClick={onOpenSettings}
+        >
           <SettingsIcon size={16} />
         </button>
       </div>

@@ -40,7 +40,7 @@ export interface ChatControllerOptions {
    * Resolves the public key to seal to for a channel. Phase 1 ignores the
    * result; phase 2 cannot send without it, which is why the seam exists now.
    */
-  resolveRecipientKey?: (channelId: string) => Promise<Uint8Array | null>;
+  resolveRecipientKey?: (conversationId: string) => Promise<Uint8Array | null>;
 }
 
 export class ChatController {
@@ -49,7 +49,7 @@ export class ChatController {
   private readonly listeners = new Set<(state: ChatState) => void>();
   private readonly transport: Transport;
   private readonly outbox: Outbox;
-  private readonly resolveRecipientKey: (channelId: string) => Promise<Uint8Array | null>;
+  private readonly resolveRecipientKey: (conversationId: string) => Promise<Uint8Array | null>;
   private unsubscribers: (() => void)[] = [];
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -121,12 +121,12 @@ export class ChatController {
    * durably queued — not once it is delivered — so the UI never blocks on the
    * network.
    */
-  async send(channelId: string, body: string): Promise<void> {
+  async send(conversationId: string, body: string): Promise<void> {
     const identity = this.requireIdentity();
     const clientId = newClientId();
     const sentAt = new Date().toISOString();
 
-    const recipientKey = (await this.resolveRecipientKey(channelId)) ?? identity.publicKey;
+    const recipientKey = (await this.resolveRecipientKey(conversationId)) ?? identity.publicKey;
     const ciphertext = serializeCiphertext(
       await encryptMessage(body, recipientKey, identity.privateKey),
     );
@@ -136,7 +136,7 @@ export class ChatController {
       message: {
         id: clientId,
         clientId,
-        channelId,
+        conversationId,
         authorId: identity.userId,
         sentAt,
         state: 'sending',
@@ -147,7 +147,7 @@ export class ChatController {
       },
     });
 
-    await this.outbox.enqueue({ clientId, channelId, ciphertext, sentAt });
+    await this.outbox.enqueue({ clientId, conversationId, ciphertext, sentAt });
     await this.flush();
   }
 
@@ -191,11 +191,11 @@ export class ChatController {
   }
 
   /** Pulls everything this client missed, then opens what it can. */
-  async syncChannel(channelId: string): Promise<void> {
-    const cursor = this.state.cursors[channelId];
-    const backlog = await this.transport.backlog(channelId, cursor);
+  async syncConversation(conversationId: string): Promise<void> {
+    const cursor = this.state.cursors[conversationId];
+    const backlog = await this.transport.backlog(conversationId, cursor);
     const messages = await Promise.all(backlog.map((incoming) => this.open(incoming)));
-    this.dispatch({ type: 'backlog', channelId, messages });
+    this.dispatch({ type: 'backlog', conversationId, messages });
   }
 
   private async ingest(incoming: IncomingMessage): Promise<void> {
@@ -206,13 +206,13 @@ export class ChatController {
    * Turns a sealed blob into a renderable message. A failure here is a normal,
    * expected outcome — a key we do not have, a rotated key, a device we have
    * never seen — so it produces a locked bubble, never a dropped message and
-   * never a thrown error that would take the channel down with it.
+   * never a thrown error that would take the conversation down with it.
    */
   private async open(incoming: IncomingMessage): Promise<Message> {
     const base: Message = {
       id: incoming.id,
       clientId: incoming.clientId,
-      channelId: incoming.channelId,
+      conversationId: incoming.conversationId,
       authorId: incoming.authorId,
       sentAt: incoming.sentAt,
       state: 'encrypted',
@@ -224,7 +224,7 @@ export class ChatController {
 
     try {
       const ciphertext = parseCiphertext(incoming.ciphertext);
-      const senderKey = (await this.resolveRecipientKey(incoming.channelId)) ?? this.identity.publicKey;
+      const senderKey = (await this.resolveRecipientKey(incoming.conversationId)) ?? this.identity.publicKey;
       const body = await decryptMessage(ciphertext, senderKey, this.identity.privateKey);
       return { ...base, state: 'decrypted', body };
     } catch (error) {

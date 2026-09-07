@@ -6,6 +6,15 @@
  * package, and libsodium may not be imported anywhere else in the repo.
  */
 export { DOMAIN, type WrapDomain } from './domain.js';
+export {
+  DeviceKeyUnavailableError,
+  createDeviceKey,
+  deviceKeysSupported,
+  openFromDevice,
+  sealToDevice,
+  type DeviceKey,
+  type DeviceSealed,
+} from './deviceKey.js';
 export { equalBytes, fromBase64, fromUtf8, toBase64, toUtf8, wipe } from './encoding.js';
 export { generateKeyPair, keyFingerprint, publicKeyToBase64, type KeyPair } from './keys.js';
 export {

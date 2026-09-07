@@ -6,13 +6,19 @@
  * the rest of the client never knows which one it got.
  *
  * What actually gets stored here is the *wrapped* private key, never the raw
- * one. The unwrapped key lives in memory for the length of a session and is
- * dropped on lock or sign-out. That is a deliberate step past
- * client/AGENTS.md's "store the private key in IndexedDB": IndexedDB is
- * readable by any script running on the origin, so a stored raw key turns any
- * XSS into permanent identity theft, while a stored blob_A is useless without
- * the password. The cost is that a page reload asks for the password again.
+ * one. The unwrapped key lives in memory and is dropped on lock or sign-out.
+ * That is a deliberate step past client/AGENTS.md's "store the private key in
+ * IndexedDB": IndexedDB is readable by any script running on the origin, so a
+ * stored raw key turns any XSS into permanent identity theft, while a stored
+ * blob is useless without the secret that seals it.
+ *
+ * A reload no longer costs a password prompt, because blob_C (see
+ * deviceKeyStore.ts and @cipher/crypto's deviceKey.ts) is sealed under a key
+ * this device holds and cannot export. Everything written through this
+ * interface is still sealed under something. Nothing raw goes in here.
  */
+
+import { SECURE_STORE, runInStore } from './idb';
 
 export interface SecureStore {
   get(key: string): Promise<string | null>;
@@ -41,10 +47,6 @@ declare global {
   }
 }
 
-const DB_NAME = 'cipher';
-const DB_VERSION = 1;
-const STORE_NAME = 'secure';
-
 /** In-memory fallback: used by tests, and by any context without IndexedDB. */
 export class MemorySecureStore implements SecureStore {
   private readonly entries = new Map<string, string>();
@@ -66,37 +68,13 @@ export class MemorySecureStore implements SecureStore {
   }
 }
 
-/** Web implementation. */
+/** Web implementation. The database itself is opened by idb.ts. */
 export class IndexedDbSecureStore implements SecureStore {
-  private dbPromise: Promise<IDBDatabase> | null = null;
-
-  private open(): Promise<IDBDatabase> {
-    if (!this.dbPromise) {
-      this.dbPromise = new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
-        request.onupgradeneeded = () => {
-          if (!request.result.objectStoreNames.contains(STORE_NAME)) {
-            request.result.createObjectStore(STORE_NAME);
-          }
-        };
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-      });
-    }
-    return this.dbPromise;
-  }
-
-  private async run<T>(
+  private run<T>(
     mode: IDBTransactionMode,
     action: (store: IDBObjectStore) => IDBRequest<T>,
   ): Promise<T> {
-    const db = await this.open();
-    return new Promise<T>((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, mode);
-      const request = action(transaction.objectStore(STORE_NAME));
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
+    return runInStore(SECURE_STORE, mode, action);
   }
 
   async get(key: string): Promise<string | null> {

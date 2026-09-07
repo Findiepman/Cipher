@@ -4,15 +4,20 @@
  * The state machine has four positions, and the third one is the one that only
  * exists because this app is end-to-end encrypted:
  *
- *   loading       — deciding, on first paint
- *   anonymous     — no session
- *   locked        — signed in, but the private key is not in memory, so message
- *                   history cannot be read yet. Reached after a page reload.
- *   authenticated — signed in and unlocked
+ *   loading       (deciding, on first paint)
+ *   anonymous     (no session)
+ *   locked        (signed in, but the private key is not in memory, so message
+ *                  history cannot be read yet)
+ *   authenticated (signed in and unlocked)
  *
  * A conventional app would collapse `locked` into `authenticated`. Here it has
- * to be visible: the server can restore a session, but only the user's password
- * can restore the ability to read anything.
+ * to be visible: the server can restore a session, but only a secret the server
+ * does not hold can restore the ability to read anything.
+ *
+ * A reload usually lands on `authenticated` rather than `locked`, because
+ * KeyManager.restore() reopens the key from this device's own key store. The
+ * `locked` position is still reached, by pressing Lock, by signing in on a new
+ * device, and once the remembered unlock expires, so nothing may assume it away.
  */
 import {
   createContext,
@@ -43,7 +48,7 @@ export interface SessionContextValue {
   register: (input: { email: string; username: string; password: string }) => Promise<{ recoveryCode: string }>;
   login: (input: { email: string; password: string }) => Promise<void>;
   unlock: (password: string) => Promise<void>;
-  lock: () => void;
+  lock: () => Promise<void>;
   logout: () => Promise<void>;
   /** Re-reads the account from the server. */
   refresh: () => Promise<void>;
@@ -124,14 +129,14 @@ export function SessionProvider({
   }, [auth, keys]);
 
   /**
-   * A refresh that fails server-side means the session is genuinely over —
+   * A refresh that fails server-side means the session is genuinely over,
    * clear local state rather than leaving a signed-in-looking shell.
    */
   useEffect(() => {
     api.setSessionExpiredHandler(() => {
       setAccount(null);
       setStatus('anonymous');
-      keys.lock();
+      void keys.lock();
     });
   }, [keys]);
 
@@ -160,9 +165,11 @@ export function SessionProvider({
     [auth, run],
   );
 
-  const lock = useCallback(() => {
-    auth.lock();
+  const lock = useCallback(async () => {
+    // The status flips first so the UI never waits on storage, and the await is
+    // only the device key being destroyed. See KeyManager.lock().
     setStatus(account ? 'locked' : 'anonymous');
+    await auth.lock();
   }, [account, auth]);
 
   const logout = useCallback(

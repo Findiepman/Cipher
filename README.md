@@ -84,9 +84,13 @@ The client and server speak one protocol, and the password is not part of it.
    `MAIL_TRANSPORT=file`, the email is a file in `server/.mail/`.
 3. **Sign in.** The server compares the `authHash` and hands back the wrapped
    key, which is opened locally with the password.
-4. **Unlock.** After a reload you are signed in but *locked*: the private key
-   lives in memory only, so it has to be re-derived from your password. That
-   screen is the visible form of "the server cannot read your messages".
+4. **Unlock.** The private key lives in memory, never on the server, so there
+   is a state where you are signed in but *locked* and cannot read anything.
+   That screen is the visible form of "the server cannot read your messages".
+   A reload does not normally land there: the key is also sealed under a
+   non-extractable key held by this browser profile, so it can be reopened
+   without the password for 30 days of use. **Lock** destroys that and brings
+   the prompt back.
 
 What the server stores: an argon2id hash of the `authHash`, the SHA-256 of the
 recovery code, a public key, and two opaque blobs it cannot open. What it never

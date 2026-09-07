@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Nothing is granted to the page on purpose. The window shows a remote origin, and a capability without a remote block only ever applies to tauri:// content, so even core:default is unreachable from the site. The updater and the dialogs run from Rust and need no permission. Do not add a remote block here without reading desktop/AGENTS.md first.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

@@ -1,0 +1,118 @@
+# Builds the desktop shell in desktop/ for Windows, macOS and Linux.
+#
+# Two ways to run it, on purpose:
+#
+# - A push to main that touches desktop/ (or this file) builds all three
+#   platforms and keeps the installers as workflow artifacts for a week. That
+#   proves the packaging still works and gives you something to try, and it
+#   creates no release.
+# - Manual dispatch does the same build and then publishes a DRAFT GitHub
+#   release tagged desktop-v<version>, with latest.json attached for the
+#   updater. Publishing the draft by hand is the release. Nothing installed
+#   anywhere sees an update until you press that button.
+#
+# Nothing else triggers it. The server deploys on its own cadence and a
+# desktop release is a rarer event, so this workflow never runs for a change
+# under client/ or server/.
+#
+# Secrets it needs (Settings -> Secrets and variables -> Actions):
+#
+#   TAURI_SIGNING_PRIVATE_KEY           the whole content of ~/.tauri/cipher.key
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  empty today: the key was generated
+#                                       without one. Set it if you regenerate
+#                                       the key with a password.
+#
+# The private key must never be committed. desktop/README.md says where it
+# lives and what to do if it is lost. There are no OS code-signing
+# certificates yet (Apple Developer ID, Windows Authenticode), so the
+# installers are unsigned; see desktop/README.md -> "Code signing" before
+# handing one to anybody.
+
+name: desktop
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/desktop.yml'
+  workflow_dispatch:
+
+# One release at a time. A second dispatch while one is uploading would race
+# it for the same draft release and the same latest.json.
+concurrency:
+  group: desktop-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: '--target aarch64-apple-darwin'
+          - platform: macos-latest
+            args: '--target x86_64-apple-darwin'
+          # 22.04 rather than latest: the AppImage links against the glibc of
+          # the builder, so an older builder runs on more machines.
+          - platform: ubuntu-22.04
+            args: ''
+          - platform: windows-latest
+            args: ''
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Cache Rust builds
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      # Only the Tauri CLI. There is no frontend to build here: the window
+      # loads the deployed site, so the web app ships from deploy/, not from
+      # this workflow.
+      - name: Install the Tauri CLI
+        working-directory: desktop
+        run: npm ci
+
+      - name: Build
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: desktop
+          args: ${{ matrix.args }}
+          # An empty tagName means "build only": no release is touched.
+          tagName: ${{ github.event_name == 'workflow_dispatch' && 'desktop-v__VERSION__' || '' }}
+          releaseName: 'Cipher desktop v__VERSION__'
+          releaseBody: 'Installers for Windows, macOS and Linux. They are not code signed yet: see desktop/README.md for what that means on each OS.'
+          releaseDraft: true
+          prerelease: false
+          uploadUpdaterJson: true
+          updaterJsonPreferNsis: true
+          # A push build has no release to land on, so the installers are
+          # kept as workflow artifacts instead (Actions, the run, Artifacts).
+          uploadWorkflowArtifacts: ${{ github.event_name == 'push' }}

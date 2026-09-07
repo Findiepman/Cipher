@@ -1,0 +1,7 @@
+node_modules/
+src-tauri/target/
+src-tauri/gen/
+# Never the signing key, whatever it is called. It lives in ~/.tauri locally
+# and in a GitHub Actions secret, see README.md.
+*.key
+*.key.pub

@@ -7,7 +7,7 @@ encryption badge. The second added the profile panel, rebuilt the Friends
 screen as five tabs and finished the blocking story: a blocked list,
 unblocking, re-adding afterwards, and taking back a request you sent. The
 third pass is not UI at all: unread counts and read receipts, password reset
-with the whole of `backend-plan.md` step 2, and CSRF, which is step 6. Three
+with the whole of `backend-plan.md` step 2 and CSRF, which is step 6. Three
 of the four items this file listed as next steps are now done.
 
 This file is the "get up to speed without reading everything" document. It says
@@ -31,7 +31,7 @@ sign out, with real key custody: the account keypair is generated on the
 device and the server never receives a password, a recovery code, or a private
 key. **DM messaging works end to end too**: add a friend by exact username,
 they accept, you get a conversation with live delivery over Socket.io, an
-offline queue, a backlog on reconnect, and unread counts that clear when you
+offline queue, a backlog on reconnect and unread counts that clear when you
 actually look at the conversation. **Losing a password is no longer losing the
 account**: a reset link plus the recovery code rebuilds it with the identity
 intact, and the alternative branch discards the identity knowingly rather than
@@ -514,7 +514,7 @@ UI change twice.
   each other, which matters the moment more than one person or agent is
   working in the same checkout. `tests/setup.ts` honours `TEST_DATABASE_URL`
   and refuses any name that does not identify itself as a test database, so
-  the fix is a database each: create one, `prisma migrate deploy` against it,
+  the fix is a database each: create one, `prisma migrate deploy` against it
   and pass it per run.
 - **The production env file must be named `deploy/.env`.** Compose reads that
   name automatically for both `${...}` substitution and the server's

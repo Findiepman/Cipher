@@ -25,7 +25,7 @@ tables that already have the columns.
 | Section | State | What it needs |
 |---|---|---|
 | Appearance | **Works.** Theme, density, motion, message scale, all local. | Nothing |
-| Voice & video | **Works.** Enumerates devices, mic meter, camera preview, all through `lib/media/devices`. | Nothing until there are calls to configure |
+| Voice & video | **Works**, but only since the `Permissions-Policy` fix of 2026-09-07: the deployed header forbade the microphone outright, so the meter and the preview did nothing in production. | Nothing until there are calls to configure, which is [`voice-plan.md`](voice-plan.md) |
 | Notifications | **Works.** Permission prompt, previews off by default. | Nothing |
 | Profile | **Works, locally.** Display name, avatar, accent, presence, about. Stored in `localStorage`, folded into `User` by `lib/settings/profile.ts`. | `PATCH /account/me` before any of it is visible to anyone else |
 | My account | **One of four.** `change-password` works. | `PATCH /account/me`, `POST /account/change-email[/confirm]`, `DELETE /account` |

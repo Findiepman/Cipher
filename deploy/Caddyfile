@@ -18,7 +18,7 @@
 	#
 	# Adding a server module means adding it here. The SPA only ever navigates
 	# to / and /verify-email, so there is nothing to collide with.
-	@api path /auth /auth/* /account /account/* /friends /friends/* /keys /keys/* /conversations /conversations/* /health /health/* /socket.io /socket.io/*
+	@api path /auth /auth/* /account /account/* /friends /friends/* /keys /keys/* /conversations /conversations/* /calls /calls/* /health /health/* /socket.io /socket.io/*
 
 	handle @api {
 		reverse_proxy server:3000 {
@@ -68,7 +68,14 @@
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
 		Cross-Origin-Opener-Policy "same-origin"
-		Permissions-Policy "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+		# An empty allowlist is not "same origin only", it is off everywhere
+		# including this origin, so camera=() made getUserMedia reject with
+		# NotAllowedError and the mic test and camera preview in settings could
+		# not work on the deployed site at all. The Vite dev server sends no
+		# Permissions-Policy, so that was invisible in development. (self) is
+		# what was meant: this origin may ask, nobody embedded in it may.
+		# geolocation stays off because nothing here wants it.
+		Permissions-Policy "camera=(self), microphone=(self), geolocation=(), interest-cohort=()"
 		-Server
 	}
 

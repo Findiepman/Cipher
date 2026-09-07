@@ -460,6 +460,43 @@ success over a half-filled database.
 
 ---
 
+## Voice calls
+
+Calls are peer to peer: the audio runs browser to browser and never touches the
+box. The server only relays the call setup over the websocket that is already
+there, and hands out STUN and TURN addresses from `GET /calls/ice`.
+
+The part that needs configuring is TURN. Two browsers behind ordinary home or
+office routers usually cannot reach each other directly, and the fallback is a
+relay. This box cannot be that relay: the tunnel carries no UDP and publishing a
+port is the one thing the deployment is designed not to do. Cloudflare's TURN
+service is used instead. It mints a credential per call that expires after an
+hour, from a key that never leaves the server.
+
+1. In the Cloudflare dashboard, open **Realtime**, then **TURN**, and create a
+   TURN key. It shows a key id and an API token once.
+2. Put both in `deploy/.env`:
+
+   ```bash
+   TURN_KEY_ID=...
+   TURN_KEY_API_TOKEN=...
+   ```
+
+3. Redeploy. The server refuses to boot with only one of the two set.
+
+Without them everything still runs, but calls are STUN only: they connect on
+the same network and fail across the internet, and the in-call bar says the
+connection could not be made. The free tier covers 1,000 GB of relayed traffic
+a month; a relayed voice call is about 40 MB an hour, and only calls that
+cannot go direct are relayed at all.
+
+The microphone permission depends on the `Permissions-Policy` header in
+`deploy/Caddyfile` allowing `microphone=(self)`. An empty allowlist there turns
+the microphone off for this origin too, and the Vite dev server sends no such
+header, so a broken value is only ever visible on the deployed site.
+
+---
+
 ## Operating it
 
 ```bash
@@ -490,6 +527,8 @@ UI.
 | Everything is green but the hostname 404s | The tunnel's public hostname is wrong, or points at a service name that is not `web`. |
 | `docker compose` complains about an unset variable | You are running without `deploy/.env`, or from the wrong directory. |
 | Login works, then signs you out after 15 minutes | The refresh cookie is not coming back. It is scoped to `Path=/auth`; if you move the API under a different prefix in the Caddyfile, that scope has to move with it. |
+| Calls connect on the same network and fail across the internet | No TURN. Set `TURN_KEY_ID` and `TURN_KEY_API_TOKEN` in `deploy/.env` (see "Voice calls") and check `logs server` for "TURN credentials unavailable". |
+| The call button does nothing, or the mic test in settings fails, only on the live site | `Permissions-Policy` in `deploy/Caddyfile` must say `microphone=(self)`. `microphone=()` is off everywhere, this origin included. |
 
 ---
 

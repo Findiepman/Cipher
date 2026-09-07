@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Cipher">
+  <title>Cipher</title>
+  <defs>
+    <linearGradient id="ember" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f7855f"/>
+      <stop offset="1" stop-color="#e0603a"/>
+    </linearGradient>
+  </defs>
+  <!-- The same squircle the avatars and rail keycaps use. -->
+  <rect width="64" height="64" rx="15" fill="url(#ember)"/>
+  <!-- A keyhole cut out of it: one shape, no strokes, so it survives 16px. -->
+  <path
+    fill="#1a1210"
+    d="M32 15a11 11 0 0 1 5.4 20.6l3.4 12.9a1.6 1.6 0 0 1-1.55 2h-14.5a1.6 1.6 0 0 1-1.55-2l3.4-12.9A11 11 0 0 1 32 15Z"/>
+</svg>

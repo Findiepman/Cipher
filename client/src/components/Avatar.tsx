@@ -1,3 +1,4 @@
+import { avatarInitial } from '../lib/settings/profile';
 import type { Presence, User } from '../types';
 import '../styles/avatar.css';
 
@@ -11,12 +12,16 @@ type Props = {
 export function Avatar({ user, size = 40, showPresence = false }: Props) {
   return (
     <div className="avatar" style={{ width: size, height: size }}>
-      <div
-        className="avatar__image"
-        style={{ background: user.color, fontSize: size * 0.4 }}
-      >
-        {user.name.slice(0, 1).toUpperCase()}
-      </div>
+      {user.avatarUrl ? (
+        <img className="avatar__image" src={user.avatarUrl} alt="" draggable={false} />
+      ) : (
+        <div
+          className="avatar__image"
+          style={{ background: user.color, fontSize: size * 0.4 }}
+        >
+          {avatarInitial(user.name)}
+        </div>
+      )}
       {showPresence && (
         <span
           className={`avatar__presence avatar__presence--${user.presence}`}

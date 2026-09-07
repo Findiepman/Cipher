@@ -14,7 +14,7 @@
  * panel and then switching DM would reopen it, and "view profile" on a message
  * author would be silently replaced the next time anything re-rendered.
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChatHeader } from './components/ChatHeader';
 import { Composer } from './components/Composer';
 import { ConversationList, type Preview } from './components/ConversationList';
@@ -23,7 +23,10 @@ import { PersonMenuProvider, usePersonMenu } from './components/PersonMenu';
 import { TopBar, type View } from './components/TopBar';
 import { UserProfile } from './components/UserProfile';
 import { FriendsScreen } from './screens/FriendsScreen';
+import { SettingsScreen } from './screens/settings/SettingsScreen';
+import { withProfile } from './lib/settings/profile';
 import { useChat } from './state/ChatProvider';
+import { useSettings } from './state/SettingsProvider';
 import './styles/global.css';
 import './styles/app.css';
 
@@ -31,10 +34,24 @@ export default function App() {
   const [view, setView] = useState<View>('direct');
   const [hidden, setHidden] = useState(false);
   const [pinnedUserId, setPinnedUserId] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // The shortcut everyone tries first. Bound here rather than in the settings
+  // screen so it can open as well as close.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key === ',') {
+        event.preventDefault();
+        setSettingsOpen((open) => !open);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // The panel only exists beside a conversation, so asking for a profile from
   // the Friends screen has to move you there. Without this the menu item is
-  // live, does something, and shows nothing.
+  // live, does something and shows nothing.
   const viewProfile = useCallback((userId: string) => {
     setPinnedUserId(userId);
     setHidden(false);
@@ -50,6 +67,8 @@ export default function App() {
         onSetHidden={setHidden}
         pinnedUserId={pinnedUserId}
         onSetPinned={setPinnedUserId}
+        settingsOpen={settingsOpen}
+        onSetSettingsOpen={setSettingsOpen}
       />
     </PersonMenuProvider>
   );
@@ -66,6 +85,8 @@ function Shell({
   onSetHidden,
   pinnedUserId,
   onSetPinned,
+  settingsOpen,
+  onSetSettingsOpen,
 }: {
   view: View;
   onSelectView: (view: View) => void;
@@ -73,9 +94,12 @@ function Shell({
   onSetHidden: (hidden: boolean) => void;
   pinnedUserId: string | null;
   onSetPinned: (userId: string | null) => void;
+  settingsOpen: boolean;
+  onSetSettingsOpen: (open: boolean) => void;
 }) {
   const chat = useChat();
   const menu = usePersonMenu();
+  const { settings } = useSettings();
 
   const {
     ready,
@@ -95,6 +119,14 @@ function Shell({
     send,
     notifyTyping,
   } = chat;
+
+  // Your own row, your avatar in the top bar and your own bubbles all read from
+  // one User, so the profile preferences are folded in once here rather than
+  // special-cased in each component that draws you.
+  const me = useMemo(
+    () => (self ? withProfile(self, settings.profile) : null),
+    [self, settings.profile],
+  );
 
   const activeChannel = channels.find((channel) => channel.id === activeChannelId) ?? null;
   const messages = activeChannel ? messagesFor(activeChannel.id) : [];
@@ -132,12 +164,16 @@ function Shell({
     });
   }
 
+  if (settingsOpen && me) {
+    return <SettingsScreen user={me} onClose={() => onSetSettingsOpen(false)} />;
+  }
+
   return (
     <div className="app">
       <TopBar
         view={view}
         onSelect={onSelectView}
-        currentUser={self}
+        currentUser={me}
         requestCount={incoming.length}
         connection={connection}
       />
@@ -157,7 +193,8 @@ function Shell({
                 usersById={usersById}
                 previews={previews}
                 unread={unread}
-                currentUser={self}
+                currentUser={me}
+                onOpenSettings={() => onSetSettingsOpen(true)}
               />
             </div>
 

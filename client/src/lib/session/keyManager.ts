@@ -164,6 +164,32 @@ export class KeyManager {
   }
 
   /**
+   * Checks a password against the stored blob and throws nothing away.
+   *
+   * Deliberately not `unlock`: this is for re-confirming who is at the keyboard
+   * before revealing something, so it must not change the device's state either
+   * way. The key it unwraps is wiped immediately rather than adopted, and no
+   * request is made. The answer is already on this device, and asking the
+   * server would turn a local check into a password oracle.
+   */
+  async verifyPassword(password: string): Promise<boolean> {
+    if (!this.identity) return false;
+    let probe: Uint8Array | null = null;
+    try {
+      probe = await unwrapPrivateKey(
+        parseWrappedKey(this.identity.wrappedPrivateKey),
+        password,
+        DOMAIN.keywrap,
+      );
+      return true;
+    } catch {
+      return false;
+    } finally {
+      if (probe) wipe(probe);
+    }
+  }
+
+  /**
    * Drops the private key from memory but keeps the device enrolled.
    *
    * Async because it also has to forget the device key. Locking without that

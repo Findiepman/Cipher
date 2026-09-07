@@ -10,7 +10,7 @@ type Props = {
   /** Rendered in order; a section with no channels is skipped. */
   sections: { label: string; channels: Channel[] }[];
   activeChannelId: string;
-  onSelect: (channelId: string) => void;
+  onSelect: (conversationId: string) => void;
   usersById: Map<string, User>;
   previews: Map<string, Preview>;
   /**
@@ -21,6 +21,7 @@ type Props = {
   unread: Record<string, number>;
   /** Null on the first paint, before the account has loaded. */
   currentUser: User | null;
+  onOpenSettings: () => void;
 };
 
 /**
@@ -35,6 +36,7 @@ export function ConversationList({
   previews,
   unread,
   currentUser,
+  onOpenSettings,
 }: Props) {
   return (
     <>
@@ -70,7 +72,12 @@ export function ConversationList({
       <div className="list-foot">
         {currentUser && <Avatar user={currentUser} size={26} showPresence />}
         <span className="list-foot__name">{currentUser?.name ?? 'loading…'}</span>
-        <button type="button" className="icon-button" aria-label="Settings">
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="Settings"
+          onClick={onOpenSettings}
+        >
           <SettingsIcon size={16} />
         </button>
       </div>

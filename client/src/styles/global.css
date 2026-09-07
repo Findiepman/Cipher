@@ -37,6 +37,18 @@ a:hover {
   text-decoration: underline;
 }
 
+/* Appearance, Reduce motion. Not `prefers-reduced-motion`: that is the OS
+   asking on the user's behalf, this is the user asking here, and both should
+   be obeyed. */
+:root[data-motion='reduced'] *,
+:root[data-motion='reduced'] *::before,
+:root[data-motion='reduced'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
 .scroller {
   overflow-y: auto;
   overflow-x: hidden;

@@ -76,6 +76,8 @@ account-work axis (`backend-plan.md`).
 | DM conversations, message history, cursor paging | `server/src/modules/conversations/` |
 | Live delivery, presence, typing, over Socket.io | `server/src/realtime/index.ts` |
 | Unread counts and read receipts, over the socket or HTTP | `server/src/modules/conversations/service.ts`, `client/src/state/chatStore.ts` |
+| Settings, seven sections, opened from the gear or Ctrl+, | `client/src/screens/settings/` |
+| A 404 for any address outside a known set | `client/src/screens/NotFoundScreen.tsx` |
 | Password reset by email: keep the identity, or discard it | `server/src/modules/auth/service.ts`, `client/src/screens/ResetPasswordScreen.tsx` |
 | Change password, rotate the recovery code | `server/src/modules/account/credentials.ts` |
 | CSRF double submit on every state-changing request | `server/src/plugins/csrf.ts` |
@@ -86,7 +88,7 @@ account-work axis (`backend-plan.md`).
 | Deployed: 4 containers, no host ports, Cloudflare Tunnel | `deploy/` |
 | Live registration + verification email landing in an inbox | verified by hand 2026-09-07 |
 
-352 tests pass: 34 crypto, 142 client, 176 server. `npm run typecheck` and
+365 tests pass: 34 crypto, 155 client, 176 server. `npm run typecheck` and
 `npm run build` are clean across all workspaces.
 
 **Adding a friend and exchanging messages were driven by hand in the browser on
@@ -97,6 +99,13 @@ tests for the two pieces most likely to break silently
 nobody has clicked the whole screen. Anything you change in
 `client/src/state/ChatProvider.tsx` or the screens still needs a human to look
 at it.
+
+**Settings is a screen in front of endpoints that do not exist.** Seven
+sections render and three of them work end to end (Appearance, Voice & video,
+Notifications, all of which are local). Of the rest, `change-password` and
+`recovery-code` are real; **`PATCH /account/me`, `POST /account/change-email`,
+`GET|DELETE /account/sessions` and `DELETE /account` are not implemented**, so
+those controls call endpoints that 404. See *Reasonable next steps*.
 
 **Nothing added on 2026-09-07 has been driven by hand.** Typecheck, build and
 352 tests are green, and every endpoint behind them is covered
@@ -158,17 +167,18 @@ Two end-to-end proofs, both against a running server over real HTTP:
   verification and the rate limits are the only friction. `DEPLOY.md`
   → *Restricting who can register* has the Cloudflare Access recipe if that
   should change.
-- **Some account endpoints, and no settings screen at all.**
-  `client/src/lib/api/endpoints.ts` calls a full API; the server implements
-  most but not all of it. Still 404 today: `PATCH /account/me`,
-  `/account/change-email[/confirm]`, `GET|DELETE /account/sessions[/:id]`,
-  `DELETE /account`, all of `/admin/*`. (`POST /keys/device` and
-  `DELETE /keys/device/:id` do not exist either.) The client half of most of
-  these already exists in `authService.ts`. Separately, `/account/change-password`
-  and `/account/recovery-code` now work but have **no UI**: there is no settings
-  screen for them to live on, and building one is what unlocks the sessions
-  list, which is the only per-session revocation there will ever be short of
-  rotating `JWT_SECRET` and signing out every account on the box.
+- **The account endpoints the settings screen is already written against.**
+  That screen now exists, which inverts the old problem: the UI is ahead of
+  the server rather than behind it. `POST /account/change-password` and
+  `POST /account/recovery-code` work and are wired. Still 404 today:
+  `PATCH /account/me`, `/account/change-email[/confirm]`,
+  `GET|DELETE /account/sessions[/:id]`, `DELETE /account`, all of `/admin/*`.
+  (`POST /keys/device` and `DELETE /keys/device/:id` do not exist either.) The
+  client half of each already exists in `authService.ts` and is bound to a
+  button, so four controls in settings call an endpoint that is not there. The
+  sessions pair matters most: it is the only per-session revocation there will
+  ever be short of rotating `JWT_SECRET` and signing out every account on the
+  box.
 - **Phase 2 encryption.** See `packages/crypto/AGENTS.md`.
 - **`desktop/`.** Nothing but an `AGENTS.md`.
 
@@ -527,6 +537,15 @@ UI change twice.
 
 Pick one; they are roughly independent.
 
+0. **Finish the account endpoints behind settings.** In this order, because
+   each is worth something on its own: `GET|DELETE /account/sessions[/:id]`
+   (Devices & keys already lists them and the `Session` table already has
+   `deviceLabel`, `ip`, `userAgent` and `lastUsedAt`), then `PATCH /account/me`
+   (username changes have to run the word filter, so reuse
+   `newUsernameSchema`), then `POST /account/change-email[/confirm]` (the
+   `EmailToken` model already has `EMAIL_CHANGE` and a `newEmail` column for
+   exactly this), then `DELETE /account`. Until they land, four controls in
+   settings call endpoints that 404.
 0. **Click through everything added on 2026-09-07.** Right-click a
    conversation row, set a nickname, check it replaces the name in the list,
    the header and the composer placeholder. Open the profile panel and use its

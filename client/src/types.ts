@@ -11,24 +11,18 @@ export interface User {
   username: string;
   /** Set only when you have renamed this person. Yours alone; they never see it. */
   nickname?: string;
-  /** Fallback avatar tint; real avatars replace this later. */
+  /** Fallback avatar tint, used when there is no `avatarUrl`. */
   color: string;
+  /**
+   * A picture, if this user has one. Today only the signed-in user can set one
+   * and it lives on their device (see lib/settings); once the server grows an
+   * avatar endpoint this becomes the URL it hands out.
+   */
+  avatarUrl?: string;
   presence: Presence;
   /** Short status line under the name. */
   activity?: string;
   bot?: boolean;
-}
-
-/** A server in the sidebar. Grouping only: it holds no key material. */
-export interface Server {
-  id: string;
-  name: string;
-  /** Two-letter fallback shown before an icon is uploaded. */
-  monogram: string;
-  /** Fallback tint for the monogram. */
-  color: string;
-  unread?: boolean;
-  mentions?: number;
 }
 
 /**

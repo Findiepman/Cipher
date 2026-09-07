@@ -16,12 +16,24 @@ import App from './App';
 import { AccountStrip } from './components/AccountStrip';
 import { BrandMark } from './components/BrandMark';
 import { AuthScreen } from './screens/AuthScreen';
+import { NotFoundScreen } from './screens/NotFoundScreen';
 import { ResetPasswordScreen } from './screens/ResetPasswordScreen';
 import { UnlockScreen } from './screens/UnlockScreen';
 import { VerifyEmailScreen } from './screens/VerifyEmailScreen';
 import { ChatProvider } from './state/ChatProvider';
 import { useSession } from './state/SessionProvider';
 import './styles/auth.css';
+
+/**
+ * Every path this app answers to. Anything else is a 404, which is only worth
+ * stating because without the list an unknown path silently renders the chat
+ * app and looks like it worked.
+ *
+ * Both deep links stay in here even though they are also matched by hand
+ * below: a link whose token has already been spent still lands on a real
+ * screen that can explain itself, rather than on "no such address".
+ */
+const KNOWN_PATHS = new Set(['/', '/verify-email', '/reset-password']);
 
 /** No router yet: the two deep links that exist are matched by hand. */
 function readVerifyToken(): string | null {
@@ -63,6 +75,12 @@ export function AppRoot() {
   // as it next asks the server for anything.
   if (resetToken) {
     return <ResetPasswordScreen token={resetToken} onLeave={leaveReset} />;
+  }
+
+  // Checked before the session states below: an address that does not exist is
+  // not a reason to ask someone to sign in first.
+  if (typeof window !== 'undefined' && !KNOWN_PATHS.has(window.location.pathname)) {
+    return <NotFoundScreen />;
   }
 
   // The first paint on every reload, so it is the one screen guaranteed to be

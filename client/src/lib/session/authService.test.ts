@@ -345,6 +345,42 @@ describe('regenerating the recovery code', () => {
   });
 });
 
+describe('confirming the password again', () => {
+  let env: ReturnType<typeof harness>;
+
+  beforeEach(() => {
+    env = harness();
+  });
+
+  it('accepts the right password and rejects the wrong one', { timeout: 90_000 }, async () => {
+    await env.auth.register({ email: EMAIL, username: USERNAME, password: PASSWORD });
+    await env.auth.login({ email: EMAIL, password: PASSWORD });
+
+    await expect(env.auth.verifyPassword(PASSWORD)).resolves.toBe(true);
+    await expect(env.auth.verifyPassword(NEW_PASSWORD)).resolves.toBe(false);
+  });
+
+  it('leaves the device unlocked either way, and asks the server nothing', { timeout: 90_000 }, async () => {
+    await env.auth.register({ email: EMAIL, username: USERNAME, password: PASSWORD });
+    await env.auth.login({ email: EMAIL, password: PASSWORD });
+    const before = await toBase64(env.keys.requirePrivateKey());
+    const sentSoFar = env.server.bodies.length;
+
+    await env.auth.verifyPassword('not-the-password');
+
+    // A failed check must not lock the device out of the messages it is
+    // already showing, and must not reach the network, because that would turn a
+    // local confirmation into something the server could count or throttle.
+    expect(env.keys.state).toBe('unlocked');
+    expect(await toBase64(env.keys.requirePrivateKey())).toBe(before);
+    expect(env.server.bodies.length).toBe(sentSoFar);
+  });
+
+  it('says no rather than throwing when the device holds no key', { timeout: 60_000 }, async () => {
+    await expect(env.auth.verifyPassword(PASSWORD)).resolves.toBe(false);
+  });
+});
+
 describe('signing out', () => {
   it('forgets the key even if the server call fails', { timeout: 60_000 }, async () => {
     const env = harness();

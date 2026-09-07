@@ -1,0 +1,913 @@
+/* Settings.
+ *
+ * Same Ember rules as everywhere else: the ground is warm brown-black, panels
+ * float on it, --ember is the only interactive colour, --sage means encryption
+ * and nothing else, --red means failure. What is different here is the reading
+ * width: this screen is mostly prose explaining what a setting costs you, so
+ * the content pane is capped at a column you can actually read rather than
+ * stretched across a desktop monitor.
+ */
+
+.settings {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  background: var(--bg-app);
+  color: var(--text);
+}
+
+/* --- the section list --------------------------------------------------- */
+
+.settings__nav {
+  flex: 0 0 236px;
+  width: 236px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--line);
+  background: var(--bg-panel);
+}
+
+.settings__nav-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 20px 12px 16px;
+}
+
+.settings__who {
+  margin: 0 0 18px;
+  padding: 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings__who-name {
+  color: var(--text-hi);
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings__who-sub {
+  color: var(--text-faint);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings__group + .settings__group {
+  margin-top: 18px;
+}
+
+.settings__group .eyebrow {
+  display: block;
+  padding: 0 8px 6px;
+}
+
+.settings__group--exit {
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.settings__link {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  color: var(--text-mute);
+  font-size: 13.5px;
+  text-align: left;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+.settings__link:hover {
+  background: var(--hover);
+  color: var(--text-hi);
+}
+.settings__link--active,
+.settings__link--active:hover {
+  background: var(--bg-raised);
+  color: var(--text-hi);
+}
+.settings__link--danger {
+  color: var(--text-mute);
+}
+.settings__link--danger:hover {
+  color: var(--red);
+}
+
+/* --- the content pane --------------------------------------------------- */
+
+.settings__pane {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 20px 28px 80px;
+}
+
+.settings__pane-inner {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.settings__topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  min-height: 30px;
+}
+
+/* Only ever visible on a narrow window, where the list is its own screen. */
+.settings__back {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 6px 6px;
+  border-radius: var(--r-sm);
+  color: var(--text-mute);
+  font-size: 13px;
+}
+.settings__back:hover {
+  background: var(--hover);
+  color: var(--text-hi);
+}
+
+.settings__close {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text-mute);
+  font-size: 12px;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease;
+}
+.settings__close:hover {
+  color: var(--text-hi);
+  border-color: var(--text-mute);
+}
+
+.settings__close-key {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* --- section furniture -------------------------------------------------- */
+
+.set-head {
+  margin: 4px 0 24px;
+}
+
+.set-head__title {
+  margin: 0 0 6px;
+  color: var(--text-hi);
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.set-head__lede {
+  margin: 0;
+  max-width: 52ch;
+  color: var(--text-mute);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.set-group {
+  margin-bottom: 26px;
+}
+
+.set-group__title {
+  display: block;
+  margin: 0 0 8px;
+}
+
+.set-group__body {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--bg-panel);
+  overflow: hidden;
+}
+
+.set-group__hint {
+  margin: 8px 2px 0;
+  max-width: 60ch;
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+/* Rows, forms and notes stack inside a group with one hairline between them. */
+.set-group__body > * + * {
+  border-top: 1px solid var(--line-soft);
+}
+
+.set-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 14px 16px;
+}
+
+.set-row--stacked {
+  flex-direction: column;
+  gap: 12px;
+}
+
+.set-row__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.set-row__label {
+  display: block;
+  color: var(--text-hi);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.set-row__hint {
+  margin: 4px 0 0;
+  max-width: 54ch;
+  color: var(--text-mute);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.set-row__control {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 1px;
+}
+.set-row--stacked .set-row__control {
+  align-self: stretch;
+}
+
+.set-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 13.5px;
+  text-align: right;
+}
+
+.set-flag {
+  padding: 2px 7px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--sand) 18%, transparent);
+  color: var(--sand);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.set-flag--now {
+  background: var(--sage-bg);
+  color: var(--sage);
+}
+
+.set-empty {
+  margin: 0;
+  padding: 14px 16px;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+/* --- controls ----------------------------------------------------------- */
+
+.set-toggle {
+  position: relative;
+  width: 40px;
+  height: 23px;
+  flex: 0 0 auto;
+  border-radius: var(--r-pill);
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+.set-toggle[aria-checked='true'] {
+  background: var(--ember);
+  border-color: var(--ember);
+}
+.set-toggle:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.set-toggle__knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--text-mute);
+  transition:
+    transform 140ms ease,
+    background-color 140ms ease;
+}
+.set-toggle[aria-checked='true'] .set-toggle__knob {
+  transform: translateX(17px);
+  background: var(--ember-ink);
+}
+
+.set-segmented {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: var(--r-pill);
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+}
+
+.set-segmented__option {
+  padding: 5px 12px;
+  border-radius: var(--r-pill);
+  color: var(--text-mute);
+  font-size: 12.5px;
+  white-space: nowrap;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+.set-segmented__option:hover {
+  color: var(--text-hi);
+}
+.set-segmented__option[aria-checked='true'] {
+  background: var(--ember);
+  color: var(--ember-ink);
+  font-weight: 500;
+}
+
+.set-select {
+  min-width: 190px;
+  max-width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg-raised);
+  color: var(--text-hi);
+  font: inherit;
+  font-size: 13px;
+}
+.set-select:disabled {
+  opacity: 0.5;
+}
+
+.set-slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.set-slider input[type='range'] {
+  width: 160px;
+  accent-color: var(--ember);
+}
+
+.set-slider__value {
+  min-width: 42px;
+  color: var(--text-mute);
+  font-size: 11.5px;
+  text-align: right;
+}
+
+.set-field {
+  padding: 14px 16px;
+}
+
+.set-field__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+  color: var(--text-mute);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.set-field__counter {
+  font-size: 10.5px;
+  letter-spacing: 0;
+  color: var(--text-faint);
+  text-transform: none;
+}
+
+.set-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg-raised);
+  color: var(--text-hi);
+  font: inherit;
+  font-size: 14px;
+}
+.set-input:focus {
+  outline: none;
+  border-color: var(--ember);
+}
+.set-input::placeholder {
+  color: var(--text-faint);
+}
+.set-input:disabled {
+  opacity: 0.55;
+}
+
+.set-field__hint {
+  margin: 6px 0 0;
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.set-inline-warn {
+  color: var(--sand);
+}
+
+/* A form inside a group is a run of fields, not a bordered block of its own. */
+.set-group__body form > * + * {
+  border-top: 1px solid var(--line-soft);
+}
+
+.set-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+}
+.set-row__control .set-actions {
+  padding: 0;
+}
+
+.set-btn {
+  padding: 8px 14px;
+  border-radius: var(--r-sm);
+  background: var(--ember);
+  color: var(--ember-ink);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
+}
+.set-btn:hover:not(:disabled) {
+  background: var(--ember-hover);
+}
+.set-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.set-btn--quiet {
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-weight: 500;
+}
+.set-btn--quiet:hover:not(:disabled) {
+  background: var(--hover);
+  border-color: var(--text-faint);
+}
+
+.set-btn--danger {
+  background: none;
+  border: 1px solid color-mix(in srgb, var(--red) 45%, transparent);
+  color: var(--red);
+  font-weight: 500;
+}
+.set-btn--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  border-color: var(--red);
+}
+
+.set-link {
+  color: var(--text-link);
+  font-size: inherit;
+  text-decoration: underline;
+}
+
+/* Two of these sit side by side in the voice section; a space between inline
+   buttons collapses, so they need real separation to read as two choices. */
+.set-link + .set-link {
+  margin-left: 14px;
+}
+
+/* --- notes -------------------------------------------------------------- */
+
+/* A note standing between groups is a small panel of its own. */
+.set-note {
+  margin: 0 0 22px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--bg-panel);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-mute);
+}
+
+/* Inside a group it is one more row of that card instead: no border of its
+   own and no margin, with the hairline between rows doing the separating. The tone
+   backgrounds below still apply, so a warning still reads as one. */
+.set-group__body .set-note {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+}
+
+.set-note--sealed {
+  border-color: var(--sage-line);
+  background: var(--sage-bg);
+  color: var(--text);
+}
+
+.set-note--warn {
+  border-color: color-mix(in srgb, var(--sand) 35%, transparent);
+  background: color-mix(in srgb, var(--sand) 8%, transparent);
+  color: var(--text);
+}
+
+.set-note--danger {
+  border-color: color-mix(in srgb, var(--red) 40%, transparent);
+  background: color-mix(in srgb, var(--red) 10%, transparent);
+  color: var(--text-hi);
+}
+
+/* --- password strength, borrowed from the auth screens ------------------ */
+
+.set-meter {
+  display: flex;
+  gap: 4px;
+  padding: 0 16px 12px;
+}
+
+.set-meter__seg {
+  height: 3px;
+  flex: 1;
+  border-radius: 2px;
+  background: var(--line);
+  transition: background 120ms ease;
+}
+.set-meter__seg[data-on='true'] {
+  background: var(--sand);
+}
+.set-meter__seg[data-on='true'][data-strong='true'] {
+  background: var(--sage);
+}
+
+.set-problems {
+  margin: 0;
+  padding: 0 16px 12px 32px;
+  color: var(--sand);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* The strength meter and its problems belong to the field above them. */
+.set-group__body form > .set-meter,
+.set-group__body form > .set-problems {
+  border-top: none;
+}
+
+/* --- profile preview card ----------------------------------------------- */
+
+.set-preview {
+  margin-bottom: 26px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--bg-panel);
+  overflow: hidden;
+}
+
+.set-preview__banner {
+  height: 68px;
+  background: linear-gradient(
+    120deg,
+    var(--accent, var(--ember)) 0%,
+    color-mix(in srgb, var(--accent, var(--ember)) 35%, var(--bg-raised)) 100%
+  );
+}
+
+.set-preview__body {
+  padding: 0 20px 20px;
+}
+
+.set-preview__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--presence-offline);
+}
+.set-preview__dot--online {
+  background: var(--presence-online);
+}
+.set-preview__dot--idle {
+  background: var(--presence-idle);
+}
+.set-preview__dot--dnd {
+  background: var(--presence-dnd);
+}
+
+.set-preview__avatar {
+  margin-top: -32px;
+  margin-bottom: 12px;
+  width: 80px;
+  height: 80px;
+  display: grid;
+  place-items: center;
+  border-radius: 30%;
+  background: var(--bg-panel);
+}
+
+.set-preview__name {
+  margin: 0;
+  color: var(--text-hi);
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.set-preview__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin: 5px 0 0;
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+
+.set-preview__sep {
+  color: var(--line);
+}
+
+.set-preview__about {
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.set-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.set-swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 32%;
+  border: 2px solid transparent;
+  box-shadow: 0 0 0 1px var(--line) inset;
+  transition: transform 120ms ease;
+}
+.set-swatch:hover {
+  transform: scale(1.08);
+}
+.set-swatch--on {
+  border-color: var(--bg-panel);
+  box-shadow: 0 0 0 2px var(--text-hi);
+}
+
+/* --- keys and sessions -------------------------------------------------- */
+
+.set-fingerprint {
+  margin: 0;
+  padding: 18px 16px;
+  color: var(--text-hi);
+  font-size: 17px;
+  letter-spacing: 0.08em;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.set-code {
+  margin: 0;
+  padding: 18px 16px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--text-hi);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.set-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--presence-offline);
+}
+.set-dot--unlocked {
+  background: var(--sage);
+}
+.set-dot--locked {
+  background: var(--sand);
+}
+
+.set-session {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 16px;
+}
+
+.set-session__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.set-session__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-hi);
+  font-size: 13.5px;
+}
+
+.set-session__meta {
+  margin: 3px 0 0;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+/* --- the microphone meter ----------------------------------------------- */
+
+.set-mic {
+  padding: 4px 0 0;
+}
+
+.set-mic__meter {
+  position: relative;
+  height: 8px;
+  margin: 14px 16px 0;
+  border-radius: 4px;
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+
+.set-mic__fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--text-faint);
+  transition: width 60ms linear;
+}
+/* Green only while you are actually over the gate. This is the one place the
+   encryption colour is borrowed, for "the channel is open". */
+.set-mic__fill--open {
+  background: var(--sage);
+}
+
+.set-mic__gate {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: var(--ember);
+}
+
+.set-mic__hint {
+  color: var(--text-mute);
+  font-size: 12px;
+}
+
+/* --- the camera preview ------------------------------------------------- */
+
+.set-camera {
+  padding: 4px 0 0;
+}
+
+.set-camera__frame {
+  position: relative;
+  margin: 14px 16px 0;
+  aspect-ratio: 16 / 9;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--bg-app);
+  overflow: hidden;
+}
+.set-camera__frame--live {
+  border-color: var(--sage-line);
+}
+
+.set-camera__video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.set-camera__video--mirror {
+  transform: scaleX(-1);
+}
+
+.set-camera__placeholder {
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+
+/* --- the appearance preview --------------------------------------------- */
+
+.set-chat-preview {
+  padding: 16px;
+  background: var(--bg-panel-alt);
+}
+
+.set-chat-preview__avatar {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 32%;
+  background: var(--sand);
+  color: var(--ember-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* --- narrow windows: two panes become two screens ----------------------- */
+
+@media (max-width: 780px) {
+  .settings__nav {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    flex-basis: auto;
+    border-right: none;
+    z-index: 1;
+  }
+
+  .settings[data-pane='section'] .settings__nav {
+    display: none;
+  }
+  .settings[data-pane='list'] .settings__pane {
+    display: none;
+  }
+
+  .settings__pane {
+    padding: 16px 16px 72px;
+  }
+
+  .settings__back {
+    display: inline-flex;
+  }
+
+  .settings__close-key {
+    display: none;
+  }
+
+  /* A control that cannot fit beside its label drops under it. */
+  .set-row {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .set-row__control {
+    align-self: stretch;
+  }
+  .set-value {
+    text-align: left;
+  }
+  .set-select {
+    width: 100%;
+    min-width: 0;
+  }
+  .set-slider {
+    width: 100%;
+  }
+  .set-slider input[type='range'] {
+    flex: 1 1 auto;
+    width: auto;
+  }
+}

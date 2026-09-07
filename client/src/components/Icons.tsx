@@ -138,3 +138,19 @@ export function ClockIcon({ size = 24, className }: Props) {
     </svg>
   );
 }
+
+export function CloseIcon({ size = 24, className }: Props) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M6.4 5A1 1 0 0 0 5 6.4L10.6 12 5 17.6A1 1 0 0 0 6.4 19L12 13.4 17.6 19a1 1 0 0 0 1.4-1.4L13.4 12 19 6.4A1 1 0 0 0 17.6 5L12 10.6 6.4 5Z" />
+    </svg>
+  );
+}
+
+export function ChevronLeftIcon({ size = 24, className }: Props) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M14.7 5.3a1 1 0 0 1 0 1.4L9.4 12l5.3 5.3a1 1 0 0 1-1.4 1.4l-6-6a1 1 0 0 1 0-1.4l6-6a1 1 0 0 1 1.4 0Z" />
+    </svg>
+  );
+}

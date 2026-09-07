@@ -12,6 +12,7 @@
 import { useState, type FormEvent } from 'react';
 import { BrandMark } from '../components/BrandMark';
 import { ApiError } from '../lib/api';
+import { isDevelopment } from '../lib/config';
 import { API_ERROR_CODES } from '../lib/api/types';
 import { checkPassword } from '../lib/session/passwordPolicy';
 import { useSession } from '../state/SessionProvider';
@@ -330,10 +331,22 @@ function CheckEmailStep({ onSignIn }: { onSignIn: () => void }) {
       <p className="auth-lede">
         We have sent a verification link. Open it, then come back and sign in.
       </p>
-      <p className="auth-note">
-        Running locally with <code>MAIL_TRANSPORT=file</code>? The email is a
-        file in <code>server/.mail/</code>.
-      </p>
+      {/* The local-mail hint is a developer affordance and read as nonsense in
+          front of a real user, who has no server/ directory. Vite drops the
+          whole branch from the production bundle. What a real user actually
+          needs is the spam prompt: a domain that has only just started sending
+          gets filtered until it builds a reputation. */}
+      {isDevelopment ? (
+        <p className="auth-note">
+          Running locally with <code>MAIL_TRANSPORT=file</code>? The email is a
+          file in <code>server/.mail/</code>.
+        </p>
+      ) : (
+        <p className="auth-note">
+          Not there within a minute? Check your spam folder — it usually is at
+          first.
+        </p>
+      )}
       <button className="auth-submit" type="button" onClick={onSignIn}>
         Back to sign in
       </button>

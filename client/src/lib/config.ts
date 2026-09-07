@@ -37,5 +37,18 @@ export const config = {
 
 export const isMockBackend = config.backend === 'mock';
 
+/**
+ * True only in `vite dev`. Vite substitutes this at build time, so anything
+ * guarded by it is dropped from the production bundle entirely.
+ *
+ * Written as the literal `import.meta.env.DEV` rather than read off the `env`
+ * object above, because only the literal form is substituted at build time -
+ * which is what lets the minifier drop the guarded branch entirely.
+ *
+ * Use it for developer affordances - notes about `.mail/`, fixture switches -
+ * that would be confusing or wrong in front of a real user.
+ */
+export const isDevelopment = import.meta.env?.DEV === true;
+
 /** True when the client and the API are served by the same host. */
 export const isSameOrigin = config.apiUrl === '';

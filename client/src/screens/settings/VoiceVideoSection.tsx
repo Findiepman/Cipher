@@ -226,9 +226,11 @@ export function VoiceVideoSection() {
         <CameraPreview />
       </Group>
 
-      <Note tone="sealed">
-        Calls are not built yet. These choices are stored now so that when calls
-        land they start on the right hardware.
+      <Note tone="plain">
+        Voice calls use the microphone, the speaker and the input mode chosen
+        here. Volume, mode and sensitivity change a call that is already under
+        way; a different microphone or speaker takes effect on the next one.
+        The camera is stored for later: calls are voice only for now.
       </Note>
     </>
   );

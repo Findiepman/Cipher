@@ -22,6 +22,7 @@ import {
 } from 'react';
 import { fromBase64 } from '@cipher/crypto';
 import { conversationsApi, friendsApi } from '../lib/api';
+import type { CallSignalling } from '../lib/call/types';
 import type {
   BlockedUserDto,
   ConversationDto,
@@ -86,6 +87,12 @@ export interface ChatContextValue {
   unblockUser: (userId: string) => Promise<void>;
   /** Your own private label for someone. An empty string clears it. */
   setNickname: (userId: string, nickname: string) => Promise<void>;
+
+  /**
+   * Call signalling, over the same socket messages use. Read by CallProvider
+   * and nothing else: components get their call state from useCall().
+   */
+  callSignalling: CallSignalling;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -543,6 +550,7 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
       blockUser,
       unblockUser,
       setNickname,
+      callSignalling: controller.transport.calls,
     }),
     [
       ready,
@@ -573,6 +581,7 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
       blockUser,
       unblockUser,
       setNickname,
+      controller,
     ],
   );
 

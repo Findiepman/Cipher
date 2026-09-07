@@ -154,3 +154,40 @@ export function ChevronLeftIcon({ size = 24, className }: Props) {
     </svg>
   );
 }
+
+/// The call button. A handset, because everyone knows what a handset means
+/// and nobody has held one in years.
+export function PhoneIcon({ size = 24, className }: Props) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.61 21 3 13.39 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1.02l-2.2 2.2Z" />
+    </svg>
+  );
+}
+
+/// Hang up: the same handset, put down.
+export function PhoneOffIcon({ size = 24, className }: Props) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1a1 1 0 0 1-.55.9 11.6 11.6 0 0 0-2.75 1.9 1 1 0 0 1-1.4 0L.29 13.2a1 1 0 0 1 0-1.41C3.34 8.9 7.46 7 12 7s8.66 1.9 11.71 4.79a1 1 0 0 1 0 1.41l-2.41 2.42a1 1 0 0 1-1.4 0 11.6 11.6 0 0 0-2.75-1.9 1 1 0 0 1-.55-.9v-3.1A15.3 15.3 0 0 0 12 9Z" />
+    </svg>
+  );
+}
+
+export function MicIcon({ size = 24, className }: Props) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M12 15a4 4 0 0 0 4-4V6a4 4 0 1 0-8 0v5a4 4 0 0 0 4 4Zm-6.93-3.5a1 1 0 0 1 1.98-.28A5 5 0 0 0 17 11.22a1 1 0 0 1 1.98.28A7 7 0 0 1 13 17.93V20h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-2.07a7 7 0 0 1-5.93-6.43Z" />
+    </svg>
+  );
+}
+
+/// Paired with MicIcon for mute: the same microphone with a slash, so the two
+/// states read as one control.
+export function MicOffIcon({ size = 24, className }: Props) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M3.28 2.22a.75.75 0 1 0-1.06 1.06l18.5 18.5a.75.75 0 0 0 1.06-1.06l-3.24-3.24A6.97 6.97 0 0 0 18.98 11.5a1 1 0 0 0-1.98-.28 4.97 4.97 0 0 1-.9 2.24L14.6 11.96c.26-.5.4-1.05.4-1.62V6a4 4 0 0 0-7.9-.9L3.28 2.22ZM8 9.4l6.36 6.36A4 4 0 0 1 8 11V9.4Zm-2.93 2.1a1 1 0 0 1 1.98-.28A5 5 0 0 0 12 15.5c.49 0 .96-.07 1.4-.2l1.6 1.6c-.63.3-1.3.5-2 .6V20h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-2.07a7 7 0 0 1-5.93-6.43Z" />
+    </svg>
+  );
+}

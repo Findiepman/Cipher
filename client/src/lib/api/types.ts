@@ -441,3 +441,18 @@ export const API_ERROR_CODES = {
 } as const;
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[keyof typeof API_ERROR_CODES] | string;
+
+/* ---------------------------------------------------------------- calls --- */
+
+/**
+ * What RTCPeerConnection is handed for a call. Minted by the server per call
+ * from a Cloudflare TURN key that never reaches the client; the credentials in
+ * here expire after `ttlSeconds`, so this is fetched when a call starts and
+ * never cached across one.
+ */
+export interface IceServersDto {
+  iceServers: RTCIceServer[];
+  ttlSeconds: number;
+  /** False means STUN only: no relay, so two NATs will not connect. */
+  relay: boolean;
+}

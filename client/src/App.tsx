@@ -24,7 +24,9 @@ import { TopBar, type View } from './components/TopBar';
 import { UserProfile } from './components/UserProfile';
 import { FriendsScreen } from './screens/FriendsScreen';
 import { SettingsScreen } from './screens/settings/SettingsScreen';
+import { CallPanel } from './components/CallPanel';
 import { withProfile } from './lib/settings/profile';
+import { useCall } from './state/CallProvider';
 import { useChat } from './state/ChatProvider';
 import { useSettings } from './state/SettingsProvider';
 import './styles/global.css';
@@ -100,6 +102,7 @@ function Shell({
   const chat = useChat();
   const menu = usePersonMenu();
   const { settings } = useSettings();
+  const { call, supported: callsSupported, startCall } = useCall();
 
   const {
     ready,
@@ -164,8 +167,25 @@ function Shell({
     });
   }
 
+  // Which conversation the live call belongs to, if any. `ended` still counts:
+  // the panel is still up, and a second call cannot start until it is gone.
+  const callConversationId = call.phase === 'idle' ? null : call.conversationId;
+  const callState: 'none' | 'here' | 'elsewhere' =
+    callConversationId === null
+      ? 'none'
+      : callConversationId === activeChannel?.id
+        ? 'here'
+        : 'elsewhere';
+
+  // The call panel floats above whichever screen is up, settings included: a
+  // call does not stop being a call because you went to look at a setting.
   if (settingsOpen && me) {
-    return <SettingsScreen user={me} onClose={() => onSetSettingsOpen(false)} />;
+    return (
+      <>
+        <SettingsScreen user={me} onClose={() => onSetSettingsOpen(false)} />
+        <CallPanel />
+      </>
+    );
   }
 
   return (
@@ -223,6 +243,12 @@ function Shell({
                           }
                         : undefined
                     }
+                    onCall={
+                      recipient && callsSupported
+                        ? () => startCall(activeChannel.id, recipient.id)
+                        : undefined
+                    }
+                    callState={callState}
                   />
 
                   <MessageList
@@ -266,6 +292,8 @@ function Shell({
           </>
         )}
       </div>
+
+      <CallPanel />
     </div>
   );
 }

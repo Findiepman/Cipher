@@ -1,0 +1,224 @@
+/* The floating call panel: a toast while ringing, a bar during the call.
+ *
+ * Above settings (z 40) and below the dialogs (z 70): a call outlives the
+ * screen you happened to be on, and a confirmation still has the last word.
+ * A panel floating on the backdrop, like everything else here, never flush.
+ */
+.call {
+  position: fixed;
+  right: 18px;
+  bottom: 22px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 300px;
+  max-width: 440px;
+  padding: 12px 14px 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--bg-panel);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.4);
+  animation: call-in 180ms ease-out;
+}
+
+@keyframes call-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* An incoming call sits at the top, where a notification is expected, and a
+   little larger: it is asking a question. */
+.call--ringing {
+  top: 18px;
+  bottom: auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  padding: 16px;
+  border-color: var(--ember);
+}
+
+.call--ended {
+  color: var(--text-mute);
+}
+
+.call__who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.call__names {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.call__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-hi);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.call__status {
+  font-size: 12px;
+  color: var(--text-mute);
+  line-height: 1.4;
+}
+
+.call__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+/* Text buttons: accept and decline, and hold to talk. The same family as the
+   settings buttons, but they live in a different stylesheet on purpose. */
+.call__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 17px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.call__btn--accept {
+  background: var(--ember);
+  color: var(--ember-ink);
+}
+.call__btn--accept:hover {
+  background: var(--ember-hover);
+}
+
+.call__btn--quiet {
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-weight: 500;
+}
+.call__btn--quiet:hover {
+  background: var(--hover);
+  border-color: var(--text-faint);
+}
+
+.call__talk {
+  user-select: none;
+  touch-action: none;
+}
+.call__talk--held,
+.call__talk--held:hover {
+  background: var(--ember);
+  border-color: var(--ember);
+  color: var(--ember-ink);
+}
+
+/* Round icon buttons: mute and hang up. Ember is the only interactive colour,
+   so hanging up is ember and not red; red is for a message that would not
+   decrypt, and ending a call is not a failure. */
+.call__round {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  color: var(--text);
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+.call__round:hover {
+  background: var(--hover);
+  border-color: var(--text-faint);
+}
+
+.call__round--active,
+.call__round--active:hover {
+  background: var(--bg-raised);
+  border-color: var(--ember);
+  color: var(--ember);
+}
+
+.call__round--hangup,
+.call__round--hangup:hover {
+  background: var(--ember);
+  border-color: var(--ember);
+  color: var(--ember-ink);
+}
+.call__round--hangup:hover {
+  background: var(--ember-hover);
+  border-color: var(--ember-hover);
+}
+
+/* Whether anything is leaving the microphone right now. A dot in the corner
+   of the mute button rather than a meter: the question a caller has is
+   "can they hear me", and that is a yes or a no. */
+.call__level {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 9px;
+  height: 9px;
+  border-radius: 5px;
+  background: var(--text-faint);
+  box-shadow: 0 0 0 2px var(--bg-panel);
+  transition: background-color 80ms ease;
+}
+.call__level--on {
+  background: var(--ember);
+}
+
+/* The header's note that this conversation is the one on the call. */
+.chat-header__call {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 15px;
+  border: 1px solid var(--ember);
+  color: var(--ember);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.chat-header__call-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--ember);
+}
+
+@media (max-width: 520px) {
+  .call {
+    right: 10px;
+    left: 10px;
+    min-width: 0;
+    max-width: none;
+  }
+}

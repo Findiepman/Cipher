@@ -52,6 +52,14 @@ function mediaApi(): MediaDevices | null {
   return navigator.mediaDevices ?? null;
 }
 
+function audioContextCtor(): typeof AudioContext | undefined {
+  if (typeof window === 'undefined') return undefined;
+  return (
+    window.AudioContext ??
+    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+  );
+}
+
 /** Whether this build can talk to media hardware at all. */
 export function isSupported(): boolean {
   return mediaApi() !== null;
@@ -165,11 +173,7 @@ export function stopStream(stream: MediaStream | null): void {
  * to paint the bar, and a second timer feeding it would only add jitter.
  */
 export function createLevelMeter(stream: MediaStream): LevelMeter {
-  const AudioContextCtor =
-    typeof window === 'undefined'
-      ? undefined
-      : (window.AudioContext ??
-        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext);
+  const AudioContextCtor = audioContextCtor();
 
   if (!AudioContextCtor) return { read: () => 0, stop: () => {} };
 
@@ -200,6 +204,124 @@ export function createLevelMeter(stream: MediaStream): LevelMeter {
       source.disconnect();
       analyser.disconnect();
       void context.close().catch(() => {});
+    },
+  };
+}
+
+/* ---------------------------------------------------------------- calls --- */
+
+/**
+ * The microphone with the input volume applied, as a track a call can send.
+ *
+ * WebRTC has no gain control on a track, so "input volume" has to be a Web
+ * Audio graph: microphone, gain node, back out as a stream. The graph is
+ * always built, even at 100%, so that moving the slider mid-call is a number
+ * changing and not a track being swapped under a live connection. Echo
+ * cancellation and noise suppression are applied at capture, ahead of this,
+ * so they are unaffected by it.
+ */
+export interface InputChain {
+  /** The track to send. Muting a call is `track.enabled = false` on this. */
+  track: MediaStreamTrack;
+  stream: MediaStream;
+  /** 0 to 1, or a little above for people whose microphone is quiet. */
+  setGain(gain: number): void;
+  stop(): void;
+}
+
+export function createInputChain(source: MediaStream, gain: number): InputChain {
+  const AudioContextCtor = audioContextCtor();
+  const [raw] = source.getAudioTracks();
+
+  // No Web Audio, or nothing to process: send the microphone as it is.
+  if (!AudioContextCtor || !raw) {
+    return {
+      track: raw,
+      stream: source,
+      setGain() {},
+      stop() {
+        stopStream(source);
+      },
+    };
+  }
+
+  const context = new AudioContextCtor();
+  const input = context.createMediaStreamSource(source);
+  const gainNode = context.createGain();
+  gainNode.gain.value = gain;
+  const destination = context.createMediaStreamDestination();
+  input.connect(gainNode);
+  gainNode.connect(destination);
+  // Created inside a click most of the time, but not always, and a suspended
+  // context is a call where nobody can hear you and nothing says why.
+  void context.resume().catch(() => {});
+
+  const [track] = destination.stream.getAudioTracks();
+
+  return {
+    track,
+    stream: destination.stream,
+    setGain(value) {
+      gainNode.gain.value = value;
+    },
+    stop() {
+      input.disconnect();
+      gainNode.disconnect();
+      stopStream(destination.stream);
+      stopStream(source);
+      void context.close().catch(() => {});
+    },
+  };
+}
+
+/**
+ * Where the other person's voice comes out.
+ *
+ * An audio element that is never in the document: it only exists to play a
+ * stream, and to be the thing `setSinkId` is called on. Output routing is
+ * Chromium only (see canChooseOutput), and everywhere else the OS default is
+ * used and the settings screen says so.
+ */
+export interface AudioOutput {
+  attach(stream: MediaStream): void;
+  /** Resolves either way; a device that cannot be selected falls back to the default. */
+  setSink(deviceId: string | null): Promise<void>;
+  /** 0 to 1. */
+  setVolume(volume: number): void;
+  stop(): void;
+}
+
+export function createAudioOutput(): AudioOutput {
+  if (typeof Audio === 'undefined') {
+    return { attach() {}, async setSink() {}, setVolume() {}, stop() {} };
+  }
+
+  const element = new Audio();
+  element.autoplay = true;
+
+  return {
+    attach(stream) {
+      element.srcObject = stream;
+      void element.play().catch(() => {
+        // Autoplay refused. The call was started by a click, so this is rare,
+        // and the next user gesture on the page lets it through.
+      });
+    },
+    async setSink(deviceId) {
+      if (!canChooseOutput()) return;
+      const sinkable = element as HTMLMediaElement & { setSinkId(id: string): Promise<void> };
+      try {
+        await sinkable.setSinkId(deviceId ?? '');
+      } catch {
+        // The device is gone, or the browser will not route there. Default it is.
+      }
+    },
+    setVolume(volume) {
+      element.volume = Math.min(1, Math.max(0, volume));
+    },
+    stop() {
+      element.pause();
+      element.srcObject = null;
     },
   };
 }

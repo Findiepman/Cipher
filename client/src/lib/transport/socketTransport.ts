@@ -15,6 +15,12 @@
 import { io } from 'socket.io-client';
 import { conversationsApi, type ApiClient } from '../api';
 import { createConversationsApi } from '../api/endpoints';
+import {
+  SignalRefusedError,
+  type CallSignalEventName,
+  type CallSignalEvents,
+  type CallSignalling,
+} from '../call/types';
 import { config } from '../config';
 import type {
   ConnectionState,
@@ -112,9 +118,17 @@ export class SendFailedError extends Error {
 }
 
 export class SocketTransport implements Transport {
+  /**
+   * Call signalling, over the same socket. Not part of the Transport
+   * interface: the mock transport has no calls to carry, and the engine that
+   * uses this is handed it directly by the provider that owns the transport.
+   */
+  readonly calls: CallSignalling;
+
   private socket: SocketLike | null = null;
   private connectionState: ConnectionState = 'idle';
   private readonly handlers = new Map<string, Set<(payload: never) => void>>();
+  private readonly callHandlers = new Map<string, Set<(payload: never) => void>>();
   private readonly url: string;
   private readonly getToken: () => string | null;
   private readonly conversations: ReturnType<typeof createConversationsApi>;
@@ -129,6 +143,7 @@ export class SocketTransport implements Transport {
     this.createSocket = options.createSocket ?? defaultSocketFactory;
     this.ackTimeoutMs = options.ackTimeoutMs ?? ACK_TIMEOUT_MS;
     this.connectTimeoutMs = options.connectTimeoutMs ?? CONNECT_TIMEOUT_MS;
+    this.calls = this.createCallSignalling();
   }
 
   get state(): ConnectionState {
@@ -144,8 +159,34 @@ export class SocketTransport implements Transport {
     this.socket = socket;
 
     socket.on('connect', () => this.setState('online'));
-    socket.on('disconnect', () => this.setState('offline'));
+    socket.on('disconnect', () => {
+      this.setState('offline');
+      // The server ends any call this socket was in the moment it notices the
+      // socket is gone. Telling the engine keeps both sides of the same mind.
+      this.emitCall('offline', undefined);
+    });
     socket.on('connect_error', () => this.setState('offline'));
+
+    // Call signalling rides the same socket. Relayed to the engine as they
+    // are: the server has already validated the shape and the membership.
+    socket.on('call:offer', (...args) => {
+      this.emitCall('offer', args[0] as CallSignalEvents['offer']);
+    });
+    socket.on('call:answer', (...args) => {
+      this.emitCall('answer', args[0] as CallSignalEvents['answer']);
+    });
+    socket.on('call:description', (...args) => {
+      this.emitCall('description', args[0] as CallSignalEvents['description']);
+    });
+    socket.on('call:candidate', (...args) => {
+      this.emitCall('candidate', args[0] as CallSignalEvents['candidate']);
+    });
+    socket.on('call:claimed', (...args) => {
+      this.emitCall('claimed', args[0] as CallSignalEvents['claimed']);
+    });
+    socket.on('call:ended', (...args) => {
+      this.emitCall('ended', args[0] as CallSignalEvents['ended']);
+    });
 
     socket.on('message:new', (...args) => {
       this.emit('message', toIncoming(args[0] as ServerMessage));
@@ -286,6 +327,61 @@ export class SocketTransport implements Transport {
         resolve({ clientId: payload.clientId, id: ack.id, sentAt: ack.sentAt });
       });
     });
+  }
+
+  /* --------------------------------------------------------------- calls -- */
+
+  private createCallSignalling(): CallSignalling {
+    const withAck = (event: string, payload: unknown): Promise<void> =>
+      new Promise((resolve, reject) => {
+        const socket = this.socket;
+        if (!socket?.connected) {
+          return reject(new SignalRefusedError('offline', 'Not connected.'));
+        }
+
+        // As with a send: an emit with no reply never settles on its own, and
+        // a ring that neither starts nor fails is a button that did nothing.
+        const timer = setTimeout(
+          () => reject(new Error('The server did not answer.')),
+          this.ackTimeoutMs,
+        );
+
+        socket.emit(event, payload, (...args: unknown[]) => {
+          clearTimeout(timer);
+          const ack = args[0] as { ok?: true; error?: { code: string; message: string } } | undefined;
+          if (ack?.error) return reject(new SignalRefusedError(ack.error.code, ack.error.message));
+          resolve();
+        });
+      });
+
+    // Fire and forget. The other side either gets it or the call fails on its
+    // own, and there is nothing a caller would do with the failure anyway.
+    const fire = (event: string, payload: unknown): void => {
+      this.socket?.emit(event, payload);
+    };
+
+    return {
+      offer: (payload) => withAck('call:offer', payload),
+      answer: (payload) => withAck('call:answer', payload),
+      description: (payload) => fire('call:description', payload),
+      candidate: (payload) => fire('call:candidate', payload),
+      hangup: (callId) => fire('call:hangup', { callId }),
+      reject: (callId) => fire('call:reject', { callId }),
+      on: (event, handler) => {
+        const set = this.callHandlers.get(event) ?? new Set();
+        set.add(handler as (payload: never) => void);
+        this.callHandlers.set(event, set);
+        return () => {
+          set.delete(handler as (payload: never) => void);
+        };
+      },
+    };
+  }
+
+  private emitCall<E extends CallSignalEventName>(event: E, payload: CallSignalEvents[E]): void {
+    for (const handler of this.callHandlers.get(event) ?? []) {
+      (handler as (value: CallSignalEvents[E]) => void)(payload);
+    }
   }
 
   private setState(state: ConnectionState): void {

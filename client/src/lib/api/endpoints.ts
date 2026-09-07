@@ -25,6 +25,7 @@ import type {
   ForgotPasswordRequest,
   FriendDto,
   FriendRequestsResponse,
+  IceServersDto,
   LoginRequest,
   LoginResponse,
   MarkReadRequest,
@@ -234,6 +235,15 @@ export function createConversationsApi(client: ApiClient) {
   };
 }
 
+export function createCallsApi(client: ApiClient) {
+  return {
+    /** Fetched on call start, not page load: the credentials in it expire. */
+    ice() {
+      return client.get<IceServersDto>('/calls/ice');
+    },
+  };
+}
+
 export function createAdminApi(client: ApiClient) {
   return {
     listUsers(query: AdminUserListQuery = {}) {
@@ -269,4 +279,5 @@ export const accountApi = createAccountApi(api);
 export const keysApi = createKeysApi(api);
 export const friendsApi = createFriendsApi(api);
 export const conversationsApi = createConversationsApi(api);
+export const callsApi = createCallsApi(api);
 export const adminApi = createAdminApi(api);

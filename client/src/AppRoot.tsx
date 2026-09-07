@@ -20,6 +20,7 @@ import { NotFoundScreen } from './screens/NotFoundScreen';
 import { ResetPasswordScreen } from './screens/ResetPasswordScreen';
 import { UnlockScreen } from './screens/UnlockScreen';
 import { VerifyEmailScreen } from './screens/VerifyEmailScreen';
+import { CallProvider } from './state/CallProvider';
 import { ChatProvider } from './state/ChatProvider';
 import { useSession } from './state/SessionProvider';
 import './styles/auth.css';
@@ -112,11 +113,14 @@ export function AppRoot() {
   // ChatProvider is mounted only here, inside `authenticated`, because it opens
   // a socket and needs the unwrapped private key. Mounting it any higher would
   // mean starting a chat session for someone who cannot read anything yet.
+  // CallProvider sits inside it because call signalling rides that socket.
   return (
     <div className="app-shell">
       <AccountStrip />
       <ChatProvider>
-        <App />
+        <CallProvider>
+          <App />
+        </CallProvider>
       </ChatProvider>
     </div>
   );

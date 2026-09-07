@@ -1,6 +1,6 @@
 import type { Channel, User } from '../types';
 import { Avatar } from './Avatar';
-import { ProfileIcon } from './Icons';
+import { PhoneIcon, ProfileIcon } from './Icons';
 import { usePersonMenu } from './PersonMenu';
 import '../styles/chat-header.css';
 
@@ -13,6 +13,18 @@ type Props = {
   /** Whether the profile panel is showing. Null when there is nobody to show. */
   profileOpen?: boolean;
   onToggleProfile?: () => void;
+  /**
+   * Ring the other person. Absent when there is nobody to ring or this build
+   * cannot place calls.
+   */
+  onCall?: () => void;
+  /**
+   *   none       no call anywhere
+   *   here       the call in progress is in this conversation
+   *   elsewhere  a call is in progress in another conversation, so this one
+   *              cannot start a second
+   */
+  callState?: 'none' | 'here' | 'elsewhere';
 };
 
 export function ChatHeader({
@@ -21,6 +33,8 @@ export function ChatHeader({
   members,
   profileOpen = false,
   onToggleProfile,
+  onCall,
+  callState = 'none',
 }: Props) {
   const menu = usePersonMenu();
   const shown = members.slice(0, STACK_LIMIT);
@@ -62,6 +76,29 @@ export function ChatHeader({
               </span>
             )}
           </button>
+        )}
+
+        {/* The call this conversation is on, or the button that would start
+            one. Where the call itself is controlled is the floating panel;
+            this is only so the conversation says what it is doing. */}
+        {callState === 'here' ? (
+          <span className="chat-header__call" role="status">
+            <span className="chat-header__call-dot" aria-hidden />
+            In a call
+          </span>
+        ) : (
+          onCall && (
+            <button
+              type="button"
+              className="icon-button icon-button--framed"
+              onClick={onCall}
+              disabled={callState === 'elsewhere'}
+              title={callState === 'elsewhere' ? 'Already in a call' : 'Call'}
+              aria-label={callState === 'elsewhere' ? 'Already in a call' : `Call ${channel.name}`}
+            >
+              <PhoneIcon size={16} />
+            </button>
+          )
         )}
 
         {onToggleProfile && (

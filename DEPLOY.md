@@ -239,30 +239,50 @@ sudo usermod -aG docker "$USER"
 docker run --rm hello-world
 ```
 
-**The repository is private**, so the box needs its own read access before it
-can clone — and `deploy.sh` runs `git pull`, so it needs that access
-permanently, not just once. A read-only deploy key is the right shape: it is
-scoped to this one repository, and it cannot push.
+The repository is public, so the box can clone it with no credentials:
 
-On the box:
+```bash
+git clone https://github.com/Findiepman/encrypted-messenger.git ~/cipher
+cd ~/cipher
+```
+
+`deploy.sh` runs `git pull`, which also needs no credentials while the repo
+stays public.
+
+<details>
+<summary>If you make the repository private again</summary>
+
+The box then needs its own read access — permanently, not just for the initial
+clone, because `deploy.sh` pulls. A read-only deploy key is the right shape: it
+is scoped to this one repository and cannot push.
 
 ```bash
 ssh-keygen -t ed25519 -C "fin-server deploy key" -f ~/.ssh/id_ed25519 -N ""
 cat ~/.ssh/id_ed25519.pub
 ```
 
-Then on GitHub: **repo → Settings → Deploy keys → Add deploy key**. Paste the
-public key, title it `fin-server`, and **leave "Allow write access" unchecked**.
-
-Back on the box:
+Add it at **repo → Settings → Deploy keys → Add deploy key**, titled
+`fin-server`, with **"Allow write access" unchecked**. Then re-point the
+existing clone at the SSH URL:
 
 ```bash
-git clone git@github.com:Findiepman/encrypted-messenger.git ~/cipher
-cd ~/cipher
+git -C ~/cipher remote set-url origin git@github.com:Findiepman/encrypted-messenger.git
 ```
 
-Use the `git@` URL, not `https://` — the deploy key is an SSH credential and
-the HTTPS URL would ask for a password it cannot supply.
+</details>
+
+### A public repo is fine; these two things are the reason to think about it
+
+Nothing secret is in the repository — no `.env` has ever been committed, and
+every credential-shaped value in the history is an empty placeholder. Secrets
+live only in `deploy/.env` on the box, which is gitignored.
+
+What *is* now public is an accurate description of this deployment's weak
+points: that message bodies are stored readable under phase 1, that CSRF tokens
+are unbuilt, and the exact hostname serving it. None of that is a vulnerability
+on its own, and hiding it would be security through obscurity. But combined
+with **registration being open to anyone who finds the URL**, it is worth being
+a decision rather than an accident. See "Restricting who can register" below.
 
 ### 3.2 Configure
 
@@ -354,6 +374,39 @@ Note that ufw does not filter Docker's own published ports — which is fine
 here precisely because this stack publishes none.
 
 ---
+
+## Restricting who can register
+
+`cipher.findiepman.dev` is public DNS, and the app has no invite system: anyone
+who reaches it can create an account. Email verification and the rate limits
+mean it is not trivially abusable, but nothing restricts *who* may sign up.
+
+For a couple of testers that is worth closing, and it takes no code. Cloudflare
+Zero Trust → **Access** → **Applications** → **Add an application** →
+**Self-hosted**:
+
+| Field | Value |
+|---|---|
+| Application domain | `cipher.findiepman.dev` |
+| Policy action | Allow |
+| Include | Emails → your address, and your co-worker's |
+
+Cloudflare then requires a one-time email code before the request ever reaches
+the tunnel, so unknown visitors never touch the app at all. It sits in front of
+the app's own auth rather than replacing it — you still sign in normally
+afterwards.
+
+Two caveats worth knowing before you turn it on:
+
+- It applies to **every** path on the hostname, `/socket.io` included.
+  Browsers carry the Access cookie automatically, so the websocket is fine, but
+  anything non-browser hitting the API would need a service token.
+- Remove the application when you want the app genuinely open, not just for
+  testing. It is a gate on the hostname, not a feature of the app.
+
+Leaving it off is a legitimate choice too — just make it a choice. The thing
+not to do is assume the URL is unguessable, because the public repository
+documents the hostname.
 
 ## Step 6 — Backups
 

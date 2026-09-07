@@ -110,9 +110,17 @@ New repository secret:
 To copy the content without opening the file in an editor:
 
 ```bash
-cat ~/.tauri/cipher.key | clip        # Git Bash on Windows
+cat ~/.tauri/cipher.key | clip.exe    # Git Bash on Windows
 cat ~/.tauri/cipher.key | pbcopy      # macOS
 ```
+
+```powershell
+Get-Content "$HOME\.tauri\cipher.key" -Raw | Set-Clipboard
+```
+
+Not from WSL: its home directory is a different place with no `.tauri` in
+it, and Ubuntu's command-not-found helper answers `clip` with "install
+geomview", a 3D viewer whose `clip` cuts meshes and copies nothing.
 
 **Keep a second copy.** If that machine dies, so does the ability to ship
 updates. Put the file in a password manager. Do not put it in the repository,

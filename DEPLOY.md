@@ -242,7 +242,7 @@ docker run --rm hello-world
 The repository is public, so the box can clone it with no credentials:
 
 ```bash
-git clone https://github.com/Findiepman/encrypted-messenger.git ~/cipher
+git clone https://github.com/Findiepman/Cipher.git ~/cipher
 cd ~/cipher
 ```
 
@@ -266,7 +266,7 @@ Add it at **repo → Settings → Deploy keys → Add deploy key**, titled
 existing clone at the SSH URL:
 
 ```bash
-git -C ~/cipher remote set-url origin git@github.com:Findiepman/encrypted-messenger.git
+git -C ~/cipher remote set-url origin git@github.com:Findiepman/Cipher.git
 ```
 
 </details>

@@ -50,6 +50,16 @@ fi
 
 if [[ $PULL -eq 1 ]]; then
   echo "==> pulling"
+  # A clone that never had its upstream set fails here with git's generic
+  # "no tracking information" wall of text, which does not mention this script
+  # at all. Say what to run instead.
+  if ! git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+    branch="$(git rev-parse --abbrev-ref HEAD)"
+    echo "    branch '$branch' has no upstream. Set it once:" >&2
+    echo "      git branch --set-upstream-to=origin/$branch $branch" >&2
+    echo "    or skip pulling entirely:  ./deploy.sh --no-pull" >&2
+    exit 1
+  fi
   git pull --ff-only
 fi
 

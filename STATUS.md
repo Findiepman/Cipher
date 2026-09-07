@@ -287,6 +287,11 @@ worse for this specific app.
     override from "view profile" that does not. One id cannot express both: the
     panel would reopen every time you switched DM, or a pinned profile would be
     silently replaced on the next render.
+21. **The UI makes no claim about encryption.** No SEALED pill, no key
+    fingerprint beside a name, no "the server only ever held the blob". If
+    phase 2 lands and someone wants to surface it again, it should be one
+    considered screen (an out-of-band verification flow), not a badge on every
+    row.
 22. **Read marking only ever moves forward, and counts come from `seq`.**
     `markRead` leaves the stored position alone when handed an older marker,
     and `readUpTo` in `chatStore` only ever lowers a count. Two tabs race
@@ -315,15 +320,10 @@ worse for this specific app.
     inbox gets is the account, not the messages, and their only path to the
     identity is offline work against that blob. This is the argument for the
     recovery code staying a key rather than becoming a PIN.
-21. **The UI makes no claim about encryption.** No SEALED pill, no key
-    fingerprint beside a name, no "the server only ever held the blob". If
-    phase 2 lands and someone wants to surface it again, it should be one
-    considered screen (an out-of-band verification flow), not a badge on every
-    row.
 
 ## Deviations from `backend-plan.md`
 
-That document is still the plan. These four details are out of date in it:
+That document is still the plan. These five details are out of date in it:
 
 | Plan says | Reality |
 |---|---|
@@ -331,6 +331,7 @@ That document is still the plan. These four details are out of date in it:
 | A separate `RecoveryCode` table | `User.recoveryCodeHash`, a single column. v1 has one live code at a time |
 | `POST /auth/resend-verify` | `POST /auth/resend-verification` |
 | "Minimum 12 chars, weak-password rejection" under Auth mechanics | Client-side only now, see decision 2 |
+| Step 2 lists two reset endpoints | There are three. `POST /auth/reset-password/context` is not in the plan and the recovery-code flow cannot work without it, see decision 24 |
 
 Step 1 is done. Step 5 (device registry) is mostly done: the `Device` table,
 the login-time hand-back and `GET /keys/user/:userId` exist; device
@@ -495,6 +496,26 @@ UI change twice.
   add another native dependency, it needs the same treatment. In `server/`
   that step must come **after** `npm prune`, which deletes anything missing
   from `package.json`.
+- **A cookie-bearing POST to an unrouted path now returns 403, not 405.**
+  Fastify runs `onRequest` hooks for the not-found handler too, so the CSRF
+  check fires before `app.ts`'s handler can produce its friendly "use POST
+  instead" message. Kept that way deliberately, since rejecting leaks less
+  about which routes exist, and the 405 nicety mainly served address-bar GETs,
+  which are a safe method and unaffected. If you ever want it back it is one
+  condition on whether a route matched.
+- **`POST /conversations/:id/read` does not broadcast, only the socket does.**
+  The HTTP route has no handle on the socket layer without an `announceRead?`
+  option threaded through `app.ts` and `index.ts` the way `deliver` already is.
+  It self-corrects, because a client with no socket has no live tab to notify
+  and reloads the list soon enough, but two tabs where one is on the HTTP
+  fallback will disagree for a while.
+- **The server suite TRUNCATEs every table between cases and shares one
+  database**, with `fileParallelism: false`. So two test runs at once corrupt
+  each other, which matters the moment more than one person or agent is
+  working in the same checkout. `tests/setup.ts` honours `TEST_DATABASE_URL`
+  and refuses any name that does not identify itself as a test database, so
+  the fix is a database each: create one, `prisma migrate deploy` against it,
+  and pass it per run.
 - **The production env file must be named `deploy/.env`.** Compose reads that
   name automatically for both `${...}` substitution and the server's
   environment. Any other name needs `--env-file` on every command, and
@@ -506,12 +527,16 @@ UI change twice.
 
 Pick one; they are roughly independent.
 
-0. **Click through both 2026-09-07 UI passes.** Right-click a conversation
-   row, set a nickname, check it replaces the name in the list, the header and
-   the composer placeholder. Open the profile panel and use its buttons. Then
-   walk the five Friends tabs: send a request, cancel it, block someone,
-   unblock them from the Blocked tab and add them back. None of that has been
-   seen in a browser, and the React layer has no other coverage.
+0. **Click through everything added on 2026-09-07.** Right-click a
+   conversation row, set a nickname, check it replaces the name in the list,
+   the header and the composer placeholder. Open the profile panel and use its
+   buttons. Walk the five Friends tabs: send a request, cancel it, block
+   someone, unblock them from the Blocked tab and add them back. Then leave a
+   message unread in one browser profile and watch the badge appear and clear,
+   with a second tab open to prove the read position follows. Then request a
+   reset, follow the link out of `server/.mail/`, and come back in with the
+   recovery code. None of that has been seen in a browser, and the React layer
+   has no other coverage.
 
 1. **Run `deploy/setup-backups.sh` on the box.** One command, and it is the
    last unfinished piece of the deployment: it checks the target disk, takes a
@@ -522,12 +547,16 @@ Pick one; they are roughly independent.
    `AGENTS.md` names as the precondition. The registry and the envelope model
    are already in place, so this is `encryptMessage`/`decryptMessage` plus the
    line in `packages/crypto/AGENTS.md`: no schema change, no data migration.
-3. **`backend-plan.md` step 2**: password reset, change password, recovery-code
-   rotation. `authService.ts` already implements the client side of all three,
-   including the `/auth/reset-password/context` endpoint that the plan does not
-   list and that the reset-with-recovery-code flow cannot work without.
-4. **Step 6 hardening**: CSRF tokens, which the client is already written
-   for. This matters more now than it did: the app has state-changing endpoints
-   worth forging against.
+3. **A settings screen.** `/account/change-password` and
+   `/account/recovery-code` work and nothing calls them, which is the same
+   shape the unblock endpoint was in a day ago. The screen is also where the
+   sessions list belongs, and that list is the only per-session revocation
+   this app will have until somebody builds an admin UI.
+4. **Fold the four credential audit actions into `lib/audit.ts`.** Small and
+   nagging: `recordCredentialAudit` in `modules/auth/service.ts` names
+   `auth.reset_requested`, `auth.reset_completed`, `auth.password_changed` and
+   `auth.recovery_code_rotated` locally and widens the type at one call site,
+   because `audit.ts` was being edited by somebody else at the time. Add them
+   to the `AuditAction` union and delete the helper.
 
 Do not start with group encryption, see `packages/crypto/AGENTS.md`.

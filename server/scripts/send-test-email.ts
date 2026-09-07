@@ -92,6 +92,22 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
+  // A test sent with a development APP_URL is not a deliverability test.
+  // The rendered mail carries a localhost call-to-action link and an <img>
+  // pointing at a host the receiver cannot resolve, over plain http - which
+  // is close to the textbook shape of a phishing mail. It gets filtered on
+  // its content, and you conclude your domain has a reputation problem it
+  // does not have.
+  if (/localhost|127\.0\.0\.1|::1/.test(env.APP_URL)) {
+    console.warn(
+      `\n  WARNING: APP_URL is ${env.APP_URL}, so this email will contain` +
+        '\n  localhost links and an image that cannot load. Expect it to be' +
+        '\n  filtered as spam on content alone - that says nothing about your' +
+        '\n  domain. For a representative test, override it for one run:' +
+        '\n\n    APP_URL=https://your.host npm run mail:test -- you@example.com\n',
+    );
+  }
+
   console.log(`  SMTP            ${env.SMTP_HOST}:${env.SMTP_PORT}`);
   console.log(`  To              ${recipient}`);
   console.log('');

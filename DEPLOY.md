@@ -151,8 +151,46 @@ time.
 npm run mail:test -- --preview   # renders both emails to .mail/, sends nothing
 ```
 
-Check spam as well as the inbox. A domain sending its first ever mail often
-lands there until SPF, DKIM and DMARC have all been passing for a while.
+#### If it lands in spam
+
+Expected on a first send, and usually not what it looks like. Work through it
+in this order:
+
+1. **Was `APP_URL` still `http://localhost:5173`?** Then the mail contained a
+   localhost call-to-action link and an `<img>` the receiver could not resolve,
+   over plain http — close to the textbook shape of a phishing mail. It was
+   filtered on content, and that says nothing about the domain. Re-test with
+   the real host before concluding anything:
+
+   ```bash
+   APP_URL=https://cipher.findiepman.dev npm run mail:test -- you@example.com
+   ```
+
+   The script warns about this now, but the warning is easy to scroll past.
+
+2. **Check the records actually resolve**, rather than trusting the Resend
+   dashboard's cached view:
+
+   ```bash
+   nslookup -type=TXT _dmarc.findiepman.dev 8.8.8.8
+   nslookup -type=TXT send.findiepman.dev 8.8.8.8
+   nslookup -type=TXT resend._domainkey.findiepman.dev 8.8.8.8
+   nslookup -type=MX  send.findiepman.dev 8.8.8.8
+   ```
+
+   You want SPF (`v=spf1 include:amazonses.com ~all`), a DKIM key, a DMARC
+   record, and the SES feedback MX.
+
+3. **Open the received mail's headers** and confirm `dkim=pass`, `spf=pass`,
+   `dmarc=pass`. If all three pass, authentication is not the problem —
+   reputation is, and reputation is a matter of time and engagement rather than
+   configuration.
+
+4. **Mark it "not spam"** in your own client. That is the only lever you have
+   on a domain with no sending history, and it compounds.
+
+Once you have seen a few DMARC reports and know nothing legitimate is failing,
+tighten `_dmarc` from `p=none` to `p=quarantine`.
 
 ---
 

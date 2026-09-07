@@ -8,7 +8,13 @@ screen as five tabs and finished the blocking story: a blocked list,
 unblocking, re-adding afterwards, and taking back a request you sent. The
 third pass is not UI at all: unread counts and read receipts, password reset
 with the whole of `backend-plan.md` step 2 and CSRF, which is step 6. Three
-of the four items this file listed as next steps are now done.
+of the four items this file listed as next steps are now done. All of it has
+since been walked through by hand in a browser and works. The fourth pass is
+voice calls, stages 1 to 4 of [`voice-plan.md`](voice-plan.md): signalling,
+TURN credentials, a call engine and the UI for it, all tested and **none of it
+yet walked through in a browser**. What is left is parked on purpose rather
+than forgotten: the account endpoints behind settings and the backup cron on
+the box.
 
 This file is the "get up to speed without reading everything" document. It says
 what works, what does not, and which decisions are load-bearing. Keep it
@@ -84,44 +90,56 @@ account-work axis (`backend-plan.md`).
 | Optimistic send, offline queue, reconnect backlog | `client/src/state/`, `client/src/lib/transport/` |
 | The chat UI itself: friends screen, DM list, composer | `client/src/App.tsx`, `client/src/screens/FriendsScreen.tsx` |
 | Transactional email, text + HTML, over a real relay | `server/src/lib/mailer.ts` |
+| Voice calls: ring, answer, decline, busy, hangup, expiry, relayed over the socket | `server/src/realtime/calls.ts`, `server/src/modules/calls/` |
+| Short-lived TURN credentials from Cloudflare, STUN only without a key | `GET /calls/ice`, `server/src/modules/calls/ice.ts` |
+| The call engine: perfect negotiation, mute, voice gate, push to talk | `client/src/lib/call/engine.ts` |
+| Incoming call toast, in-call bar, call state in the DM header | `client/src/components/CallPanel.tsx`, `client/src/state/CallProvider.tsx` |
 | Same-origin client build (blank `VITE_API_URL`) | `client/src/lib/config.ts` |
 | Deployed: 4 containers, no host ports, Cloudflare Tunnel | `deploy/` |
 | Live registration + verification email landing in an inbox | verified by hand 2026-09-07 |
 
-365 tests pass: 34 crypto, 155 client, 176 server. `npm run typecheck` and
+458 tests pass: 34 crypto, 206 client, 218 server. `npm run typecheck` and
 `npm run build` are clean across all workspaces.
 
-**Adding a friend and exchanging messages were driven by hand in the browser on
-2026-09-06 and work.** That is worth stating separately from the tests: the
-suites and the smoke scripts cover the protocol, and there are now component
-tests for the two pieces most likely to break silently
-(`components/ContextMenu.test.tsx`, `components/PasswordField.test.tsx`), but
-nobody has clicked the whole screen. Anything you change in
-`client/src/state/ChatProvider.tsx` or the screens still needs a human to look
-at it.
+**The UI has been driven by hand in a browser, and it works.** That is worth
+stating separately from the tests. Adding a friend and exchanging messages were
+walked through on 2026-09-06, and everything the 2026-09-07 passes added was
+walked through the same day: the right-click menu, nicknames, the profile
+panel, the five Friends tabs, unread badges clearing across two tabs and a
+reset link followed out of the mailbox. The suites and the smoke scripts still
+only cover the protocol, and the only component tests are for the two pieces
+most likely to break silently (`components/ContextMenu.test.tsx`,
+`components/PasswordField.test.tsx`), so anything you change in
+`client/src/state/ChatProvider.tsx` or the screens wants a human to look at it
+again.
+
+**Voice calls are the exception to "nothing is shipped unseen."** The
+signalling has 42 server tests over a real socket and the engine has 36 over a
+fake RTCPeerConnection, but no call has yet been placed between two browsers.
+WebRTC is the one part of this app where that gap matters most: permission
+prompts, autoplay, ICE across two real NATs and the TURN key on the box are all
+things a fake cannot fail. Walk one through before calling it done, with two
+browser profiles and the mic test in settings first (see *Reasonable next
+steps*).
 
 **Settings is a screen in front of endpoints that do not exist.** Seven
 sections render and three of them work end to end (Appearance, Voice & video,
 Notifications, all of which are local). Of the rest, `change-password` and
 `recovery-code` are real; **`PATCH /account/me`, `POST /account/change-email`,
 `GET|DELETE /account/sessions` and `DELETE /account` are not implemented**, so
-those controls call endpoints that 404. See *Reasonable next steps*.
+those controls call endpoints that 404. That is a known state and it is being
+left for later on purpose, not an oversight. See *Reasonable next steps*.
 
-**Nothing added on 2026-09-07 has been driven by hand.** Typecheck, build and
-352 tests are green, and every endpoint behind them is covered
-(`nicknames.test.ts`, `blocking.test.ts`, `readState.test.ts`,
-`passwordReset.test.ts`, `csrf.test.ts`), but nobody has right-clicked a
-conversation row, opened the profile panel, watched an unread badge clear or
-followed a reset link in a browser. Three features deep is further behind the
-click-through than this project has ever been, and it is the first thing to do
-next.
+Every endpoint behind the 2026-09-07 work is covered too (`nicknames.test.ts`,
+`blocking.test.ts`, `readState.test.ts`, `passwordReset.test.ts`,
+`csrf.test.ts`).
 
-**The device-key unlock has not been clicked in a real browser yet.** Its unit
-tests run against in-memory stores, so what they prove is the logic, not that
-Chrome will structured-clone a non-extractable key into IndexedDB. It should:
-that is what the WebCrypto spec is for, and `IndexedDbDeviceKeyStore` falls back
-to the password prompt if it does not. Reload a signed-in tab once and confirm
-it comes back without asking.
+**The device-key unlock has been confirmed in a real browser.** Its unit tests
+run against in-memory stores, so what they proved was the logic, not that
+Chrome would structured-clone a non-extractable key into IndexedDB. It does: a
+reload of a signed-in tab comes back authenticated without asking for the
+password. `IndexedDbDeviceKeyStore` still falls back to the prompt if a browser
+ever refuses, so that path is the untested one now.
 
 Two end-to-end proofs, both against a running server over real HTTP:
 
@@ -179,6 +197,19 @@ Two end-to-end proofs, both against a running server over real HTTP:
   sessions pair matters most: it is the only per-session revocation there will
   ever be short of rotating `JWT_SECRET` and signing out every account on the
   box.
+- **Call records, video, and binding the call to the identity key.** Voice
+  calls work but leave no trace: a missed call is a four-second notice and then
+  nothing, because nothing about a call touches the schema yet
+  ([`voice-plan.md`](voice-plan.md) stage 5). Video is deferred with the
+  camera settings already stored (stage 6). And the DTLS fingerprint in the
+  SDP is not yet bound to the account keypair, so a hostile server could sit
+  in the middle of a call's setup; that is the standard WebRTC threat model
+  and it is phase 2 work (stage 6 too). The UI says nothing about any of this,
+  per decision 21.
+- **A TURN key on the box.** `TURN_KEY_ID` and `TURN_KEY_API_TOKEN` are not
+  yet in `deploy/.env`, so the deployed server hands out STUN only and a call
+  between two home networks will not connect. `DEPLOY.md` → *Voice calls* has
+  the two steps.
 - **Phase 2 encryption.** See `packages/crypto/AGENTS.md`.
 - **`desktop/`.** Nothing but an `AGENTS.md`.
 
@@ -321,6 +352,35 @@ worse for this specific app.
     scripts keep working untouched. If `SameSite` is ever loosened, re-read
     this: the skip is safe only because Lax makes it unreachable from a
     cross-site form.
+25. **A refused call rides the ack; a call that existed ends with one event.**
+    Busy, not friends, malformed: the caller hears the code in the ack to
+    `call:offer` and nothing is broadcast, because no call was registered.
+    Everything that ends a call that did exist is `call:ended` with a reason,
+    to every tab on both sides. Two shapes rather than a refusal event per
+    cause, so the client has one place to learn that a call is over.
+26. **Each side of a call is owned by a socket, not a user.** One account in
+    several tabs is normal here (the key is in IndexedDB per origin), so every
+    tab of the callee rings, and `call:claimed` to the callee's own room is
+    what silences the ones that did not answer. Only the socket that answered
+    is a party. Closing one of the others does nothing; closing the one in the
+    call ends it for both, with `disconnected`. Without this, either a caller
+    closing their tab leaves a phone ringing, or a callee closing a spare tab
+    hangs up a call it was never in.
+27. **The server ends a call the moment a party's socket is gone, and the
+    client agrees when its own socket drops.** The media is peer to peer and
+    would survive a short blip; the call state would not, and two people left
+    "busy" forever is worse than a dropped call. A grace period is the fix if
+    it bites, see `voice-plan.md` → *Traps*.
+28. **A session description travels in the message envelope.** The SDP
+    carries the DTLS fingerprint the call's security rests on, so the client
+    seals it with `encryptMessage` to the peer's registry key
+    (`client/src/lib/call/sealing.ts`) and the server relays a string it may
+    not read. In phase 1 that is a base64 no-op and protects nothing, which
+    the plan says out loud; the point is that phase 2 makes the server unable
+    to rewrite an offer in the same commit it becomes unable to read a
+    message. `sealing.ts` is therefore the second and last caller of the
+    crypto seam in the frontend, beside `chatController.ts`. ICE candidates are
+    not sealed: they are addresses, and a relay sees them regardless.
 24. **The reset context endpoint is a POST, and it does not spend the token.**
     A GET would put a live credential in a query string, which is the part of
     a request that reliably reaches access logs and browser history. Not
@@ -526,6 +586,34 @@ UI change twice.
   and refuses any name that does not identify itself as a test database, so
   the fix is a database each: create one, `prisma migrate deploy` against it
   and pass it per run.
+- **An empty `Permissions-Policy` allowlist is off for your own origin too.**
+  `deploy/Caddyfile` shipped `camera=(), microphone=()`, which is not "same
+  origin only" but "nowhere at all", so `getUserMedia` rejected with
+  `NotAllowedError` and the mic test and camera preview in settings never
+  worked on the deployed site. Fixed to `(self)` on 2026-09-07. The reason it
+  survived a click-through is that the Vite dev server sends no
+  `Permissions-Policy` at all, so media behaves differently in development
+  than in production and only the deployed site can prove it.
+- **CSP does not restrict WebRTC.** `connect-src 'self'` in the Caddyfile does
+  not apply to `RTCPeerConnection`: ICE, STUN and TURN bypass CSP in every
+  shipping browser. Nothing needs changing for calls to work, and nothing in
+  that header is protecting the media path either.
+- **The callee must not call `setLocalDescription` for its answer before the
+  track is attached, and must not attach the track before the remote offer is
+  set.** In `have-remote-offer` state, `addTrack` reuses the transceiver the
+  offer created and does not fire `negotiationneeded`; in `stable` state it
+  creates a new one and does, which sends a second offer and produces glare
+  against the very call being answered. `engine.ts` orders it remote offer,
+  track, local answer, and the engine test asserts exactly one description
+  leaves the callee.
+- **Cloudflare returns `iceServers` as one object, not an array.** All the
+  URLs under a single username and credential. The browser wants an array, so
+  `ice.ts` wraps it and accepts both shapes in case that changes.
+- **An input volume slider is a Web Audio graph, not a track property.**
+  WebRTC has no gain on a `MediaStreamTrack`. The engine always routes the mic
+  through a `GainNode`, even at 100%, so moving the slider mid-call does not
+  mean replacing the track under the connection. If audio is ever silent on a
+  call with the mic test working, check the `AudioContext` is not suspended.
 - **The production env file must be named `deploy/.env`.** Compose reads that
   name automatically for both `${...}` substitution and the server's
   environment. Any other name needs `--env-file` on every command, and
@@ -535,9 +623,10 @@ UI change twice.
 
 ## Reasonable next steps
 
-Pick one; they are roughly independent.
+Pick one; they are roughly independent. The first two are deliberately parked:
+they are known, planned and not being done yet.
 
-0. **Finish the account endpoints behind settings.** [`settings-plan.md`](settings-plan.md)
+1. **Finish the account endpoints behind settings.** [`settings-plan.md`](settings-plan.md)
    is the plan for this, section by section, with the traps written down.
    The short version: in this order, because
    each is worth something on its own: `GET|DELETE /account/sessions[/:id]`
@@ -548,32 +637,24 @@ Pick one; they are roughly independent.
    `EmailToken` model already has `EMAIL_CHANGE` and a `newEmail` column for
    exactly this), then `DELETE /account`. Until they land, four controls in
    settings call endpoints that 404.
-0. **Click through everything added on 2026-09-07.** Right-click a
-   conversation row, set a nickname, check it replaces the name in the list,
-   the header and the composer placeholder. Open the profile panel and use its
-   buttons. Walk the five Friends tabs: send a request, cancel it, block
-   someone, unblock them from the Blocked tab and add them back. Then leave a
-   message unread in one browser profile and watch the badge appear and clear,
-   with a second tab open to prove the read position follows. Then request a
-   reset, follow the link out of `server/.mail/`, and come back in with the
-   recovery code. None of that has been seen in a browser, and the React layer
-   has no other coverage.
-
-1. **Run `deploy/setup-backups.sh` on the box.** One command, and it is the
+2. **Run `deploy/setup-backups.sh` on the box.** One command, and it is the
    last unfinished piece of the deployment: it checks the target disk, takes a
    dump, rehearses restoring it, and installs the cron entry only if all three
-   worked. This is the only outstanding item where the cost of leaving it is
-   losing everything.
-2. **Phase 2 encryption.** DMs now work end to end in phase 1, which
+   worked. Parked for now, but note what parking it costs: it is the only
+   outstanding item where the price of leaving it is losing everything.
+3. **Place a real call.** Stages 1 to 4 of [`voice-plan.md`](voice-plan.md)
+   are built and tested against fakes; nothing has rung a real browser. In
+   this order: run the mic test in settings on the live site (it proves the
+   `Permissions-Policy` fix), create a TURN key and put it in `deploy/.env`
+   (`DEPLOY.md` → *Voice calls*), redeploy, then call between two browser
+   profiles on two networks. Watch for autoplay refusing the remote audio, a
+   suspended `AudioContext` and ICE never leaving `checking`. Then stage 5,
+   call records, which is the first thing in the plan that touches the schema.
+4. **Phase 2 encryption.** DMs now work end to end in phase 1, which
    `AGENTS.md` names as the precondition. The registry and the envelope model
    are already in place, so this is `encryptMessage`/`decryptMessage` plus the
    line in `packages/crypto/AGENTS.md`: no schema change, no data migration.
-3. **A settings screen.** `/account/change-password` and
-   `/account/recovery-code` work and nothing calls them, which is the same
-   shape the unblock endpoint was in a day ago. The screen is also where the
-   sessions list belongs, and that list is the only per-session revocation
-   this app will have until somebody builds an admin UI.
-4. **Fold the four credential audit actions into `lib/audit.ts`.** Small and
+5. **Fold the four credential audit actions into `lib/audit.ts`.** Small and
    nagging: `recordCredentialAudit` in `modules/auth/service.ts` names
    `auth.reset_requested`, `auth.reset_completed`, `auth.password_changed` and
    `auth.recovery_code_rotated` locally and widens the type at one call site,

@@ -9,8 +9,14 @@ on purpose: verification is required before login, so a box whose mail does not
 send is a box nobody can create an account on, including you. That failure
 looks like a signup that quietly never completes.
 
-Throughout, `example.com` is your domain and `chat.example.com` is where the
-app will live. Substitute both.
+The domain is **`findiepman.dev`** and the app lives at
+**`cipher.findiepman.dev`**. Both are filled in below, so the commands are
+copy-pasteable as written.
+
+One thing `.dev` implies: it is on the HSTS preload list, so browsers refuse
+plain HTTP to it entirely. That is fine here — Cloudflare serves HTTPS at the
+edge — but it does mean there is no http:// fallback to test with if something
+looks wrong.
 
 ---
 
@@ -55,7 +61,7 @@ an actual defence, which matters because CSRF tokens are still unbuilt
 
 ### 1.1 Add and verify the domain in Resend
 
-1. Resend → **Domains** → **Add Domain** → enter `example.com`.
+1. Resend → **Domains** → **Add Domain** → enter `findiepman.dev`.
 2. Resend shows a set of DNS records. **Copy them from that screen**, not from
    any documentation including this file — the SES region in the MX host
    differs per account and a wrong one fails silently. They will look like
@@ -75,7 +81,7 @@ an actual defence, which matters because CSRF tokens are still unbuilt
 
    | Type | Name | Value |
    |---|---|---|
-   | TXT | `_dmarc` | `v=DMARC1; p=none; rua=mailto:you@example.com` |
+   | TXT | `_dmarc` | `v=DMARC1; p=none; rua=mailto:fin@findiepman.dev` |
 
    `p=none` means "monitor, do not act". Tighten it to `quarantine` later, once
    you have seen a few reports and know nothing legitimate is failing.
@@ -125,8 +131,8 @@ lands there until SPF, DKIM and DMARC have all been passing for a while.
 
    | Field | Value |
    |---|---|
-   | Subdomain | `chat` |
-   | Domain | `example.com` |
+   | Subdomain | `cipher` |
+   | Domain | `findiepman.dev` |
    | Path | *(empty)* |
    | Type | `HTTP` |
    | URL | `web:80` |
@@ -155,10 +161,32 @@ curl -fsSL https://get.docker.com | sudo sh
 sudo usermod -aG docker "$USER"
 # log out and back in (or `newgrp docker`) before the next line works
 docker run --rm hello-world
+```
 
-git clone https://github.com/Findiepman/encrypted-messenger.git ~/cipher
+**The repository is private**, so the box needs its own read access before it
+can clone — and `deploy.sh` runs `git pull`, so it needs that access
+permanently, not just once. A read-only deploy key is the right shape: it is
+scoped to this one repository, and it cannot push.
+
+On the box:
+
+```bash
+ssh-keygen -t ed25519 -C "fin-server deploy key" -f ~/.ssh/id_ed25519 -N ""
+cat ~/.ssh/id_ed25519.pub
+```
+
+Then on GitHub: **repo → Settings → Deploy keys → Add deploy key**. Paste the
+public key, title it `fin-server`, and **leave "Allow write access" unchecked**.
+
+Back on the box:
+
+```bash
+git clone git@github.com:Findiepman/encrypted-messenger.git ~/cipher
 cd ~/cipher
 ```
+
+Use the `git@` URL, not `https://` — the deploy key is an SSH credential and
+the HTTPS URL would ask for a password it cannot supply.
 
 ### 3.2 Configure
 
@@ -171,11 +199,11 @@ The file documents every value. These are the ones that must be right:
 
 | Key | Value |
 |---|---|
-| `APP_URL` | `https://chat.example.com` — no trailing slash |
+| `APP_URL` | `https://cipher.findiepman.dev` — no trailing slash |
 | `POSTGRES_PASSWORD` | `openssl rand -base64 32` |
 | `JWT_SECRET` | `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` |
 | `SMTP_PASSWORD` | the Resend API key from step 1.2 |
-| `MAIL_FROM` | `"Cipher <no-reply@example.com>"` — on the verified domain |
+| `MAIL_FROM` | `"Cipher <no-reply@findiepman.dev>"` — on the verified domain |
 | `CLOUDFLARE_TUNNEL_TOKEN` | the token from step 2.3 |
 
 `APP_URL` is load-bearing three separate ways: it is the origin the CORS
@@ -213,7 +241,7 @@ docker compose -f deploy/docker-compose.prod.yml logs server  # migrations, then
 
 Then in a browser:
 
-1. `https://chat.example.com` loads and shows the sign-in screen.
+1. `https://cipher.findiepman.dev` loads and shows the sign-in screen.
 2. **Open the browser console before creating an account.** A Content-Security-
    Policy error is the one predictable failure of this setup: libsodium is
    WebAssembly, and if key generation is blocked, signup fails with no visible

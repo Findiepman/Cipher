@@ -98,7 +98,7 @@ account-work axis (`backend-plan.md`).
 | DM conversations, message history, cursor paging | `server/src/modules/conversations/` |
 | Live delivery, presence, typing, over Socket.io | `server/src/realtime/index.ts` |
 | Unread counts and read receipts, over the socket or HTTP | `server/src/modules/conversations/service.ts`, `client/src/state/chatStore.ts` |
-| Settings, seven sections, opened from the gear or Ctrl+, | `client/src/screens/settings/` |
+| Settings, nine sections, opened from the gear or Ctrl+, | `client/src/screens/settings/` |
 | Five palettes, each in light and dark, and a dockable activity bar | `client/src/styles/theme.css`, `client/src/styles/app.css` |
 | A palette you write yourself, from two colours | `client/src/styles/theme.css`, `client/src/screens/settings/AppearanceSection.tsx` |
 | A wallpaper behind the app, dimmed and blurred to taste | `client/src/styles/app.css`, `client/src/screens/settings/AppearanceSection.tsx` |
@@ -106,6 +106,14 @@ account-work axis (`backend-plan.md`).
 | Pinning people to the top of the conversation list | `client/src/lib/settings/pinned.ts`, `client/src/components/ConversationList.tsx` |
 | An OS notification when a message lands and the window is not in front | `client/src/components/DesktopNotifier.tsx`, `client/src/lib/settings/desktopNotifications.ts` |
 | The vault: notes to yourself, sealed under a passkey, on this device | `client/src/lib/vault/`, `client/src/screens/VaultScreen.tsx` |
+| Two languages, English and Dutch, with dates, times and numbers to match | `client/src/lib/i18n/`, `client/src/state/I18nProvider.tsx` |
+| Alert sounds, synthesised rather than shipped, eight for a message and seven for a ring | `client/src/lib/media/sounds.ts` |
+| A different sound per person, so you know who it is without looking | `client/src/lib/settings/notificationSounds.ts`, `client/src/screens/settings/NotificationsSection.tsx` |
+| A ringtone on an incoming call, a chime on an arriving message | `client/src/components/CallRinger.tsx`, `client/src/components/MessageChime.tsx`, `client/src/state/useArrivingMessages.ts` |
+| Positioning an avatar, a banner or a wallpaper instead of taking a centre crop | `client/src/lib/settings/avatarImage.ts`, `client/src/components/ImageCropper.tsx` |
+| Profiles kept under a name and switched between | `client/src/lib/settings/savedProfiles.ts`, `client/src/screens/settings/ProfileSection.tsx` |
+| A loading screen whose bar counts real boot steps, and a curtain over a lost connection | `client/src/components/LoadingScreen.tsx`, `client/src/components/ConnectionCurtain.tsx` |
+| Sealing a document under a key you already hold, for the vault to build on | `packages/crypto/src/secret.ts` |
 | A 404 for any address outside a known set | `client/src/screens/NotFoundScreen.tsx` |
 | Password reset by email: keep the identity, or discard it | `server/src/modules/auth/service.ts`, `client/src/screens/ResetPasswordScreen.tsx` |
 | Change password, rotate the recovery code | `server/src/modules/account/credentials.ts` |
@@ -137,11 +145,15 @@ walked through on 2026-09-06, and everything the 2026-09-07 passes added was
 walked through the same day: the right-click menu, nicknames, the profile
 panel, the five Friends tabs, unread badges clearing across two tabs and a
 reset link followed out of the mailbox. The suites and the smoke scripts still
-only cover the protocol, and the only component tests are for the two pieces
-most likely to break silently (`components/ContextMenu.test.tsx`,
-`components/PasswordField.test.tsx`), so anything you change in
-`client/src/state/ChatProvider.tsx` or the screens wants a human to look at it
-again.
+only cover the protocol. Nine of the 29 client suites render under jsdom now
+(`ContextMenu`, `PasswordField`, `CallPanel`, `UserProfile`, `NotFoundScreen`,
+`ResetPasswordScreen`, `VerifyEmailScreen`, `VaultScreen` and
+`SettingsProvider`), which is a good deal more than the two this file used to
+list. Five of them mount through the shared harness in `src/test/providers.tsx`
+rather than standing a provider tree up each time. The gap that is left
+is the chat surface itself: `client/src/state/ChatProvider.tsx`, `App.tsx`,
+`MessageList` and the Friends screen have no test that renders them, so
+anything you change there still wants a human to look at it again.
 
 **Voice calls have been placed for real.** The signalling has 42 server tests
 over a real socket and the engine has 36 over a fake RTCPeerConnection, and on

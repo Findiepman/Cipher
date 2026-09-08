@@ -6,6 +6,7 @@
  * AppRoot. When one arrives this becomes a route; nothing else about it changes.
  */
 import { useEffect, useRef, useState } from 'react';
+import { useT } from '../state/I18nProvider';
 import { useSession } from '../state/SessionProvider';
 import { AuthErrorNote, AuthShell } from './AuthScreen';
 import '../styles/auth.css';
@@ -14,6 +15,7 @@ type State = { kind: 'working' } | { kind: 'done' } | { kind: 'failed'; error: u
 
 export function VerifyEmailScreen({ token, onContinue }: { token: string; onContinue: () => void }) {
   const { auth } = useSession();
+  const t = useT();
   const [state, setState] = useState<State>({ kind: 'working' });
   // The token is single-use, so this must fire exactly once. StrictMode
   // double-invokes effects in development and a reload would re-submit a token
@@ -47,33 +49,28 @@ export function VerifyEmailScreen({ token, onContinue }: { token: string; onCont
     <AuthShell>
       {state.kind === 'working' && (
         <>
-          <h1 className="auth-title">Verifying…</h1>
-          <p className="auth-lede">One moment.</p>
+          <h1 className="auth-title">{t('verify.working')}</h1>
+          <p className="auth-lede">{t('reset.oneMoment')}</p>
         </>
       )}
 
       {state.kind === 'done' && (
         <>
-          <h1 className="auth-title">Email verified</h1>
-          <p className="auth-lede">Your address is confirmed. You can sign in now.</p>
+          <h1 className="auth-title">{t('verify.done')}</h1>
+          <p className="auth-lede">{t('verify.doneLede')}</p>
           <button className="auth-submit" type="button" onClick={onContinue}>
-            Continue to sign in
+            {t('reset.continueToSignIn')}
           </button>
         </>
       )}
 
       {state.kind === 'failed' && (
         <>
-          <h1 className="auth-title">That link did not work</h1>
-          <p className="auth-lede">
-            Most likely it has already been used. Verification links work once
-            and then expire, so if you have opened this one before, your address
-            is verified and you can just sign in. Otherwise ask for a new link
-            from the sign-in screen; links also expire after 24 hours.
-          </p>
+          <h1 className="auth-title">{t('reset.badLink')}</h1>
+          <p className="auth-lede">{t('verify.failedLede')}</p>
           <AuthErrorNote error={state.error} />
           <button className="auth-submit" type="button" onClick={onContinue}>
-            Go to sign in
+            {t('reset.goToSignIn')}
           </button>
         </>
       )}

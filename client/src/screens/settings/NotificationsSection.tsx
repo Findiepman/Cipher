@@ -8,29 +8,53 @@
  * copy of a decrypted message living somewhere this app cannot reach. So the
  * preview toggle defaults off and says exactly that, rather than being a line
  * of small print somewhere else.
+ *
+ * The toggles here are read by `components/DesktopNotifier.tsx`, which is what
+ * actually raises one. What this screen owns is asking the browser for
+ * permission and letting you see one, because a notification is the one alert
+ * in this app you cannot check by turning it on and waiting: it only appears
+ * when the window is in the background, which the settings screen never is.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Actions, Group, Note, Row, Toggle } from '../../components/settings/controls';
+import { Avatar } from '../../components/Avatar';
+import { SpeakerIcon } from '../../components/Icons';
+import { Actions, Group, Note, Row, Select, Toggle } from '../../components/settings/controls';
+import {
+  askPermission,
+  permissionNow,
+  show as showNotification,
+} from '../../lib/media/notifications';
+import type { NotifyPermission } from '../../lib/settings/desktopNotifications';
+import {
+  MESSAGE_SOUNDS,
+  MESSAGE_SOUND_IDS,
+  RING_SOUNDS,
+  RING_SOUND_IDS,
+  type MessageSound,
+  type RingSound,
+  playMessage,
+  previewRing,
+} from '../../lib/media/sounds';
+import type { Key } from '../../lib/i18n/en';
+import { clockTime } from '../../lib/i18n/format';
+import type { Locale } from '../../lib/i18n/locales';
+import { withPersonSound } from '../../lib/settings/notificationSounds';
+import { useChat } from '../../state/ChatProvider';
+import { useI18n, useT, type Translate } from '../../state/I18nProvider';
 import { useSettings } from '../../state/SettingsProvider';
 
-type Permission = 'default' | 'granted' | 'denied' | 'unsupported';
-
-function readPermission(): Permission {
-  if (typeof Notification === 'undefined') return 'unsupported';
-  return Notification.permission;
-}
-
-const MUTE_OPTIONS: { label: string; minutes: number | null }[] = [
-  { label: '30 minutes', minutes: 30 },
-  { label: '2 hours', minutes: 120 },
-  { label: 'Until tomorrow', minutes: 60 * 24 },
-  { label: 'Until I turn it back on', minutes: null },
+const MUTE_OPTIONS: { label: Key; minutes: number | null }[] = [
+  { label: 'notify.mute.30m', minutes: 30 },
+  { label: 'notify.mute.2h', minutes: 120 },
+  { label: 'notify.mute.tomorrow', minutes: 60 * 24 },
+  { label: 'notify.mute.forever', minutes: null },
 ];
 
 export function NotificationsSection() {
   const { settings, update } = useSettings();
+  const { locale, t } = useI18n();
   const notifications = settings.notifications;
-  const [permission, setPermission] = useState<Permission>(readPermission);
+  const [permission, setPermission] = useState<NotifyPermission>(permissionNow);
 
   const muted = isMuted(notifications.mutedUntil);
 
@@ -42,21 +66,37 @@ export function NotificationsSection() {
   );
 
   async function enable() {
-    if (typeof Notification === 'undefined') return;
-    const result = await Notification.requestPermission();
+    const result = await askPermission();
     setPermission(result);
     update('notifications', { desktop: result === 'granted' });
   }
 
+  /**
+   * One of the real thing, drawn the way a real one would be.
+   *
+   * Deliberately ignores the preview toggle and shows fixed text: this is for
+   * finding out whether your operating system shows them at all (Focus
+   * Assist, Do Not Disturb and a notification setting per browser are three
+   * separate places it can be silently switched off), not for previewing your
+   * own messages.
+   */
+  function preview() {
+    showNotification({
+      title: t('notify.testTitle'),
+      body: t('notify.testBody'),
+      tag: 'cipher/test',
+    });
+  }
+
   return (
     <>
-      <Group title="pause">
+      <Group title={t('notify.group.pause')}>
         <Row
-          label="Pause notifications"
+          label={t('notify.pause')}
           hint={
             muted
-              ? `Paused ${describeMute(notifications.mutedUntil)}.`
-              : 'Nothing will sound or pop up while paused. Messages still arrive.'
+              ? t('notify.paused', { when: describeMute(notifications.mutedUntil, t, locale) })
+              : t('notify.pauseHint')
           }
         >
           {muted ? (
@@ -65,7 +105,7 @@ export function NotificationsSection() {
               className="set-btn"
               onClick={() => update('notifications', { mutedUntil: null })}
             >
-              Resume
+              {t('notify.resume')}
             </button>
           ) : null}
         </Row>
@@ -81,36 +121,27 @@ export function NotificationsSection() {
                   update('notifications', { mutedUntil: muteUntil(option.minutes) })
                 }
               >
-                {option.label}
+                {t(option.label)}
               </button>
             ))}
           </Actions>
         )}
       </Group>
 
-      <Group title="desktop">
+      <Group title={t('notify.group.desktop')}>
         {permission === 'unsupported' && (
-          <Note tone="warn">This build cannot show desktop notifications.</Note>
+          <Note tone="warn">{t('notify.unsupported')}</Note>
         )}
-        {permission === 'denied' && (
-          <Note tone="warn">
-            Notifications are blocked for this app in your browser or system
-            settings. That has to be changed there, because this screen cannot override
-            it.
-          </Note>
-        )}
+        {permission === 'denied' && <Note tone="warn">{t('notify.denied')}</Note>}
 
-        <Row
-          label="Desktop notifications"
-          hint="A popup when a message arrives while the app is in the background."
-        >
+        <Row label={t('notify.desktop')} hint={t('notify.desktopHint')}>
           {permission === 'default' ? (
             <button type="button" className="set-btn" onClick={() => void enable()}>
-              Allow
+              {t('notify.allow')}
             </button>
           ) : (
             <Toggle
-              label="Desktop notifications"
+              label={t('notify.desktop')}
               checked={notifications.desktop && permission === 'granted'}
               disabled={permission !== 'granted'}
               onChange={(desktop) => update('notifications', { desktop })}
@@ -118,15 +149,9 @@ export function NotificationsSection() {
           )}
         </Row>
 
-        <Row
-          label="Show message text in notifications"
-          hint="Off, a notification says only that someone messaged you. On, it
-                includes what they said, which hands decrypted text to the
-                operating system's notification centre, where it may be logged,
-                mirrored to another device, or shown on a locked screen."
-        >
+        <Row label={t('notify.preview')} hint={t('notify.previewHint')}>
           <Toggle
-            label="Show message text in notifications"
+            label={t('notify.preview')}
             checked={notifications.preview}
             disabled={!notifications.desktop || permission !== 'granted'}
             onChange={(preview) => update('notifications', { preview })}
@@ -134,44 +159,85 @@ export function NotificationsSection() {
         </Row>
 
         {notifications.preview && (
-          <Note tone="warn">
-            Message text will leave the app's control every time a notification
-            is shown.
-          </Note>
+          <Note tone="warn">{t('notify.previewWarn')}</Note>
+        )}
+
+        {permission === 'granted' && (
+          <Row label={t('notify.test')} hint={t('notify.testHint')}>
+            <button type="button" className="set-btn set-btn--quiet" onClick={preview}>
+              {t('notify.testSend')}
+            </button>
+          </Row>
         )}
       </Group>
 
-      <Group title="sounds">
-        <Row label="New message">
+      <Group title={t('notify.group.sounds')}>
+        <Row label={t('notify.newMessage')}>
           <Toggle
-            label="Sound on new message"
+            label={t('notify.soundOnMessage')}
             checked={notifications.soundOnMessage}
             onChange={(soundOnMessage) => update('notifications', { soundOnMessage })}
           />
         </Row>
-        <Row label="Mentions" hint="Kept separate so you can go quiet without going deaf.">
+
+        <Row label={t('notify.messageSound')} hint={t('notify.messageSoundHint')}>
+          <div className="set-sound">
+            <Select
+              label={t('notify.messageSound')}
+              value={notifications.messageSound}
+              options={messageOptions(t)}
+              disabled={!notifications.soundOnMessage}
+              onChange={(messageSound) => {
+                update('notifications', { messageSound });
+                playMessage(messageSound);
+              }}
+            />
+            <PlayButton
+              what={t(MESSAGE_SOUNDS[notifications.messageSound].label)}
+              onPlay={() => playMessage(notifications.messageSound)}
+            />
+          </div>
+        </Row>
+
+        <Row label={t('notify.ringtone')} hint={t('notify.ringtoneHint')}>
+          <div className="set-sound">
+            <Select
+              label={t('notify.ringtone')}
+              value={notifications.callSound}
+              options={ringOptions(t)}
+              onChange={(callSound) => {
+                update('notifications', { callSound });
+                previewRing(callSound);
+              }}
+            />
+            <PlayButton
+              what={t(RING_SOUNDS[notifications.callSound].label)}
+              onPlay={() => previewRing(notifications.callSound)}
+            />
+          </div>
+        </Row>
+        <Row label={t('notify.mentions')} hint={t('notify.mentionsHint')}>
           <Toggle
-            label="Sound on mention"
+            label={t('notify.soundOnMention')}
             checked={notifications.soundOnMention}
             onChange={(soundOnMention) => update('notifications', { soundOnMention })}
           />
         </Row>
-        <Row label="Message sent">
+        <Row label={t('notify.sent')}>
           <Toggle
-            label="Sound on message sent"
+            label={t('notify.soundOnSend')}
             checked={notifications.soundOnSend}
             onChange={(soundOnSend) => update('notifications', { soundOnSend })}
           />
         </Row>
       </Group>
 
-      <Group title="badges">
-        <Row
-          label="Unread count"
-          hint="The number on the app icon and in the tab title."
-        >
+      <PerPersonSounds />
+
+      <Group title={t('notify.group.badges')}>
+        <Row label={t('notify.badge')} hint={t('notify.badgeHint')}>
           <Toggle
-            label="Unread count"
+            label={t('notify.badge')}
             checked={notifications.unreadBadge}
             onChange={(unreadBadge) => update('notifications', { unreadBadge })}
           />
@@ -196,12 +262,11 @@ function muteUntil(minutes: number | null): string {
   return new Date(Date.now() + minutes * 60_000).toISOString();
 }
 
-function describeMute(until: string | null): string {
-  if (until === 'forever') return 'until you turn it back on';
+function describeMute(until: string | null, t: Translate, locale: Locale): string {
+  if (until === 'forever') return t('notify.untilYouSay');
   if (!until) return '';
-  const date = new Date(until);
-  if (Number.isNaN(date.getTime())) return '';
-  return `until ${date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
+  const at = clockTime(until, locale);
+  return at ? t('notify.untilTime', { time: at }) : '';
 }
 
 /** Clears a pause once it has run out, so the section stops saying "paused". */
@@ -218,4 +283,123 @@ function useMuteExpiry(until: string | null, onExpire: () => void) {
     const timer = setTimeout(onExpire, delay);
     return () => clearTimeout(timer);
   }, [until, onExpire]);
+}
+
+/* Built per render rather than at module load, because the names change with
+   the language and a module-level array would freeze whichever one was
+   current when the file was first imported. */
+const messageOptions = (t: Translate) =>
+  MESSAGE_SOUND_IDS.map((id) => ({ value: id, label: t(MESSAGE_SOUNDS[id].label) }));
+
+const ringOptions = (t: Translate) =>
+  RING_SOUND_IDS.map((id) => ({ value: id, label: t(RING_SOUNDS[id].label) }));
+
+/** Audition button. Small, because it sits beside every picker on the screen. */
+function PlayButton({ what, onPlay }: { what: string; onPlay: () => void }) {
+  const t = useT();
+  const label = t('notify.play', { what });
+  return (
+    <button
+      type="button"
+      className="set-play"
+      onClick={onPlay}
+      title={label}
+      aria-label={label}
+    >
+      <SpeakerIcon size={15} />
+    </button>
+  );
+}
+
+/**
+ * A sound per person, which is the setting this screen exists for.
+ *
+ * Reading a name off a screen takes a glance you do not always have. Hearing
+ * which of two people is calling takes nothing, and that is worth a row per
+ * friend. Only friends are listed: a per person sound for someone you have
+ * never spoken to is a setting with nothing to attach to.
+ */
+function PerPersonSounds() {
+  const { settings, update } = useSettings();
+  const { friends, usersById } = useChat();
+  const t = useT();
+  const perPerson = settings.notifications.perPerson;
+
+  if (friends.length === 0) {
+    return (
+      <Group title={t('notify.group.perPerson')}>
+        <Note>{t('notify.perPersonEmpty')}</Note>
+      </Group>
+    );
+  }
+
+  return (
+    <Group title={t('notify.group.perPerson')}>
+      <p className="set-people__lede">{t('notify.perPersonLede')}</p>
+
+      <div className="set-people">
+        {friends.map((friend) => {
+          const user = usersById.get(friend.id);
+          const picks = perPerson[friend.id] ?? {};
+          const message = picks.message;
+          const call = picks.call;
+
+          return (
+            <div className="set-person" key={friend.id}>
+              <div className="set-person__who">
+                {user && <Avatar user={user} size={28} />}
+                <span className="set-person__name">{user?.name ?? friend.username}</span>
+              </div>
+
+              <div className="set-person__picks">
+                <div className="set-sound">
+                  <Select
+                    label={t('notify.messageSoundFor', { name: friend.username })}
+                    value={message ?? ''}
+                    placeholder={t('notify.sameForEveryone')}
+                    options={messageOptions(t)}
+                    onChange={(next) => {
+                      const value = (next as MessageSound | '') || null;
+                      update('notifications', {
+                        perPerson: withPersonSound(perPerson, friend.id, 'message', value),
+                      });
+                      if (value) playMessage(value);
+                    }}
+                  />
+                  <PlayButton
+                    what={
+                      message
+                        ? t(MESSAGE_SOUNDS[message].label)
+                        : t('notify.defaultMessageSound')
+                    }
+                    onPlay={() => playMessage(message ?? settings.notifications.messageSound)}
+                  />
+                </div>
+
+                <div className="set-sound">
+                  <Select
+                    label={t('notify.ringtoneFor', { name: friend.username })}
+                    value={call ?? ''}
+                    placeholder={t('notify.sameForEveryone')}
+                    options={ringOptions(t)}
+                    onChange={(next) => {
+                      const value = (next as RingSound | '') || null;
+                      update('notifications', {
+                        perPerson: withPersonSound(perPerson, friend.id, 'call', value),
+                      });
+                      if (value) previewRing(value);
+                    }}
+                  />
+                  <PlayButton
+                    what={call ? t(RING_SOUNDS[call].label) : t('notify.defaultRingtone')}
+                    onPlay={() => previewRing(call ?? settings.notifications.callSound)}
+                  />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Group>
+  );
 }

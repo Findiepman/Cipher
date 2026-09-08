@@ -33,6 +33,7 @@ import type {
 import { friendToUser } from '../lib/presentation';
 import { Outbox, SecureOutboxStorage } from '../lib/transport/outbox';
 import { SocketTransport } from '../lib/transport/socketTransport';
+import { ConnectionCurtain } from '../components/ConnectionCurtain';
 import type { ConnectionState } from '../lib/transport/types';
 import { createSecureStore } from '../lib/storage/secureStore';
 import { keyManager as defaultKeyManager, type KeyManager } from '../lib/session/keyManager';
@@ -585,7 +586,16 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
     ],
   );
 
-  return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
+  return (
+    <ChatContext.Provider value={value}>
+      {children}
+      {/* Rendered here because this is the component that owns the socket. The
+          curtain is a view of `connection` and nothing else, and every screen
+          under it would otherwise have to know about a state that has nothing
+          to do with what it draws. */}
+      <ConnectionCurtain connection={connection} />
+    </ChatContext.Provider>
+  );
 }
 
 export function useChat(): ChatContextValue {

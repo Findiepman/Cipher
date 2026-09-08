@@ -26,6 +26,15 @@ export {
   type Ciphertext,
 } from './message.js';
 export {
+  SealError,
+  generateSecretKey,
+  openWithKey,
+  parseSealed,
+  sealWithKey,
+  serializeSealed,
+  type Sealed,
+} from './secret.js';
+export {
   UnwrapError,
   deriveAuthHash,
   generateRecoveryCode,

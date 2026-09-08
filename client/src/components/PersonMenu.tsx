@@ -15,11 +15,30 @@
  */
 import { useCallback, useContext, useMemo, useState, createContext, type ReactNode } from 'react';
 import { ContextMenu, MenuDivider, MenuHeading, MenuItem, type MenuAnchor } from './ContextMenu';
-import { BanIcon, MessageIcon, PencilIcon, ProfileIcon, UserMinusIcon } from './Icons';
+import {
+  BanIcon,
+  MessageIcon,
+  PencilIcon,
+  PinIcon,
+  PinOffIcon,
+  ProfileIcon,
+  UserMinusIcon,
+} from './Icons';
+import { isPinned, pinnedIsFull, togglePin } from '../lib/settings/pinned';
+import { MAX_PINNED } from '../lib/settings/types';
 import { useChat } from '../state/ChatProvider';
+import { useT } from '../state/I18nProvider';
+import { useSettings } from '../state/SettingsProvider';
 import '../styles/dialog.css';
 
-export type PersonAction = 'profile' | 'message' | 'nickname' | 'clear-nickname' | 'unfriend' | 'block';
+export type PersonAction =
+  | 'profile'
+  | 'message'
+  | 'pin'
+  | 'nickname'
+  | 'clear-nickname'
+  | 'unfriend'
+  | 'block';
 
 interface PersonMenuValue {
   /** Opens the menu where the pointer is, and stops the browser's own menu. */
@@ -49,6 +68,9 @@ export interface PersonMenuProviderProps {
 
 export function PersonMenuProvider({ children, onViewProfile }: PersonMenuProviderProps) {
   const { usersById, friends, self, openDmWith, removeFriend, blockUser, setNickname } = useChat();
+  const { settings, update } = useSettings();
+  const t = useT();
+  const pinned = settings.sidebar.pinned;
   const [pending, setPending] = useState<Pending>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,9 +85,9 @@ export function PersonMenuProvider({ children, onViewProfile }: PersonMenuProvid
     try {
       await action();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'That did not work.');
+      setError(caught instanceof Error ? caught.message : t('person.failed'));
     }
-  }, []);
+  }, [t]);
 
   const act = useCallback(
     (action: PersonAction, userId: string) => {
@@ -81,13 +103,19 @@ export function PersonMenuProvider({ children, onViewProfile }: PersonMenuProvid
         case 'clear-nickname':
           void run(() => setNickname(userId, ''));
           return;
+        case 'pin':
+          // Local, so it needs no dialog and cannot fail. Closing first keeps
+          // the menu from sitting open over a list that just reordered.
+          setPending(null);
+          update('sidebar', { pinned: togglePin(settings.sidebar.pinned, userId) });
+          return;
         case 'nickname':
         case 'unfriend':
         case 'block':
           setPending({ kind: action, userId });
       }
     },
-    [onViewProfile, openDmWith, run, setNickname],
+    [onViewProfile, openDmWith, run, setNickname, settings.sidebar.pinned, update],
   );
 
   const open = useCallback((event: React.MouseEvent, userId: string) => {
@@ -109,13 +137,17 @@ export function PersonMenuProvider({ children, onViewProfile }: PersonMenuProvid
       {children}
 
       {pending?.kind === 'menu' && person && !isSelf && (
-        <ContextMenu anchor={pending.anchor} onClose={close} label={`Actions for ${person.name}`}>
+        <ContextMenu
+          anchor={pending.anchor}
+          onClose={close}
+          label={t('person.actionsFor', { name: person.name })}
+        >
           <MenuHeading>{person.username}</MenuHeading>
 
           {onViewProfile && (
             <MenuItem
               icon={<ProfileIcon size={15} />}
-              label="View profile"
+              label={t('person.viewProfile')}
               onClick={() => act('profile', pending.userId)}
             />
           )}
@@ -123,21 +155,40 @@ export function PersonMenuProvider({ children, onViewProfile }: PersonMenuProvid
           {isFriend && (
             <MenuItem
               icon={<MessageIcon size={15} />}
-              label="Message"
+              label={t('userProfile.message')}
               onClick={() => act('message', pending.userId)}
             />
           )}
 
+          {/* Shown even when the list is full, disabled and saying why: an
+              item that quietly vanished at fifteen would look like a bug. */}
+          <MenuItem
+            icon={
+              isPinned(pinned, pending.userId) ? <PinOffIcon size={15} /> : <PinIcon size={15} />
+            }
+            label={
+              isPinned(pinned, pending.userId)
+                ? t('person.unpin')
+                : pinnedIsFull(pinned)
+                  ? t('person.pinFull', { max: MAX_PINNED })
+                  : t('person.pin')
+            }
+            disabled={!isPinned(pinned, pending.userId) && pinnedIsFull(pinned)}
+            onClick={() => act('pin', pending.userId)}
+          />
+
           <MenuItem
             icon={<PencilIcon size={15} />}
-            label={person.nickname ? 'Change nickname' : 'Add nickname'}
+            label={t(
+              person.nickname ? 'userProfile.changeNickname' : 'userProfile.addNickname',
+            )}
             onClick={() => act('nickname', pending.userId)}
           />
 
           {person.nickname && (
             <MenuItem
               icon={<PencilIcon size={15} />}
-              label="Remove nickname"
+              label={t('person.removeNickname')}
               onClick={() => act('clear-nickname', pending.userId)}
             />
           )}
@@ -148,14 +199,14 @@ export function PersonMenuProvider({ children, onViewProfile }: PersonMenuProvid
             <MenuItem
               danger
               icon={<UserMinusIcon size={15} />}
-              label="Remove friend"
+              label={t('userProfile.unfriend')}
               onClick={() => act('unfriend', pending.userId)}
             />
           )}
           <MenuItem
             danger
             icon={<BanIcon size={15} />}
-            label="Block"
+            label={t('userProfile.block')}
             onClick={() => act('block', pending.userId)}
           />
         </ContextMenu>
@@ -172,12 +223,9 @@ export function PersonMenuProvider({ children, onViewProfile }: PersonMenuProvid
 
       {pending?.kind === 'unfriend' && person && (
         <ConfirmDialog
-          title={`Remove ${person.name}?`}
-          body={
-            'You will stop being able to send each other anything new. What you ' +
-            'have already said stays where it is, and either of you can ask again later.'
-          }
-          confirmLabel="Remove friend"
+          title={t('person.unfriendTitle', { name: person.name })}
+          body={t('person.unfriendBody')}
+          confirmLabel={t('userProfile.unfriend')}
           onCancel={close}
           onConfirm={() => void run(() => removeFriend(pending.userId))}
         />
@@ -185,13 +233,9 @@ export function PersonMenuProvider({ children, onViewProfile }: PersonMenuProvid
 
       {pending?.kind === 'block' && person && (
         <ConfirmDialog
-          title={`Block ${person.name}?`}
-          body={
-            'They will not be able to reach you or add you again, and they are not ' +
-            'told. This also ends your friendship. You can undo it from Friends, ' +
-            'under Blocked.'
-          }
-          confirmLabel="Block"
+          title={t('person.blockTitle', { name: person.name })}
+          body={t('person.blockBody')}
+          confirmLabel={t('userProfile.block')}
           onCancel={close}
           onConfirm={() => void run(() => blockUser(pending.userId))}
         />
@@ -199,9 +243,9 @@ export function PersonMenuProvider({ children, onViewProfile }: PersonMenuProvid
 
       {error && (
         <ConfirmDialog
-          title="That did not work"
+          title={t('person.failedTitle')}
           body={error}
-          confirmLabel="Close"
+          confirmLabel={t('common.close')}
           onCancel={() => setError(null)}
           onConfirm={() => setError(null)}
         />
@@ -231,14 +275,12 @@ function NicknameDialog({
   onSave: (nickname: string) => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const [value, setValue] = useState(current);
 
   return (
-    <Dialog onCancel={onCancel} title={`Nickname for ${person}`}>
-      <p className="dialog__body">
-        Only you see this. It replaces their username everywhere in your app, and
-        they are never told about it.
-      </p>
+    <Dialog onCancel={onCancel} title={t('person.nicknameFor', { name: person })}>
+      <p className="dialog__body">{t('person.nicknameBody')}</p>
 
       <form
         onSubmit={(event) => {
@@ -258,10 +300,10 @@ function NicknameDialog({
 
         <div className="dialog__actions">
           <button type="button" className="dialog__button" onClick={onCancel}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button type="submit" className="dialog__button dialog__button--primary">
-            {value.trim() ? 'Save' : 'Use their username'}
+            {t(value.trim() ? 'common.save' : 'person.useUsername')}
           </button>
         </div>
       </form>
@@ -282,12 +324,13 @@ function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   return (
     <Dialog onCancel={onCancel} title={title}>
       <p className="dialog__body">{body}</p>
       <div className="dialog__actions">
         <button type="button" className="dialog__button" onClick={onCancel}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           type="button"

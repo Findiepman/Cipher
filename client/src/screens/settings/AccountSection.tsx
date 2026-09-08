@@ -10,47 +10,45 @@
  */
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Actions, Group, Note, Row, TextField } from '../../components/settings/controls';
-import { ApiError } from '../../lib/api';
+import type { Key } from '../../lib/i18n/en';
+import { shortDay } from '../../lib/i18n/format';
 import { checkPassword } from '../../lib/session/passwordPolicy';
+import { describeError, useI18n, useT, type Translate } from '../../state/I18nProvider';
 import { useSession } from '../../state/SessionProvider';
 
 export function AccountSection() {
   const { account } = useSession();
+  const { locale, t } = useI18n();
 
   if (!account) {
-    return (
-      <Note tone="warn">
-        You are not signed in to a server, so there is no account to change.
-        Everything else in settings still works: it all belongs to this device.
-      </Note>
-    );
+    return <Note tone="warn">{t('account.signedOut')}</Note>;
   }
+
+  const day = (iso: string) => shortDay(iso, locale) || t('common.unknown');
 
   return (
     <>
-      <Group title="account">
-        <Row label="Username" hint="How you are addressed. Visible to anyone you talk to.">
+      <Group title={t('account.group')}>
+        <Row label={t('account.username')} hint={t('account.usernameHint')}>
           <span className="set-value">{account.username}</span>
         </Row>
         <Row
-          label="Email"
-          hint={
-            account.emailVerifiedAt
-              ? 'Used to sign in, and to reach you if you ever lose your password.'
-              : 'Not verified yet.'
-          }
+          label={t('account.email')}
+          hint={t(account.emailVerifiedAt ? 'account.emailHint' : 'account.unverifiedHint')}
         >
           <span className="set-value">
             {account.email}
-            {!account.emailVerifiedAt && <span className="set-flag">unverified</span>}
+            {!account.emailVerifiedAt && (
+              <span className="set-flag">{t('account.unverified')}</span>
+            )}
           </span>
         </Row>
-        <Row label="Member since">
-          <span className="set-value mono">{formatDate(account.createdAt)}</span>
+        <Row label={t('account.since')}>
+          <span className="set-value mono">{day(account.createdAt)}</span>
         </Row>
         {account.lastLoginAt && (
-          <Row label="Last sign-in">
-            <span className="set-value mono">{formatDate(account.lastLoginAt)}</span>
+          <Row label={t('account.lastLogin')}>
+            <span className="set-value mono">{day(account.lastLoginAt)}</span>
           </Row>
         )}
       </Group>
@@ -68,21 +66,22 @@ export function AccountSection() {
 function UsernameForm({ current }: { current: string }) {
   const { auth, refresh } = useSession();
   const form = useAsyncForm();
+  const t = useT();
   const [username, setUsername] = useState(current);
 
   const changed = username.trim() !== current && username.trim().length > 0;
 
   return (
-    <Group title="change username">
+    <Group title={t('account.group.username')}>
       <form
         onSubmit={form.submit(async () => {
           await auth.updateProfile({ username: username.trim() });
           await refresh();
-          return 'Username updated.';
+          return 'account.usernameDone';
         })}
       >
         <TextField
-          label="New username"
+          label={t('account.newUsername')}
           value={username}
           maxLength={32}
           onChange={setUsername}
@@ -91,7 +90,7 @@ function UsernameForm({ current }: { current: string }) {
         />
         <Actions>
           <button type="submit" className="set-btn" disabled={!changed || form.busy}>
-            {form.busy ? 'Saving…' : 'Save'}
+            {t(form.busy ? 'account.saving' : 'common.save')}
           </button>
         </Actions>
         {form.result}
@@ -105,28 +104,24 @@ function UsernameForm({ current }: { current: string }) {
 function EmailForm({ current }: { current: string }) {
   const { auth } = useSession();
   const form = useAsyncForm();
+  const t = useT();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   const ready = email.includes('@') && email.trim() !== current && password.length > 0;
 
   return (
-    <Group
-      title="change email"
-      hint="Your sign-in key is derived from your address, so changing it
-            re-derives that too. Your messages are unaffected: they are wrapped
-            under a key that does not depend on your email."
-    >
+    <Group title={t('account.group.email')} hint={t('account.group.emailHint')}>
       <form
         onSubmit={form.submit(async () => {
           await auth.requestEmailChange(email.trim(), password);
           setEmail('');
           setPassword('');
-          return 'Check the new address for a confirmation link.';
+          return 'account.emailSent';
         })}
       >
         <TextField
-          label="New email"
+          label={t('account.newEmail')}
           type="email"
           value={email}
           onChange={setEmail}
@@ -134,7 +129,7 @@ function EmailForm({ current }: { current: string }) {
           disabled={form.busy}
         />
         <TextField
-          label="Current password"
+          label={t('account.currentPassword')}
           type="password"
           value={password}
           onChange={setPassword}
@@ -143,7 +138,7 @@ function EmailForm({ current }: { current: string }) {
         />
         <Actions>
           <button type="submit" className="set-btn" disabled={!ready || form.busy}>
-            {form.busy ? 'Sending…' : 'Send confirmation'}
+            {t(form.busy ? 'account.sending' : 'account.sendConfirmation')}
           </button>
         </Actions>
         {form.result}
@@ -157,6 +152,7 @@ function EmailForm({ current }: { current: string }) {
 function PasswordForm({ email, username }: { email: string; username: string }) {
   const { auth } = useSession();
   const form = useAsyncForm();
+  const t = useT();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -166,23 +162,18 @@ function PasswordForm({ email, username }: { email: string; username: string }) 
   const ready = current.length > 0 && check.ok && matches;
 
   return (
-    <Group
-      title="change password"
-      hint="Your password never leaves this device. It re-wraps your private key
-            here, and only the wrapped result is uploaded. Your recovery code
-            keeps working."
-    >
+    <Group title={t('account.group.password')} hint={t('account.group.passwordHint')}>
       <form
         onSubmit={form.submit(async () => {
           await auth.changePassword(current, next);
           setCurrent('');
           setNext('');
           setConfirm('');
-          return 'Password changed.';
+          return 'account.passwordDone';
         })}
       >
         <TextField
-          label="Current password"
+          label={t('account.currentPassword')}
           type="password"
           value={current}
           onChange={setCurrent}
@@ -190,7 +181,7 @@ function PasswordForm({ email, username }: { email: string; username: string }) 
           disabled={form.busy}
         />
         <TextField
-          label="New password"
+          label={t('account.newPassword')}
           type="password"
           value={next}
           onChange={setNext}
@@ -212,14 +203,14 @@ function PasswordForm({ email, username }: { email: string; username: string }) 
             {check.problems.length > 0 && (
               <ul className="set-problems">
                 {check.problems.map((problem) => (
-                  <li key={problem}>{problem}</li>
+                  <li key={problem.key}>{t(problem)}</li>
                 ))}
               </ul>
             )}
           </>
         )}
         <TextField
-          label="Confirm new password"
+          label={t('account.confirmPassword')}
           type="password"
           value={confirm}
           onChange={setConfirm}
@@ -227,13 +218,13 @@ function PasswordForm({ email, username }: { email: string; username: string }) 
           disabled={form.busy}
           hint={
             confirm.length > 0 && !matches ? (
-              <span className="set-inline-warn">Those do not match.</span>
+              <span className="set-inline-warn">{t('account.mismatch')}</span>
             ) : undefined
           }
         />
         <Actions>
           <button type="submit" className="set-btn" disabled={!ready || form.busy}>
-            {form.busy ? 'Changing…' : 'Change password'}
+            {t(form.busy ? 'account.changing' : 'account.changePassword')}
           </button>
         </Actions>
         {form.result}
@@ -247,6 +238,7 @@ function PasswordForm({ email, username }: { email: string; username: string }) 
 function DeleteAccount({ email }: { email: string }) {
   const { auth } = useSession();
   const form = useAsyncForm();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState('');
   const [typed, setTyped] = useState('');
@@ -254,20 +246,15 @@ function DeleteAccount({ email }: { email: string }) {
   const ready = password.length > 0 && typed.trim().toLowerCase() === email.toLowerCase();
 
   return (
-    <Group title="danger">
-      <Row
-        label="Delete this account"
-        hint="Your messages are encrypted to a key only you hold. Deleting the
-              account destroys that key, so nothing that was ever sent to you
-              can be read again, by you or by anyone. There is no way back."
-      >
+    <Group title={t('vault.settings.dangerGroup')}>
+      <Row label={t('account.delete')} hint={t('account.deleteHint')}>
         {!open && (
           <button
             type="button"
             className="set-btn set-btn--danger"
             onClick={() => setOpen(true)}
           >
-            Delete account
+            {t('account.deleteButton')}
           </button>
         )}
       </Row>
@@ -276,11 +263,11 @@ function DeleteAccount({ email }: { email: string }) {
         <form
           onSubmit={form.submit(async () => {
             await auth.deleteAccount(password);
-            return 'Account deleted.';
+            return 'account.deleteDone';
           })}
         >
           <TextField
-            label="Password"
+            label={t('account.password')}
             type="password"
             value={password}
             onChange={setPassword}
@@ -288,7 +275,7 @@ function DeleteAccount({ email }: { email: string }) {
             disabled={form.busy}
           />
           <TextField
-            label={`Type ${email} to confirm`}
+            label={t('account.typeToConfirm', { email })}
             value={typed}
             onChange={setTyped}
             disabled={form.busy}
@@ -299,7 +286,7 @@ function DeleteAccount({ email }: { email: string }) {
               className="set-btn set-btn--danger"
               disabled={!ready || form.busy}
             >
-              {form.busy ? 'Deleting…' : 'Delete permanently'}
+              {t(form.busy ? 'account.deleting' : 'account.deleteForever')}
             </button>
             <button
               type="button"
@@ -307,7 +294,7 @@ function DeleteAccount({ email }: { email: string }) {
               onClick={() => setOpen(false)}
               disabled={form.busy}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
           </Actions>
           {form.result}
@@ -325,11 +312,13 @@ function DeleteAccount({ email }: { email: string }) {
  * line to show once it has worked.
  */
 export function useAsyncForm() {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<string | null>(null);
+  const [done, setDone] = useState<Key | null>(null);
 
-  function submit(action: () => Promise<string>) {
+  /** The action returns the catalogue key of the line to show once it worked. */
+  function submit(action: () => Promise<Key>) {
     return async (event: FormEvent) => {
       event.preventDefault();
       setBusy(true);
@@ -338,7 +327,7 @@ export function useAsyncForm() {
       try {
         setDone(await action());
       } catch (caught) {
-        setError(describe(caught));
+        setError(describe(caught, t));
       } finally {
         setBusy(false);
       }
@@ -349,23 +338,21 @@ export function useAsyncForm() {
     error !== null ? (
       <Note tone="danger">{error}</Note>
     ) : done !== null ? (
-      <Note tone="sealed">{done}</Note>
+      <Note tone="sealed">{t(done)}</Note>
     ) : null;
 
   return { busy, submit, result };
 }
 
-export function describe(caught: unknown): string {
-  if (caught instanceof ApiError || caught instanceof Error) return caught.message;
-  return 'Something went wrong.';
-}
-
-export function formatDate(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return 'unknown';
-  return date.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+/**
+ * Failure, in words.
+ *
+ * An error the server sent comes through in the server's own English, and it
+ * stays that way. The API answers with prose rather than with codes, so there
+ * is nothing here to look up in a catalogue, and inventing a translation for a
+ * sentence we did not write would mean guessing at what it said. Only the
+ * fallback, which is ours, is translated. See i18n-plan.md.
+ */
+export function describe(caught: unknown, t: Translate): string {
+  return describeError(caught, t);
 }

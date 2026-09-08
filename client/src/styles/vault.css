@@ -1,0 +1,265 @@
+/* The vault.
+ *
+ * Same Ember rules as everywhere else, with one deliberate difference: every
+ * note is drawn as an outgoing bubble, because everything in here was written
+ * by you, so the notes sit where your own messages sit, against the right
+ * edge, and there is no incoming side to balance them.
+ */
+
+.vault {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The two closed states are a single card on the panel, the way the auth
+   screens are: one thing to do, in the middle, with nothing else competing. */
+.vault--form {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.vault-card {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--bg-panel);
+}
+
+.vault-card__mark {
+  color: var(--ember);
+}
+
+.vault-card__title {
+  margin: 0;
+  color: var(--text-hi);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.vault-card__lede {
+  margin: -4px 0 4px;
+  color: var(--text-mute);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.vault-card__rule {
+  margin: 4px 0;
+  border: none;
+  border-top: 1px solid var(--line-soft);
+}
+
+.vault-card__note {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+/* The honest line. Faint on purpose: it is a fact about the passkey, not a
+   score, and a big green bar would be making a claim this cannot make. */
+.vault-card__meter {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.vault-card__problem {
+  margin: 0;
+  color: var(--red);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.vault-card__go {
+  margin-top: 4px;
+  height: 38px;
+  border-radius: var(--r-pill);
+  background: var(--ember);
+  color: var(--ember-ink);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.vault-card__go:hover:not(:disabled) {
+  background: var(--ember-hover);
+}
+.vault-card__go:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.vault-card__link {
+  color: var(--text-mute);
+  font-size: 12.5px;
+}
+.vault-card__link:hover {
+  color: var(--text-hi);
+  text-decoration: underline;
+}
+
+/* --- picking a passkey shape -------------------------------------------- */
+
+.vault-kind {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.vault-kind__option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  text-align: left;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+.vault-kind__option:hover {
+  background: var(--hover);
+}
+.vault-kind__option--on,
+.vault-kind__option--on:hover {
+  border-color: var(--ember);
+  background: var(--hover);
+}
+
+.vault-kind__label {
+  color: var(--text-hi);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.vault-kind__hint {
+  color: var(--text-mute);
+  font-size: 11.5px;
+}
+
+/* --- the open vault ------------------------------------------------------ */
+
+.vault__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.vault__head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vault__title {
+  margin: 0;
+  color: var(--text-hi);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.vault__sub {
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+
+.vault__lock {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  color: var(--text-mute);
+  font-size: 12.5px;
+  flex: 0 0 auto;
+}
+.vault__lock:hover {
+  color: var(--text-hi);
+  border-color: var(--text-mute);
+}
+
+.vault__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 18px;
+}
+
+.vault__empty {
+  max-width: 40ch;
+  margin: 40px auto;
+  color: var(--text-faint);
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.vault__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* A note goes where your own messages go: hard against the right edge, the
+   same as .message--own. A centred column looked like a mistake, because one
+   note in a wide panel floats in the middle of nothing with no incoming side
+   to explain why it is there.
+ *
+ * The delete button lives outside the bubble and appears on hover, so a note
+ * is never one stray tap from gone. It is ordered to the left of the bubble
+ * rather than moved in the markup, so the bubble stays flush with the edge
+ * and a screen reader still reads the note before the button that deletes it.
+ */
+.vault-note {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* 62% matches a conversation. The cap is the vault's own: a wall of your own
+   notes on a wide screen is a page of prose, and a 620px measure reads. */
+.vault-note__bubble {
+  flex: 0 1 auto;
+  max-width: min(62%, 620px);
+}
+
+.vault-note__remove {
+  order: -1;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  color: var(--text-faint);
+  opacity: 0;
+  transition:
+    opacity 140ms ease,
+    color 140ms ease;
+}
+.vault-note:hover .vault-note__remove,
+.vault-note__remove:focus-visible {
+  opacity: 1;
+}
+.vault-note__remove:hover {
+  color: var(--red);
+}

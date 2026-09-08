@@ -19,13 +19,17 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Actions, Group, Note, Row, TextField } from '../../components/settings/controls';
+import type { Key } from '../../lib/i18n/en';
+import { shortDay } from '../../lib/i18n/format';
 import { keyManager } from '../../lib/session/keyManager';
 import type { SessionDto } from '../../lib/api/types';
+import { useI18n, useT } from '../../state/I18nProvider';
 import { useSession } from '../../state/SessionProvider';
-import { describe, formatDate, useAsyncForm } from './AccountSection';
+import { describe, useAsyncForm } from './AccountSection';
 
 export function DevicesSection() {
   const { keyState, account } = useSession();
+  const t = useT();
   // Revealing is deliberately component state: leaving the section unmounts
   // this, so coming back asks again rather than staying open all evening.
   const [revealed, setRevealed] = useState(false);
@@ -35,11 +39,9 @@ export function DevicesSection() {
   return (
     <>
       {locked ? (
-        <Group title="security number">
+        <Group title={t('devices.group.number')}>
           <Note tone="warn">
-            {keyState === 'empty'
-              ? 'No key on this device yet, so there is no number to compare.'
-              : 'This device is locked. Unlock it to see your security number.'}
+            {t(keyState === 'empty' ? 'devices.noKey' : 'devices.deviceLocked')}
           </Note>
         </Group>
       ) : revealed ? (
@@ -54,10 +56,7 @@ export function DevicesSection() {
       {account && <Sessions />}
 
       {!account && (
-        <Note tone="warn">
-          Sessions and the recovery code live on the server, so they need a
-          signed-in account.
-        </Note>
+        <Note tone="warn">{t('devices.needAccount')}</Note>
       )}
     </>
   );
@@ -67,6 +66,7 @@ export function DevicesSection() {
 
 function PasswordGate({ onUnlocked }: { onUnlocked: () => void }) {
   const { auth } = useSession();
+  const t = useT();
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,30 +80,21 @@ function PasswordGate({ onUnlocked }: { onUnlocked: () => void }) {
         setPassword('');
         onUnlocked();
       } else {
-        setError('That is not your password.');
+        setError(t('devices.wrongPassword'));
       }
     } catch (caught) {
-      setError(describe(caught));
+      setError(describe(caught, t));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Group
-      title="security number"
-      hint="Checked on this device against your own stored key. Nothing is sent
-            anywhere, and your password is not stored by this screen."
-    >
-      <Row
-        label="Hidden until you confirm it is you"
-        hint="Your security number and your recovery code are both behind this.
-              You unlocked this device a while ago; this asks again before
-              putting either of them on screen."
-      />
+    <Group title={t('devices.group.number')} hint={t('devices.gateHint')}>
+      <Row label={t('devices.gate')} hint={t('devices.gateWhy')} />
       <form onSubmit={submit}>
         <TextField
-          label="Password"
+          label={t('account.password')}
           type="password"
           value={password}
           onChange={setPassword}
@@ -112,7 +103,7 @@ function PasswordGate({ onUnlocked }: { onUnlocked: () => void }) {
         />
         <Actions>
           <button type="submit" className="set-btn" disabled={busy || !password}>
-            {busy ? 'Checking…' : 'Reveal'}
+            {t(busy ? 'devices.checking' : 'devices.reveal')}
           </button>
         </Actions>
         {error && <Note tone="danger">{error}</Note>}
@@ -130,6 +121,7 @@ function SecurityNumber({
   keyState: 'empty' | 'locked' | 'unlocked';
   onHide: () => void;
 }) {
+  const t = useT();
   const [fingerprint, setFingerprint] = useState<string | null>(null);
 
   useEffect(() => {
@@ -143,41 +135,35 @@ function SecurityNumber({
   }, [keyState]);
 
   return (
-    <Group
-      title="security number"
-      hint="Read it to each other out loud, or compare it in person. If two
-            devices show the same number, nobody is sitting in the middle of
-            your conversation. If it ever changes without an explanation, stop
-            and ask why before you send anything."
-    >
+    <Group title={t('devices.group.number')} hint={t('devices.numberHint')}>
       {fingerprint ? (
         <p className="set-fingerprint mono">{fingerprint}</p>
       ) : (
-        <Note tone="warn">This device is not holding a key to fingerprint.</Note>
+        <Note tone="warn">{t('devices.noFingerprint')}</Note>
       )}
-      <Row label="Key state">
+      <Row label={t('devices.keyState')}>
         <span className="set-value">
           <span className={`set-dot set-dot--${keyState}`} />
-          {keyStateLabel(keyState)}
+          {t(keyStateLabel(keyState))}
         </span>
       </Row>
       <Actions>
         <button type="button" className="set-btn set-btn--quiet" onClick={onHide}>
-          Hide again
+          {t('devices.hide')}
         </button>
       </Actions>
     </Group>
   );
 }
 
-function keyStateLabel(state: 'empty' | 'locked' | 'unlocked'): string {
+function keyStateLabel(state: 'empty' | 'locked' | 'unlocked'): Key {
   switch (state) {
     case 'unlocked':
-      return 'Unlocked. Messages can be read on this device';
+      return 'devices.state.unlocked';
     case 'locked':
-      return 'Locked. The key is here but the password is not';
+      return 'devices.state.locked';
     case 'empty':
-      return 'No key on this device';
+      return 'devices.state.empty';
   }
 }
 
@@ -186,17 +172,15 @@ function keyStateLabel(state: 'empty' | 'locked' | 'unlocked'): string {
 function RecoveryCode() {
   const { auth } = useSession();
   const form = useAsyncForm();
+  const t = useT();
   const [password, setPassword] = useState('');
   const [code, setCode] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
 
   if (code) {
     return (
-      <Group title="recovery code">
-        <Note tone="sealed">
-          This is your new code. The old one stopped working the moment this one
-          was made, and this is the only time it will be shown.
-        </Note>
+      <Group title={t('devices.group.recovery')}>
+        <Note tone="sealed">{t('devices.newCode')}</Note>
         <p className="set-code mono">{code}</p>
         <Actions>
           <button
@@ -207,7 +191,7 @@ function RecoveryCode() {
               setOpen(false);
             }}
           >
-            I have saved it
+            {t('devices.savedIt')}
           </button>
         </Actions>
       </Group>
@@ -215,23 +199,13 @@ function RecoveryCode() {
   }
 
   return (
-    <Group
-      title="recovery code"
-      hint="The one thing that can open your messages without your password.
-            Regenerating mints a new code and retires the old one; your messages
-            and your security number are untouched."
-    >
-      <Note>
-        Your existing code cannot be shown again. Only its hash is on the server,
-        and the copy of your key it guards is locked with the code itself, so
-        there is nothing here that could be decoded back into it. If you have
-        lost it, make a new one.
-      </Note>
+    <Group title={t('devices.group.recovery')} hint={t('devices.recoveryHint')}>
+      <Note>{t('devices.recoveryNote')}</Note>
 
       {!open ? (
         <Actions>
           <button type="button" className="set-btn" onClick={() => setOpen(true)}>
-            Generate a new code
+            {t('devices.generateNew')}
           </button>
         </Actions>
       ) : (
@@ -240,17 +214,17 @@ function RecoveryCode() {
             const result = await auth.regenerateRecoveryCode(password);
             setPassword('');
             setCode(result.recoveryCode);
-            return 'New recovery code created.';
+            return 'devices.recoveryDone';
           })}
         >
           <TextField
-            label="Password"
+            label={t('account.password')}
             type="password"
             value={password}
             onChange={setPassword}
             autoComplete="current-password"
             disabled={form.busy}
-            hint="Needed to unwrap the key before it can be re-wrapped under the new code."
+            hint={t('devices.recoveryPasswordHint')}
           />
           <Actions>
             <button
@@ -258,7 +232,7 @@ function RecoveryCode() {
               className="set-btn"
               disabled={password.length === 0 || form.busy}
             >
-              {form.busy ? 'Generating…' : 'Generate'}
+              {t(form.busy ? 'devices.generating' : 'devices.generate')}
             </button>
             <button
               type="button"
@@ -266,7 +240,7 @@ function RecoveryCode() {
               onClick={() => setOpen(false)}
               disabled={form.busy}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
           </Actions>
           {form.result}
@@ -280,6 +254,7 @@ function RecoveryCode() {
 
 function Sessions() {
   const { auth } = useSession();
+  const { locale, t } = useI18n();
   const [sessions, setSessions] = useState<SessionDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -289,10 +264,10 @@ function Sessions() {
     try {
       setSessions(await auth.sessions());
     } catch (caught) {
-      setError(describe(caught));
+      setError(describe(caught, t));
       setSessions([]);
     }
-  }, [auth]);
+  }, [auth, t]);
 
   useEffect(() => {
     void load();
@@ -304,32 +279,37 @@ function Sessions() {
       await auth.revokeSession(id);
       await load();
     } catch (caught) {
-      setError(describe(caught));
+      setError(describe(caught, t));
     } finally {
       setBusyId(null);
     }
   }
 
   return (
-    <Group
-      title="signed in"
-      hint="Signing a session out ends its access to the server. It does not
-            reach into that device and delete anything already decrypted there."
-    >
+    <Group title={t('devices.group.sessions')} hint={t('devices.sessionsHint')}>
       {error && <Note tone="danger">{error}</Note>}
 
-      {sessions === null && <p className="set-empty">Loading…</p>}
-      {sessions?.length === 0 && !error && <p className="set-empty">No other sessions.</p>}
+      {sessions === null && <p className="set-empty">{t('devices.loading')}</p>}
+      {sessions?.length === 0 && !error && (
+        <p className="set-empty">{t('devices.noSessions')}</p>
+      )}
 
       {sessions?.map((session) => (
         <div key={session.id} className="set-session">
           <div className="set-session__text">
             <p className="set-session__title">
-              {session.deviceLabel ?? 'Unknown device'}
-              {session.current && <span className="set-flag set-flag--now">this device</span>}
+              {session.deviceLabel ?? t('devices.unknownDevice')}
+              {session.current && (
+                <span className="set-flag set-flag--now">{t('devices.thisDevice')}</span>
+              )}
             </p>
             <p className="set-session__meta mono">
-              {[session.ip, `since ${formatDate(session.createdAt)}`]
+              {[
+                session.ip,
+                t('devices.since', {
+                  day: shortDay(session.createdAt, locale) || t('common.unknown'),
+                }),
+              ]
                 .filter(Boolean)
                 .join(' · ')}
             </p>
@@ -341,7 +321,7 @@ function Sessions() {
               disabled={busyId === session.id}
               onClick={() => void revoke(session.id)}
             >
-              {busyId === session.id ? 'Signing out…' : 'Sign out'}
+              {t(busyId === session.id ? 'devices.signingOut' : 'settings.signOut')}
             </button>
           )}
         </div>
@@ -349,14 +329,14 @@ function Sessions() {
 
       <Actions>
         <button type="button" className="set-btn set-btn--quiet" onClick={() => void load()}>
-          Refresh
+          {t('devices.refresh')}
         </button>
         <button
           type="button"
           className="set-btn set-btn--danger"
           onClick={() => void auth.logoutEverywhere()}
         >
-          Sign out everywhere
+          {t('devices.signOutEverywhere')}
         </button>
       </Actions>
     </Group>

@@ -8,6 +8,7 @@
  * replaces the handle everywhere else in the app, so this card is the only
  * place left to check who you are actually talking to.
  */
+import { Providers } from '../test/providers';
 import { StrictMode } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -29,6 +30,7 @@ function renderProfile(user: User, options: { isFriend?: boolean; friendsSince?:
   const onClose = vi.fn();
   render(
     <StrictMode>
+      <Providers>
       <UserProfile
         user={user}
         isFriend={options.isFriend ?? true}
@@ -36,6 +38,7 @@ function renderProfile(user: User, options: { isFriend?: boolean; friendsSince?:
         onAction={onAction}
         onClose={onClose}
       />
+      </Providers>
     </StrictMode>,
   );
   return { onAction, onClose };

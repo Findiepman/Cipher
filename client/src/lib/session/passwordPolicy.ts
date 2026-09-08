@@ -7,6 +7,9 @@
  * meter. Never treat a pass here as permission to skip the server's answer.
  */
 
+import type { Key } from '../i18n/en';
+import type { Phrase } from '../i18n/translate';
+
 export const MIN_PASSWORD_LENGTH = 12;
 
 /** Passwords long enough to pass the length check but not worth accepting. */
@@ -31,33 +34,41 @@ const COMMON_PASSWORDS = [
 
 export interface PasswordCheck {
   ok: boolean;
-  /** Human-readable reasons, in the order worth showing them. */
-  problems: string[];
+  /** Reasons, in the order worth showing them, for the screen to translate. */
+  problems: Phrase<Key>[];
   /** 0 to 4, for a strength meter. Not a security claim. */
   score: number;
 }
 
 export function checkPassword(password: string, context: { email?: string; username?: string } = {}): PasswordCheck {
-  const problems: string[] = [];
+  const problems: Phrase<Key>[] = [];
   const normalized = password.normalize('NFKC');
   const lower = normalized.toLowerCase();
 
   if (normalized.length < MIN_PASSWORD_LENGTH) {
-    problems.push(`Use at least ${MIN_PASSWORD_LENGTH} characters.`);
+    problems.push({
+      key: 'password.problem.short',
+      vars: { min: MIN_PASSWORD_LENGTH },
+    });
   }
   if (COMMON_PASSWORDS.some((common) => lower.includes(common))) {
-    problems.push('That is based on a very common password.');
+    problems.push({ key: 'password.problem.common' });
   }
   if (/^(.)\1+$/.test(normalized)) {
-    problems.push('That is a single repeated character.');
+    problems.push({ key: 'password.problem.repeated' });
   }
   if (isSequential(lower)) {
-    problems.push('That is a keyboard or alphabet sequence.');
+    problems.push({ key: 'password.problem.sequence' });
   }
   for (const [field, value] of Object.entries(context)) {
     const stem = field === 'email' ? (value ?? '').split('@')[0] : value;
     if (stem && stem.length >= 3 && lower.includes(stem.toLowerCase())) {
-      problems.push(`Do not use your ${field} in your password.`);
+      // Two keys rather than one with the field name substituted in: the field
+      // name would have to be translated too, and "je e-mail" and "je
+      // gebruikersnaam" do not always slot into the same sentence shape.
+      problems.push({
+        key: field === 'email' ? 'password.problem.email' : 'password.problem.username',
+      });
     }
   }
 

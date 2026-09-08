@@ -23,9 +23,16 @@ import { PersonMenuProvider, usePersonMenu } from './components/PersonMenu';
 import { TopBar, type View } from './components/TopBar';
 import { UserProfile } from './components/UserProfile';
 import { FriendsScreen } from './screens/FriendsScreen';
+import { VaultScreen } from './screens/VaultScreen';
 import { SettingsScreen } from './screens/settings/SettingsScreen';
 import { CallPanel } from './components/CallPanel';
+import { CallRinger } from './components/CallRinger';
+import { DesktopNotifier } from './components/DesktopNotifier';
+import { MessageChime } from './components/MessageChime';
+import { splitPinned } from './lib/settings/pinned';
 import { withProfile } from './lib/settings/profile';
+import { resolveActivityBar } from './lib/settings/types';
+import { describeError, useT } from './state/I18nProvider';
 import { useCall } from './state/CallProvider';
 import { useChat } from './state/ChatProvider';
 import { useSettings } from './state/SettingsProvider';
@@ -67,6 +74,16 @@ export default function App() {
 
   return (
     <PersonMenuProvider onViewProfile={viewProfile}>
+      {/* None of the three draws anything. They watch for an arriving message
+          and an incoming call, and play whichever sound that person is set to
+          or hand the message to the operating system. Mounted here rather than
+          beside the call panel so opening settings does not unmount a ringtone
+          mid-ring, and so a notification still arrives while you are reading a
+          settings screen. */}
+      <CallRinger />
+      <MessageChime />
+      <DesktopNotifier />
+
       <Shell
         view={view}
         onSelectView={setView}
@@ -106,6 +123,7 @@ function Shell({
 }) {
   const chat = useChat();
   const menu = usePersonMenu();
+  const t = useT();
   const { settings } = useSettings();
   const { call, supported: callsSupported, startCall } = useCall();
 
@@ -167,10 +185,15 @@ function Shell({
       text:
         last.state === 'decrypted' || last.state === 'sending'
           ? (last.body ?? '')
-          : 'New message',
+          : t('chat.newMessage'),
       at: last.sentAt,
     });
   }
+
+  // The people you keep at the top, lifted out of the list. Pinning is by
+  // person rather than by conversation (lib/settings/pinned.ts), so a group
+  // channel simply stays where it was.
+  const pinned = splitPinned(channels, settings.sidebar.pinned, (channel) => channel.recipientId);
 
   // Which conversation the live call belongs to, if any. `ended` still counts:
   // the panel is still up, and a second call cannot start until it is gone.
@@ -193,14 +216,21 @@ function Shell({
     );
   }
 
+  // Where the activity bar is docked. The attribute is what app.css turns into
+  // a row or a column, so the whole placement is one word in two places. Read
+  // through the resolver because the stored value is only checked for being a
+  // string, and an unknown edge would leave the bar nowhere.
+  const activityBar = resolveActivityBar(settings.appearance.activityBar);
+
   return (
-    <div className="app">
+    <div className="app" data-bar={activityBar}>
       <TopBar
         view={view}
         onSelect={onSelectView}
         currentUser={me}
         requestCount={incoming.length}
         connection={connection}
+        placement={activityBar}
       />
 
       <div className="app__body">
@@ -208,11 +238,22 @@ function Shell({
           <main className="panel panel--chat">
             <FriendsScreen />
           </main>
+        ) : view === 'vault' ? (
+          <main className="panel panel--chat">
+            <VaultScreen />
+          </main>
         ) : (
           <>
             <div className="panel panel--list">
               <ConversationList
-                sections={[{ label: 'direct', channels }]}
+                sections={[
+                  {
+                    label: t('chat.sectionPinned'),
+                    channels: pinned.pinned,
+                    pinned: true,
+                  },
+                  { label: t('chat.sectionDirect'), channels: pinned.rest },
+                ]}
                 activeChannelId={activeChannel?.id ?? ''}
                 onSelect={openConversation}
                 usersById={usersById}
@@ -225,14 +266,11 @@ function Shell({
 
             <main className="panel panel--chat">
               {error ? (
-                <Empty title="Could not load your conversations" body={error.message} />
+                <Empty title={t('chat.loadFailed')} body={describeError(error, t)} />
               ) : !ready ? (
-                <Empty title="Loading…" body="Fetching your conversations." />
+                <Empty title={t('chat.loadingTitle')} body={t('chat.loadingBody')} />
               ) : !activeChannel ? (
-                <Empty
-                  title="No conversations yet"
-                  body="Add someone under Friends, then start a conversation with them."
-                />
+                <Empty title={t('chat.noneTitle')} body={t('chat.noneBody')} />
               ) : (
                 <>
                   <ChatHeader
@@ -261,18 +299,20 @@ function Shell({
                     messages={messages}
                     usersById={usersById}
                     currentUserId={self?.id ?? ''}
-                    currentUserName={self?.name ?? 'you'}
+                    currentUserName={self?.name ?? t('chat.you')}
                   />
 
                   <Composer
-                    placeholder={`message ${activeChannel.name}`}
+                    placeholder={t('chat.composerTo', { name: activeChannel.name })}
                     onSend={(body) => void send(body)}
                     onTyping={notifyTyping}
                     typing={typingIn(activeChannel.id)}
                     // Says what is true: nothing is lost, it just has not left
                     // yet. Silently swallowing a send is the behaviour that
                     // makes people stop trusting a messenger.
-                    notice={queued > 0 ? `${queued} waiting to send` : undefined}
+                    notice={
+                      queued > 0 ? t('chat.queued', { count: queued }) : undefined
+                    }
                   />
                 </>
               )}

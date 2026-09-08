@@ -7,95 +7,89 @@
  * included: the one detail a normal messenger's profile card does not have and
  * this one cannot leave out.
  */
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Avatar, presenceLabel } from '../../components/Avatar';
-import { Actions, Group, Note, Row, Segmented, TextField } from '../../components/settings/controls';
-import { AvatarError, readAvatarFile } from '../../lib/settings/avatarImage';
-import { displayName } from '../../lib/settings/profile';
-import { ACCENTS } from '../../lib/settings/types';
+import {
+  Actions,
+  Group,
+  Note,
+  Row,
+  Segmented,
+  TextArea,
+  TextField,
+} from '../../components/settings/controls';
+import { PictureField } from '../../components/settings/PictureField';
+import { PICTURE_FRAMES } from '../../lib/settings/avatarImage';
+import { avatarInitial, displayName } from '../../lib/settings/profile';
+import {
+  MAX_PROFILES,
+  MAX_PROFILE_NAME,
+  addBlank,
+  duplicate,
+  remove,
+  rename,
+  saveAs,
+  suggestName,
+  switchTo,
+} from '../../lib/settings/savedProfiles';
+import type { Key } from '../../lib/i18n/en';
+import { ABOUT_MAX, ACCENTS, resolvePicture, type SavedProfile } from '../../lib/settings/types';
+import { useT } from '../../state/I18nProvider';
 import { useSettings } from '../../state/SettingsProvider';
 import type { Presence, User } from '../../types';
 
-const PRESENCES: { value: Presence; label: string }[] = [
-  { value: 'online', label: 'Online' },
-  { value: 'idle', label: 'Idle' },
-  { value: 'dnd', label: 'Do not disturb' },
-  { value: 'offline', label: 'Invisible' },
+/* "Invisible" rather than "Offline" here on purpose: this is the thing you are
+   choosing to appear as, not the thing you have become. */
+const PRESENCES: { value: Presence; label: Key }[] = [
+  { value: 'online', label: 'presence.online' },
+  { value: 'idle', label: 'presence.idle' },
+  { value: 'dnd', label: 'presence.dnd' },
+  { value: 'offline', label: 'presence.invisible' },
 ];
 
 export function ProfileSection({ user, fallbackName }: { user: User; fallbackName: string }) {
   const { settings, update, reset } = useSettings();
+  const t = useT();
   const profile = settings.profile;
-  const fileInput = useRef<HTMLInputElement>(null);
-  const [imageError, setImageError] = useState<string | null>(null);
-
-  async function pickAvatar(file: File | undefined) {
-    if (!file) return;
-    setImageError(null);
-    try {
-      update('profile', { avatar: await readAvatarFile(file) });
-    } catch (caught) {
-      setImageError(
-        caught instanceof AvatarError ? caught.message : 'That image could not be used.',
-      );
-    }
-  }
 
   return (
     <>
       <PreviewCard user={user} />
 
-      <Group title="picture">
-        <Row
-          label="Avatar"
-          hint="Cropped square and scaled to 128px. Everything the file carried
-                (including where a phone photo was taken) is dropped in the
-                process."
-        >
-          <Actions>
-            <button
-              type="button"
-              className="set-btn"
-              onClick={() => fileInput.current?.click()}
-            >
-              {profile.avatar ? 'Replace' : 'Upload'}
-            </button>
-            {profile.avatar && (
-              <button
-                type="button"
-                className="set-btn set-btn--quiet"
-                onClick={() => update('profile', { avatar: null })}
-              >
-                Remove
-              </button>
-            )}
-          </Actions>
-        </Row>
+      <ProfilePicker fallbackName={fallbackName} />
 
-        <input
-          ref={fileInput}
-          type="file"
-          accept="image/*"
-          hidden
-          onChange={(event) => {
-            void pickAvatar(event.target.files?.[0]);
-            // Cleared so picking the same file twice still fires a change.
-            event.target.value = '';
-          }}
+      <Group title={t('profile.group.picture')}>
+        <PictureField
+          label={t('profile.avatar')}
+          hint={t('profile.avatarHint')}
+          value={profile.avatar}
+          frame={PICTURE_FRAMES.avatar}
+          shape="avatar"
+          title="crop.title"
+          body="crop.body"
+          onChange={(avatar) => update('profile', { avatar })}
         />
 
-        {imageError && <Note tone="warn">{imageError}</Note>}
+        <PictureField
+          label={t('profile.banner')}
+          hint={t('profile.bannerHint')}
+          value={profile.banner}
+          frame={PICTURE_FRAMES.banner}
+          title="crop.bannerTitle"
+          body="crop.bannerBody"
+          onChange={(banner) => update('profile', { banner })}
+        />
 
         <Row
-          label="Accent"
-          hint={
-            profile.avatar
-              ? 'Used behind your name and wherever your picture does not fit.'
-              : 'The tile you get until you upload a picture.'
-          }
+          label={t('profile.accent')}
+          hint={t(profile.avatar ? 'profile.accentHint' : 'profile.accentHintNoPic')}
           stacked
         >
-          <div className="set-swatches" role="radiogroup" aria-label="Accent colour">
+          <div
+            className="set-swatches"
+            role="radiogroup"
+            aria-label={t('profile.accent')}
+          >
             {ACCENTS.map((accent) => (
               <button
                 key={accent}
@@ -114,41 +108,40 @@ export function ProfileSection({ user, fallbackName }: { user: User; fallbackNam
         </Row>
       </Group>
 
-      <Group title="identity">
+      <Group title={t('profile.group.identity')}>
         <TextField
-          label="Display name"
+          label={t('profile.displayName')}
           value={profile.displayName}
           maxLength={32}
           counter
           placeholder={fallbackName}
           onChange={(value) => update('profile', { displayName: value })}
-          hint="What people see instead of your username. Leave it empty to use your username."
+          hint={t('profile.displayNameHint')}
         />
 
-        <TextField
-          label="About"
-          value={profile.about}
-          maxLength={140}
-          counter
-          placeholder="Something short."
-          onChange={(value) => update('profile', { about: value })}
-        />
-
-        <Row label="Presence" hint="What your contacts are told you are up to.">
+        <Row label={t('profile.presence')} hint={t('profile.presenceHint')}>
           <Segmented
-            label="Presence"
+            label={t('profile.presence')}
             value={profile.presence}
-            options={PRESENCES}
+            options={PRESENCES.map((one) => ({ ...one, label: t(one.label) }))}
             onChange={(presence) => update('profile', { presence })}
           />
         </Row>
       </Group>
 
-      <Note tone="sealed">
-        Your profile is stored on this device, not on the server. Sharing it with
-        your contacts needs an endpoint that does not exist yet, and when it
-        does, it will be sent encrypted, the same way your messages are.
-      </Note>
+      <Group title={t('profile.group.about')} hint={t('profile.aboutHint')}>
+        <TextArea
+          label={t('profile.about')}
+          value={profile.about}
+          maxLength={ABOUT_MAX}
+          rows={5}
+          counter
+          placeholder={t('profile.aboutPlaceholder')}
+          onChange={(value) => update('profile', { about: value })}
+        />
+      </Group>
+
+      <Note tone="sealed">{t('profile.note')}</Note>
 
       <Actions>
         <button
@@ -156,20 +149,205 @@ export function ProfileSection({ user, fallbackName }: { user: User; fallbackNam
           className="set-btn set-btn--quiet"
           onClick={() => reset('profile')}
         >
-          Reset profile
+          {t('profile.reset')}
         </button>
       </Actions>
     </>
   );
 }
 
+/**
+ * The shelf of saved profiles.
+ *
+ * Switching is one click and takes effect immediately, like every other
+ * control on this screen. There is no save button for edits: whatever you
+ * change while a profile is loaded is already in it, which is why the only
+ * thing this asks you to name is the profile itself.
+ */
+function ProfilePicker({ fallbackName }: { fallbackName: string }) {
+  const { settings, savedProfiles, applyProfiles } = useSettings();
+  const t = useT();
+  const { active } = settings.profiles;
+  const state = { profile: settings.profile, profiles: settings.profiles };
+  const loaded = savedProfiles.find((entry) => entry.id === active) ?? null;
+  const full = savedProfiles.length >= MAX_PROFILES;
+
+  const [draft, setDraft] = useState('');
+  const [confirming, setConfirming] = useState(false);
+
+  return (
+    <Group title={t('profile.group.profiles')}>
+      {savedProfiles.length > 0 && (
+        <div
+          className="set-profiles"
+          role="radiogroup"
+          aria-label={t('profile.saved')}
+        >
+          {savedProfiles.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              role="radio"
+              aria-checked={entry.id === active}
+              className={
+                entry.id === active ? 'set-profile set-profile--on' : 'set-profile'
+              }
+              onClick={() => {
+                setConfirming(false);
+                applyProfiles(switchTo(state, entry.id));
+              }}
+            >
+              <ProfileTile entry={entry} fallbackName={fallbackName} />
+              <span className="set-profile__name">{entry.name}</span>
+            </button>
+          ))}
+
+          <button
+            type="button"
+            className="set-profile set-profile--new"
+            disabled={full}
+            title={full ? t('profile.limitShort', { max: MAX_PROFILES }) : undefined}
+            onClick={() => {
+              setConfirming(false);
+              applyProfiles(addBlank(state, suggestName(savedProfiles)));
+            }}
+          >
+            <span className="set-profile__plus" aria-hidden="true">
+              +
+            </span>
+            <span className="set-profile__name">{t('profile.new')}</span>
+          </button>
+        </div>
+      )}
+
+      {loaded ? (
+        <>
+          <TextField
+            label={t('profile.name')}
+            value={loaded.name}
+            maxLength={MAX_PROFILE_NAME}
+            onChange={(value) => applyProfiles(rename(state, loaded.id, value))}
+            hint={t('profile.nameHint')}
+          />
+          <Actions>
+            <button
+              type="button"
+              className="set-btn"
+              disabled={full}
+              onClick={() =>
+                applyProfiles(
+                  duplicate(state, loaded.id, t('profile.copyOf', { name: loaded.name })),
+                )
+              }
+            >
+              {t('profile.duplicate')}
+            </button>
+            {confirming ? (
+              <>
+                <button
+                  type="button"
+                  className="set-btn set-btn--danger"
+                  onClick={() => {
+                    setConfirming(false);
+                    applyProfiles(remove(state, loaded.id));
+                  }}
+                >
+                  {t('vault.settings.deleteIt')}
+                </button>
+                <button
+                  type="button"
+                  className="set-btn set-btn--quiet"
+                  onClick={() => setConfirming(false)}
+                >
+                  {t('vault.settings.keepIt')}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="set-btn set-btn--quiet"
+                onClick={() => setConfirming(true)}
+              >
+                {t('common.delete')}
+              </button>
+            )}
+          </Actions>
+          {confirming && (
+            <Note tone="warn">{t('profile.deleteNote')}</Note>
+          )}
+        </>
+      ) : (
+        <>
+          <Row
+            label={t(savedProfiles.length === 0 ? 'profile.keepThis' : 'profile.notSaved')}
+            hint={t(
+              savedProfiles.length === 0 ? 'profile.keepThisHint' : 'profile.notSavedHint',
+            )}
+            stacked
+          >
+            <div className="set-profile-save">
+              <input
+                className="set-input"
+                value={draft}
+                maxLength={MAX_PROFILE_NAME}
+                placeholder={suggestName(savedProfiles)}
+                aria-label={t('profile.nameFor')}
+                onChange={(event) => setDraft(event.target.value)}
+              />
+              <button
+                type="button"
+                className="set-btn"
+                disabled={full}
+                onClick={() => {
+                  applyProfiles(saveAs(state, draft || suggestName(savedProfiles)));
+                  setDraft('');
+                }}
+              >
+                {t('common.save')}
+              </button>
+            </div>
+          </Row>
+        </>
+      )}
+
+      {full && <Note>{t('profile.limit', { max: MAX_PROFILES })}</Note>}
+    </Group>
+  );
+}
+
+/** The little face on a profile chip. The saved one, not the live one. */
+function ProfileTile({
+  entry,
+  fallbackName,
+}: {
+  entry: SavedProfile;
+  fallbackName: string;
+}) {
+  const name = displayName(entry.profile, fallbackName);
+  return entry.profile.avatar ? (
+    <img className="set-profile__face" src={entry.profile.avatar} alt="" />
+  ) : (
+    <span className="set-profile__face" style={{ background: entry.profile.accent }}>
+      {avatarInitial(name)}
+    </span>
+  );
+}
+
 function PreviewCard({ user }: { user: User }) {
   const { settings } = useSettings();
+  const t = useT();
   const profile = settings.profile;
+
+  // Read through the resolver rather than straight out of settings: this one
+  // reaches CSS as url(...), and the settings blob is hand-editable.
+  const banner = resolvePicture(profile.banner);
 
   return (
     <div className="set-preview" style={{ ['--accent' as string]: profile.accent }}>
-      <div className="set-preview__banner" />
+      <div
+        className={banner ? 'set-preview__banner set-preview__banner--picture' : 'set-preview__banner'}
+        style={banner ? { backgroundImage: `url(${banner})` } : undefined}
+      />
       <div className="set-preview__body">
         <div className="set-preview__avatar">
           {/* No presence dot on the avatar: it is sized as a fraction of the
@@ -186,7 +364,7 @@ function PreviewCard({ user }: { user: User }) {
           <span className="mono">{user.username}</span>
           <span className="set-preview__sep">·</span>
           <span className={`set-preview__dot set-preview__dot--${profile.presence}`} />
-          <span>{presenceLabel(profile.presence)}</span>
+          <span>{t(presenceLabel(profile.presence))}</span>
         </p>
 
         {profile.about.trim() && <p className="set-preview__about">{profile.about}</p>}

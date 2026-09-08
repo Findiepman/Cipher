@@ -1,3 +1,4 @@
+import { useT } from '../state/I18nProvider';
 import type { Channel, User } from '../types';
 import { Avatar } from './Avatar';
 import { PhoneIcon, ProfileIcon } from './Icons';
@@ -37,6 +38,7 @@ export function ChatHeader({
   callState = 'none',
 }: Props) {
   const menu = usePersonMenu();
+  const t = useT();
   const shown = members.slice(0, STACK_LIMIT);
   const overflow = members.length - shown.length;
 
@@ -84,7 +86,7 @@ export function ChatHeader({
         {callState === 'here' ? (
           <span className="chat-header__action chat-header__action--live" role="status">
             <span className="chat-header__call-dot" aria-hidden />
-            <span className="chat-header__action-label">In a call</span>
+            <span className="chat-header__action-label">{t('call.inACall')}</span>
           </span>
         ) : (
           onCall && (
@@ -93,11 +95,19 @@ export function ChatHeader({
               className="chat-header__action"
               onClick={onCall}
               disabled={callState === 'elsewhere'}
-              title={callState === 'elsewhere' ? 'Already in a call' : `Call ${channel.name}`}
-              aria-label={callState === 'elsewhere' ? 'Already in a call' : `Call ${channel.name}`}
+              title={
+                callState === 'elsewhere'
+                  ? t('call.alreadyIn')
+                  : t('call.callName', { name: channel.name })
+              }
+              aria-label={
+                callState === 'elsewhere'
+                  ? t('call.alreadyIn')
+                  : t('call.callName', { name: channel.name })
+              }
             >
               <PhoneIcon size={17} />
-              <span className="chat-header__action-label">Call</span>
+              <span className="chat-header__action-label">{t('call.call')}</span>
             </button>
           )
         )}
@@ -108,11 +118,11 @@ export function ChatHeader({
             className={`chat-header__action${profileOpen ? ' chat-header__action--active' : ''}`}
             onClick={onToggleProfile}
             aria-pressed={profileOpen}
-            title={profileOpen ? 'Hide profile' : 'Show profile'}
-            aria-label={profileOpen ? 'Hide profile' : 'Show profile'}
+            title={t(profileOpen ? 'chat.hideProfile' : 'chat.showProfile')}
+            aria-label={t(profileOpen ? 'chat.hideProfile' : 'chat.showProfile')}
           >
             <ProfileIcon size={17} />
-            <span className="chat-header__action-label">Profile</span>
+            <span className="chat-header__action-label">{t('chat.profile')}</span>
           </button>
         )}
       </div>

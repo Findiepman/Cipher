@@ -9,12 +9,14 @@
  */
 import { useState, type FormEvent } from 'react';
 import { PasswordField } from '../components/PasswordField';
+import { useT } from '../state/I18nProvider';
 import { useSession } from '../state/SessionProvider';
 import { AuthErrorNote, AuthShell } from './AuthScreen';
 import '../styles/auth.css';
 
 export function UnlockScreen() {
   const { unlock, logout, account, busy } = useSession();
+  const t = useT();
   const [password, setPassword] = useState('');
   const [error, setError] = useState<unknown>(null);
 
@@ -30,17 +32,16 @@ export function UnlockScreen() {
 
   return (
     <AuthShell>
-      <h1 className="auth-title">Unlock your messages</h1>
+      <h1 className="auth-title">{t('unlock.title')}</h1>
       <p className="auth-lede">
-        Signed in as {account?.email ?? 'this account'}. Enter your password to
-        pick up where you left off.
+        {t('unlock.lede', { account: account?.email ?? t('strip.thisAccount') })}
       </p>
 
       <AuthErrorNote error={error} />
 
       <form onSubmit={submit}>
         <PasswordField
-          label="Password"
+          label={t('auth.password')}
           value={password}
           onChange={setPassword}
           autoComplete="current-password"
@@ -50,12 +51,12 @@ export function UnlockScreen() {
         />
 
         <button className="auth-submit" type="submit" disabled={busy || !password}>
-          {busy ? 'Unlocking…' : 'Unlock'}
+          {t(busy ? 'unlock.unlocking' : 'unlock.go')}
         </button>
       </form>
 
       <button className="auth-secondary" type="button" onClick={() => void logout()} disabled={busy}>
-        Sign out instead
+        {t('unlock.signOutInstead')}
       </button>
     </AuthShell>
   );

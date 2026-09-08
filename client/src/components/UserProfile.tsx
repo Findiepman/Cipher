@@ -12,6 +12,8 @@
  * you are actually talking to, which matters when the label is one you chose
  * and they never agreed to.
  */
+import { shortDay } from '../lib/i18n/format';
+import { useI18n } from '../state/I18nProvider';
 import type { User } from '../types';
 import { Avatar, presenceLabel } from './Avatar';
 import { BanIcon, MessageIcon, PencilIcon, UserMinusIcon } from './Icons';
@@ -31,6 +33,7 @@ type Props = {
 };
 
 export function UserProfile({ user, isFriend, friendsSince, onAction, onClose }: Props) {
+  const { locale, t } = useI18n();
   return (
     <div className="profile">
       {/* A band of the person's own colour, so two profiles never look alike
@@ -41,7 +44,7 @@ export function UserProfile({ user, isFriend, friendsSince, onAction, onClose }:
             type="button"
             className="profile__close"
             onClick={onClose}
-            aria-label="Close profile"
+            aria-label={t('userProfile.close')}
           >
             <CloseGlyph />
           </button>
@@ -58,24 +61,24 @@ export function UserProfile({ user, isFriend, friendsSince, onAction, onClose }:
 
         <dl className="profile__facts">
           <div className="profile__fact">
-            <dt>Status</dt>
-            <dd>{presenceLabel(user.presence)}</dd>
+            <dt>{t('userProfile.status')}</dt>
+            <dd>{t(presenceLabel(user.presence))}</dd>
           </div>
 
           {user.nickname && (
             <div className="profile__fact">
-              <dt>Nickname</dt>
+              <dt>{t('userProfile.nickname')}</dt>
               <dd>
                 {user.nickname}
-                <span className="profile__note">only you see this</span>
+                <span className="profile__note">{t('userProfile.onlyYou')}</span>
               </dd>
             </div>
           )}
 
           {friendsSince && (
             <div className="profile__fact">
-              <dt>Friends since</dt>
-              <dd>{formatDay(friendsSince)}</dd>
+              <dt>{t('userProfile.friendsSince')}</dt>
+              <dd>{shortDay(friendsSince, locale)}</dd>
             </div>
           )}
         </dl>
@@ -88,7 +91,7 @@ export function UserProfile({ user, isFriend, friendsSince, onAction, onClose }:
               onClick={() => onAction('message')}
             >
               <MessageIcon size={15} />
-              Message
+              {t('userProfile.message')}
             </button>
           )}
 
@@ -98,7 +101,7 @@ export function UserProfile({ user, isFriend, friendsSince, onAction, onClose }:
             onClick={() => onAction('nickname')}
           >
             <PencilIcon size={15} />
-            {user.nickname ? 'Change nickname' : 'Add nickname'}
+            {t(user.nickname ? 'userProfile.changeNickname' : 'userProfile.addNickname')}
           </button>
 
           {isFriend && (
@@ -108,7 +111,7 @@ export function UserProfile({ user, isFriend, friendsSince, onAction, onClose }:
               onClick={() => onAction('unfriend')}
             >
               <UserMinusIcon size={15} />
-              Remove friend
+              {t('userProfile.unfriend')}
             </button>
           )}
 
@@ -118,7 +121,7 @@ export function UserProfile({ user, isFriend, friendsSince, onAction, onClose }:
             onClick={() => onAction('block')}
           >
             <BanIcon size={15} />
-            Block
+            {t('userProfile.block')}
           </button>
         </div>
       </div>
@@ -143,10 +146,3 @@ function CloseGlyph() {
   );
 }
 
-function formatDay(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-}

@@ -1,0 +1,123 @@
+/* The picture cropper: avatars, profile banners and wallpapers.
+ *
+ * Wider than the confirmations dialog.css was written for, because the frame
+ * has to be big enough to aim with on a phone. The mask is a squircle at the
+ * same 32% radius avatar.css uses, so what you line up for an avatar is
+ * exactly what gets drawn everywhere else. A banner and a wallpaper have no
+ * mask: the frame is already their real shape, set inline from the frame the
+ * crop will be baked at.
+ */
+
+.crop {
+  max-width: 420px;
+}
+
+.crop__frame {
+  position: relative;
+  width: 100%;
+  /* The aspect is inline, from the frame the picture is baked at. A wide one
+     simply fills the dialog; only the square needs capping, below. */
+  margin: 4px auto 0;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  background: var(--bg-app);
+  /* The gesture belongs to the cropper, not to the page behind it: without
+     this, dragging on a phone scrolls the settings screen instead. */
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+
+/* Capped so the dialog still fits a short laptop window. */
+.crop__frame--avatar {
+  max-height: min(56vh, 340px);
+  max-width: min(56vh, 340px);
+}
+
+.crop__frame:active {
+  cursor: grabbing;
+}
+
+.crop__frame:focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: 2px;
+}
+
+.crop__image {
+  position: absolute;
+  max-width: none; /* Sized by the crop, not by the frame it overflows. */
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+/* Everything outside the avatar shape, dimmed. One element: the ring is the
+   inner edge of a very large box-shadow, so there is no second overlay to keep
+   in sync with the frame's size. */
+.crop__mask {
+  position: absolute;
+  inset: 10px;
+  border-radius: 32%;
+  box-shadow: 0 0 0 9999px rgba(16, 13, 12, 0.62);
+  border: 1px solid rgba(242, 115, 78, 0.55);
+  pointer-events: none;
+}
+
+.crop__zoom {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.crop__zoom-label {
+  color: var(--text-mute);
+  font-size: 12px;
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
+}
+
+.crop__zoom input[type='range'] {
+  flex: 1;
+  accent-color: var(--ember);
+  /* Comfortable to drag with a thumb, not just a mouse. */
+  height: 24px;
+}
+
+.crop__zoom-value {
+  min-width: 34px;
+  color: var(--text-mute);
+  font-size: 12px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pushed away from Cancel/Save: it undoes your work, and sitting flush against
+   the confirm button is how it gets hit by accident. */
+.crop__recentre {
+  margin-right: auto;
+}
+
+@media (max-width: 520px) {
+  .dialog__scrim:has(.crop) {
+    padding: 12px;
+  }
+
+  .crop {
+    padding: 16px;
+  }
+
+  .crop__frame--avatar {
+    max-height: 62vw;
+    max-width: 62vw;
+  }
+
+  /* Full-width targets, in the order a thumb reaches them. */
+  .crop .dialog__actions {
+    flex-wrap: wrap;
+  }
+
+  .crop .dialog__button {
+    flex: 1 0 auto;
+    padding: 11px 14px;
+  }
+}

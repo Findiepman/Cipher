@@ -14,6 +14,12 @@
  * browser profile) so that a device that has been left unlocked reveals nothing
  * about either of the other two.
  *
+ * `vault` and `vaultReset` are the two wrappings of the vault key: the passkey
+ * opens one, the account password opens the other, and they are the same key
+ * inside. Separate labels are what stop a known passkey from saying anything
+ * about the password wrap, which matters more here than elsewhere because a
+ * passkey is deliberately allowed to be short. See vault-plan.md.
+ *
  * These strings are part of the stored format. Changing one invalidates every
  * blob already written under it, so treat them as frozen.
  */
@@ -22,7 +28,13 @@ export const DOMAIN = {
   keywrap: 'cipher/v1/key-wrap/password',
   recovery: 'cipher/v1/key-wrap/recovery-code',
   device: 'cipher/v1/key-wrap/device',
+  vault: 'cipher/v1/key-wrap/vault-passkey',
+  vaultReset: 'cipher/v1/key-wrap/vault-password',
   fingerprint: 'cipher/v1/fingerprint',
 } as const;
 
-export type WrapDomain = typeof DOMAIN.keywrap | typeof DOMAIN.recovery;
+export type WrapDomain =
+  | typeof DOMAIN.keywrap
+  | typeof DOMAIN.recovery
+  | typeof DOMAIN.vault
+  | typeof DOMAIN.vaultReset;

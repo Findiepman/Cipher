@@ -47,6 +47,14 @@
   color: var(--text-hi);
 }
 
+.context-menu__item:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+.context-menu__item:disabled:hover {
+  background: none;
+}
+
 .context-menu__item--danger {
   color: var(--red);
 }

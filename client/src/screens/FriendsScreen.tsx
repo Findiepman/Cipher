@@ -16,8 +16,12 @@ import { Avatar } from '../components/Avatar';
 import { usePersonMenu } from '../components/PersonMenu';
 import { BanIcon, ClockIcon, InboxIcon, ProfileIcon, UserPlusIcon } from '../components/Icons';
 import { ApiError } from '../lib/api';
+import type { Key } from '../lib/i18n/en';
+import { shortDay } from '../lib/i18n/format';
+import type { Phrase } from '../lib/i18n/translate';
 import { colorFor } from '../lib/presentation';
 import { useChat } from '../state/ChatProvider';
+import { useI18n, useT } from '../state/I18nProvider';
 import type { BlockedUserDto, FriendRequestDto } from '../lib/api/types';
 import '../styles/friends.css';
 
@@ -25,17 +29,18 @@ type Tab = 'all' | 'add' | 'sent' | 'received' | 'blocked';
 
 export function FriendsScreen() {
   const { friends, incoming, outgoing, blocked } = useChat();
+  const t = useT();
   const [tab, setTab] = useState<Tab>('all');
 
   return (
     <div className="friends">
-      <nav className="friends__tabs" aria-label="Friends">
+      <nav className="friends__tabs" aria-label={t('chat.friends')}>
         <TabButton
           tab="all"
           current={tab}
           onSelect={setTab}
           icon={<ProfileIcon size={15} />}
-          label="All friends"
+          label={t('friends.tab.all')}
           count={friends.length}
         />
         <TabButton
@@ -43,14 +48,14 @@ export function FriendsScreen() {
           current={tab}
           onSelect={setTab}
           icon={<UserPlusIcon size={15} />}
-          label="Add friend"
+          label={t('friends.tab.add')}
         />
         <TabButton
           tab="sent"
           current={tab}
           onSelect={setTab}
           icon={<ClockIcon size={15} />}
-          label="Sent"
+          label={t('friends.tab.sent')}
           count={outgoing.length}
         />
         {/* The only count drawn in ember: it is the one asking for something. */}
@@ -59,7 +64,7 @@ export function FriendsScreen() {
           current={tab}
           onSelect={setTab}
           icon={<InboxIcon size={15} />}
-          label="Received"
+          label={t('friends.tab.received')}
           count={incoming.length}
           urgent
         />
@@ -68,7 +73,7 @@ export function FriendsScreen() {
           current={tab}
           onSelect={setTab}
           icon={<BanIcon size={15} />}
-          label="Blocked"
+          label={t('friends.tab.blocked')}
           count={blocked.length}
         />
       </nav>
@@ -126,18 +131,14 @@ function TabButton({
 function AllFriends() {
   const { friends, usersById, openDmWith } = useChat();
   const menu = usePersonMenu();
+  const t = useT();
 
   if (friends.length === 0) {
-    return (
-      <Empty
-        title="No friends yet"
-        body="Add someone by the exact username they gave you, under Add friend."
-      />
-    );
+    return <Empty title={t('friends.noneTitle')} body={t('friends.noneBody')} />;
   }
 
   return (
-    <Section label="friends" count={friends.length}>
+    <Section label={t('friends.section.friends')} count={friends.length}>
       {friends.map((friend) => {
         const user = usersById.get(friend.id);
         return (
@@ -154,15 +155,17 @@ function AllFriends() {
               <span className="friends__handle mono">{friend.username}</span>
             </span>
             <button type="button" onClick={() => void openDmWith(friend.id)}>
-              Message
+              {t('userProfile.message')}
             </button>
             <button
               type="button"
               className="friends__quiet"
               onClick={(event) => menu.open(event, friend.id)}
-              aria-label={`More actions for ${friend.nickname ?? friend.username}`}
+              aria-label={t('friends.moreFor', {
+                name: friend.nickname ?? friend.username,
+              })}
             >
-              More
+              {t('friends.more')}
             </button>
           </div>
         );
@@ -175,9 +178,15 @@ function AllFriends() {
 
 function AddFriend() {
   const { addFriend } = useChat();
+  const t = useT();
   const [username, setUsername] = useState('');
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null);
+  // A phrase rather than a sentence, so the notice re-renders in the new
+  // language if it is on screen when the language changes.
+  const [notice, setNotice] = useState<{
+    tone: 'ok' | 'bad';
+    phrase: Phrase<Key>;
+  } | null>(null);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -189,9 +198,9 @@ function AddFriend() {
     try {
       const result = await addFriend(handle);
       setUsername('');
-      setNotice({ tone: 'ok', text: outcomeText(result.status, result.user.username) });
+      setNotice({ tone: 'ok', phrase: outcome(result.status, result.user.username) });
     } catch (error) {
-      setNotice({ tone: 'bad', text: failureText(error) });
+      setNotice({ tone: 'bad', phrase: failure(error) });
     } finally {
       setBusy(false);
     }
@@ -200,27 +209,28 @@ function AddFriend() {
   return (
     <form className="friends__add" onSubmit={(event) => void submit(event)}>
       <label className="eyebrow" htmlFor="add-friend">
-        add someone
+        {t('friends.addSomeone')}
       </label>
-      <p className="friends__lede">
-        You need their exact username. There is no directory to browse, which is
-        deliberate: it would be a list of everyone with an account here.
-      </p>
+      <p className="friends__lede">{t('friends.addLede')}</p>
       <div className="friends__add-row">
         <input
           id="add-friend"
           value={username}
           onChange={(event) => setUsername(event.target.value)}
-          placeholder="their exact username"
+          placeholder={t('friends.addPlaceholder')}
           autoComplete="off"
           spellCheck={false}
           disabled={busy}
         />
         <button type="submit" disabled={busy || username.trim().length === 0}>
-          {busy ? 'Sending…' : 'Send request'}
+          {t(busy ? 'account.sending' : 'friends.sendRequest')}
         </button>
       </div>
-      {notice && <p className={`friends__notice friends__notice--${notice.tone}`}>{notice.text}</p>}
+      {notice && (
+        <p className={`friends__notice friends__notice--${notice.tone}`}>
+          {t(notice.phrase)}
+        </p>
+      )}
     </form>
   );
 }
@@ -229,21 +239,22 @@ function AddFriend() {
 
 function SentRequests({ requests }: { requests: FriendRequestDto[] }) {
   const { cancelRequest } = useChat();
+  const t = useT();
 
   if (requests.length === 0) {
-    return <Empty title="Nothing waiting" body="Requests you send show up here until they answer." />;
+    return <Empty title={t('friends.sentNone')} body={t('friends.sentNoneBody')} />;
   }
 
   return (
-    <Section label="sent" count={requests.length}>
+    <Section label={t('friends.section.sent')} count={requests.length}>
       {requests.map((request) => (
-        <RequestRow key={request.id} request={request} note="waiting for them">
+        <RequestRow key={request.id} request={request} note={t('friends.waitingFor')}>
           <button
             type="button"
             className="friends__quiet"
             onClick={() => void cancelRequest(request.id)}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
         </RequestRow>
       ))}
@@ -253,24 +264,25 @@ function SentRequests({ requests }: { requests: FriendRequestDto[] }) {
 
 function ReceivedRequests({ requests }: { requests: FriendRequestDto[] }) {
   const { acceptRequest, declineRequest } = useChat();
+  const t = useT();
 
   if (requests.length === 0) {
-    return <Empty title="Nothing to answer" body="Requests other people send you land here." />;
+    return <Empty title={t('friends.recvNone')} body={t('friends.recvNoneBody')} />;
   }
 
   return (
-    <Section label="received" count={requests.length}>
+    <Section label={t('friends.section.received')} count={requests.length}>
       {requests.map((request) => (
-        <RequestRow key={request.id} request={request} note="wants to talk to you">
+        <RequestRow key={request.id} request={request} note={t('friends.wantsToTalk')}>
           <button type="button" onClick={() => void acceptRequest(request.id)}>
-            Accept
+            {t('friends.accept')}
           </button>
           <button
             type="button"
             className="friends__quiet"
             onClick={() => void declineRequest(request.id)}
           >
-            Decline
+            {t('friends.decline')}
           </button>
         </RequestRow>
       ))}
@@ -312,6 +324,7 @@ function RequestRow({
 
 function BlockedUsers({ blocked, onAdd }: { blocked: BlockedUserDto[]; onAdd: () => void }) {
   const { unblockUser } = useChat();
+  const { locale, t } = useI18n();
   // Kept after the row disappears, because unblocking is the first half of
   // "unblock and then add them again" and the list is the wrong place to
   // finish that: they are not blocked any more, so they are not in it.
@@ -326,21 +339,17 @@ function BlockedUsers({ blocked, onAdd }: { blocked: BlockedUserDto[]; onAdd: ()
     <>
       {justUnblocked && (
         <p className="friends__notice friends__notice--ok">
-          {justUnblocked} is unblocked. You are strangers again, so either of you
-          can send a friend request.{' '}
+          {t('friends.unblocked', { name: justUnblocked })}{' '}
           <button type="button" className="friends__inline" onClick={onAdd}>
-            Add them back
+            {t('friends.addBack')}
           </button>
         </p>
       )}
 
       {blocked.length === 0 ? (
-        <Empty
-          title="Nobody blocked"
-          body="Blocking someone ends the friendship and stops them reaching you. They are never told."
-        />
+        <Empty title={t('friends.blockedNone')} body={t('friends.blockedNoneBody')} />
       ) : (
-        <Section label="blocked" count={blocked.length}>
+        <Section label={t('friends.section.blocked')} count={blocked.length}>
           {blocked.map((user) => (
             <div key={user.id} className="friends__row">
               <Avatar
@@ -355,10 +364,12 @@ function BlockedUsers({ blocked, onAdd }: { blocked: BlockedUserDto[]; onAdd: ()
               />
               <span className="friends__text">
                 <span className="friends__name">{user.username}</span>
-                <span className="friends__handle">blocked {formatDay(user.blockedAt)}</span>
+                <span className="friends__handle">
+                  {t('friends.blockedOn', { day: shortDay(user.blockedAt, locale) })}
+                </span>
               </span>
               <button type="button" onClick={() => void unblock(user)}>
-                Unblock
+                {t('friends.unblock')}
               </button>
             </div>
           ))}
@@ -399,42 +410,41 @@ function Empty({ title, body }: { title: string; body: string }) {
   );
 }
 
-function formatDay(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-}
-
-function outcomeText(status: string, username: string): string {
+function outcome(status: string, name: string): Phrase<Key> {
   switch (status) {
     case 'accepted':
       // They had already asked. Both sides saying yes is consent, so there is
       // nothing left to wait for.
-      return `You and ${username} are now friends, because they had already asked.`;
+      return { key: 'friends.outcome.accepted', vars: { name } };
     case 'already_friends':
-      return `You are already friends with ${username}.`;
+      return { key: 'friends.outcome.already', vars: { name } };
     default:
-      return `Request sent to ${username}.`;
+      return { key: 'friends.outcome.sent', vars: { name } };
   }
 }
 
-function failureText(error: unknown): string {
-  if (!(error instanceof ApiError)) return 'Could not send that request.';
+/**
+ * The one place a server error is translated rather than passed through.
+ *
+ * These arrive as codes, not prose, which is exactly what makes them
+ * translatable: the app decides what each code means in words. Everywhere the
+ * server sends a sentence instead, that sentence stays in its own English.
+ */
+function failure(error: unknown): Phrase<Key> {
+  if (!(error instanceof ApiError)) return { key: 'friends.error.generic' };
 
   switch (error.code) {
     case 'user_not_found':
-      return 'No account with that username. Check the spelling, it has to be exact.';
+      return { key: 'friends.error.notFound' };
     case 'cannot_friend_self':
-      return 'That is you.';
+      return { key: 'friends.error.self' };
     case 'blocked':
-      return 'You have blocked this user. Unblock them first, under Blocked.';
+      return { key: 'friends.error.blocked' };
     case 'rate_limited':
-      return 'Too many requests for now. Try again in an hour.';
+      return { key: 'friends.error.rateLimited' };
     case 'validation_failed':
-      return 'That does not look like a username.';
+      return { key: 'friends.error.invalid' };
     default:
-      return 'Could not send that request.';
+      return { key: 'friends.error.generic' };
   }
 }

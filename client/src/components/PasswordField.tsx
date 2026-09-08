@@ -12,14 +12,20 @@
  * move the state rather than which state it is in.
  */
 import { useId, useState } from 'react';
+import { useT } from '../state/I18nProvider';
 import { EyeIcon, EyeOffIcon } from './Icons';
 
 type Props = {
   label: string;
   value: string;
   onChange: (value: string) => void;
-  autoComplete: 'current-password' | 'new-password';
+  autoComplete: 'current-password' | 'new-password' | 'off';
   disabled?: boolean;
+  /**
+   * `numeric` puts a phone's keypad under a digits-only secret, which the vault
+   * passkey can be. Text everywhere else, which is the default a password wants.
+   */
+  inputMode?: 'text' | 'numeric';
   autoFocus?: boolean;
   required?: boolean;
   /** Rendered under the input, inside the same label. */
@@ -34,8 +40,10 @@ export function PasswordField({
   disabled,
   autoFocus,
   required,
+  inputMode,
   children,
 }: Props) {
+  const t = useT();
   const [revealed, setRevealed] = useState(false);
   const id = useId();
 
@@ -51,6 +59,7 @@ export function PasswordField({
           className="auth-input auth-input--password"
           type={revealed ? 'text' : 'password'}
           autoComplete={autoComplete}
+          inputMode={inputMode}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           disabled={disabled}
@@ -64,8 +73,8 @@ export function PasswordField({
           disabled={disabled}
           tabIndex={-1}
           aria-pressed={revealed}
-          aria-label={revealed ? 'Hide password' : 'Show password'}
-          title={revealed ? 'Hide password' : 'Show password'}
+          aria-label={t(revealed ? 'field.hidePassword' : 'field.showPassword')}
+          title={t(revealed ? 'field.hidePassword' : 'field.showPassword')}
         >
           {revealed ? <EyeOffIcon size={17} /> : <EyeIcon size={17} />}
         </button>

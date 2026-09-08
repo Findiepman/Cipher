@@ -105,10 +105,13 @@
 
 /* --- the content pane --------------------------------------------------- */
 
+/* No padding at the top: the sticky topline below carries it instead, so the
+   bar covers the whole strip it is pinned to and nothing scrolls through above
+   it. */
 .settings__pane {
   flex: 1 1 auto;
   min-width: 0;
-  padding: 20px 28px 80px;
+  padding: 0 28px 80px;
 }
 
 .settings__pane-inner {
@@ -116,13 +119,37 @@
   margin: 0 auto;
 }
 
+/* Follows you down the page. Every section here is taller than the window at
+   some point, and scrolling back to the top to find the way out is the small
+   annoyance this removes. Escape still closes it too.
+   The pane's top padding lives on this element (see above) so that the bar,
+   once it is pinned, covers every pixel between the top of the pane and itself.
+   Give the padding back to the pane and content scrolls visibly over it. */
 .settings__topline {
+  position: sticky;
+  top: 0;
+  z-index: 3;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 8px;
+  margin: 0 0 8px;
+  padding: 20px 0 6px;
   min-height: 30px;
+  background: var(--bg-app);
+}
+
+/* What is under it fades out rather than meeting a rule: a hard line across a
+   column of prose reads as a divider between two sections that are not there. */
+.settings__topline::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 10px;
+  background: linear-gradient(var(--bg-app), transparent);
+  pointer-events: none;
 }
 
 /* Only ever visible on a narrow window, where the list is its own screen. */
@@ -358,6 +385,151 @@
   font-weight: 500;
 }
 
+/* --- the palette swatches ----------------------------------------------- */
+
+/* Each chip carries its own data-palette and data-theme, so theme.css paints it
+   in the palette it is offering: what you see is the real backdrop, the real
+   panel floating on it and the real accent, in the mode you are currently in.
+   Nothing here names a colour. */
+.set-palettes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.set-palette {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+.set-palette:hover {
+  background: var(--hover);
+  border-color: var(--line);
+}
+.set-palette--on,
+.set-palette--on:hover {
+  border-color: var(--ember);
+}
+
+.set-palette__chip {
+  position: relative;
+  display: block;
+  width: 54px;
+  height: 38px;
+  border-radius: var(--r-sm);
+  background: var(--bg-app);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+/* The panel floating on the backdrop, which is the one rule the whole look is
+   built on, at swatch size. */
+.set-palette__panel {
+  position: absolute;
+  inset: 6px 6px 6px 20px;
+  border-radius: 5px;
+  background: var(--bg-panel-alt);
+  border: 1px solid var(--line);
+}
+
+.set-palette__dot {
+  position: absolute;
+  left: 7px;
+  bottom: 7px;
+  width: 9px;
+  height: 9px;
+  border-radius: 5px;
+  background: var(--ember);
+}
+
+.set-palette__name {
+  font-size: 12px;
+  color: var(--text-mute);
+}
+.set-palette--on .set-palette__name {
+  color: var(--text-hi);
+}
+
+/* --- where the activity bar goes ---------------------------------------- */
+
+/* Four little copies of the shell. The frame flips exactly the way app.css
+   flips the real one, so the picture cannot drift from the behaviour. */
+.set-bars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.set-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+.set-bar:hover {
+  background: var(--hover);
+  border-color: var(--line);
+}
+.set-bar--on,
+.set-bar--on:hover {
+  border-color: var(--ember);
+}
+
+.set-bar__frame {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 58px;
+  height: 40px;
+  padding: 4px;
+  border-radius: var(--r-sm);
+  background: var(--bg-app);
+  border: 1px solid var(--line);
+}
+.set-bar__frame[data-bar='bottom'] {
+  flex-direction: column-reverse;
+}
+.set-bar__frame[data-bar='left'] {
+  flex-direction: row;
+}
+.set-bar__frame[data-bar='right'] {
+  flex-direction: row-reverse;
+}
+
+.set-bar__strip {
+  flex: 0 0 9px;
+  border-radius: 3px;
+  background: var(--ember);
+}
+
+.set-bar__body {
+  flex: 1 1 auto;
+  border-radius: 3px;
+  background: var(--bg-panel-alt);
+  border: 1px solid var(--line);
+}
+
+.set-bar__name {
+  font-size: 12px;
+  color: var(--text-mute);
+}
+.set-bar--on .set-bar__name {
+  color: var(--text-hi);
+}
+
 .set-select {
   min-width: 190px;
   max-width: 100%;
@@ -434,6 +606,64 @@
 }
 .set-input:disabled {
   opacity: 0.55;
+}
+
+/* Grows with the text up to a point, then scrolls. Resizable vertically so
+   somebody writing a long one is not stuck in a five-line window, but never
+   horizontally: a textarea dragged wider than its column breaks the layout of
+   every row under it. */
+.set-textarea {
+  display: block;
+  min-height: 96px;
+  max-height: 320px;
+  resize: vertical;
+  line-height: 1.55;
+  /* Whatever was typed, kept as typed. The card renders it the same way. */
+  white-space: pre-wrap;
+}
+
+/* The counter turns amber near the limit, which is the only warning there is:
+   the field simply stops accepting characters at the end. */
+.set-field__counter--near {
+  color: var(--sand);
+}
+
+/* --- a colour, picked or typed ------------------------------------------- */
+
+.set-colour {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The browser's own well, with its chrome taken off so it reads as one of our
+   swatches rather than as a form control from another app. */
+.set-colour__well {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg-raised);
+  cursor: pointer;
+}
+.set-colour__well::-webkit-color-swatch-wrapper {
+  padding: 4px;
+}
+.set-colour__well::-webkit-color-swatch {
+  border: none;
+  border-radius: 6px;
+}
+.set-colour__well::-moz-color-swatch {
+  border: none;
+  border-radius: 6px;
+}
+
+.set-colour__hex {
+  flex: 0 0 auto;
+  width: 110px;
+  text-transform: lowercase;
 }
 
 .set-field__hint {
@@ -605,13 +835,21 @@
   overflow: hidden;
 }
 
+/* The accent, drawn as a band, until there is a picture to put there instead.
+   Same 3.2:1 the banner is cropped at, so what the cropper showed is what the
+   card shows. */
 .set-preview__banner {
-  height: 68px;
+  aspect-ratio: 3.2;
   background: linear-gradient(
     120deg,
     var(--accent, var(--ember)) 0%,
     color-mix(in srgb, var(--accent, var(--ember)) 35%, var(--bg-raised)) 100%
   );
+}
+
+.set-preview__banner--picture {
+  background-size: cover;
+  background-position: center;
 }
 
 .set-preview__body {
@@ -666,6 +904,8 @@
   color: var(--line);
 }
 
+/* pre-wrap, because the field it comes from keeps line breaks: somebody who
+   wrote three lines meant three lines. */
 .set-preview__about {
   margin: 12px 0 0;
   padding-top: 12px;
@@ -673,6 +913,7 @@
   color: var(--text);
   font-size: 13px;
   line-height: 1.55;
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
@@ -696,6 +937,139 @@
 .set-swatch--on {
   border-color: var(--bg-panel);
   box-shadow: 0 0 0 2px var(--text-hi);
+}
+
+/* --- language ------------------------------------------------------------ */
+
+.set-langs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Each option carries its own `lang`, so the name is spoken in the language it
+   names rather than read out with an English accent by a screen reader. */
+.set-lang {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 132px;
+  padding: 9px 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  text-align: left;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+.set-lang:hover {
+  background: var(--hover);
+}
+.set-lang--on,
+.set-lang--on:hover {
+  border-color: var(--ember);
+  background: var(--hover);
+}
+
+.set-lang__name {
+  color: var(--text-hi);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.set-lang__under {
+  color: var(--text-mute);
+  font-size: 11.5px;
+}
+
+/* --- saved profiles ------------------------------------------------------ */
+
+/* A shelf of chips rather than a dropdown: the whole point of keeping several
+   profiles is that they look different, so the picker has to show the faces. */
+.set-profiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  /* The same 14/16 as .set-row, because this is a direct child of the group
+     body and would otherwise sit outside the gutter every other row keeps. */
+  padding: 14px 16px;
+}
+
+.set-profile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 190px;
+  padding: 6px 12px 6px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  color: var(--text-mute);
+  font-size: 12.5px;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease;
+}
+.set-profile:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text-hi);
+}
+.set-profile--on,
+.set-profile--on:hover {
+  border-color: var(--ember);
+  background: var(--hover);
+  color: var(--text-hi);
+}
+.set-profile:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.set-profile__face {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  object-fit: cover;
+  color: #1a1310;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.set-profile__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.set-profile--new {
+  padding-left: 10px;
+  border-style: dashed;
+}
+
+.set-profile__plus {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* Name and Save on one line, because naming a thing and keeping it is one
+   action and splitting it over two rows makes it look like two. */
+.set-profile-save {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.set-profile-save .set-input {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* --- keys and sessions -------------------------------------------------- */
@@ -877,7 +1251,11 @@
   }
 
   .settings__pane {
-    padding: 16px 16px 72px;
+    padding: 0 16px 72px;
+  }
+
+  .settings__topline {
+    padding-top: 16px;
   }
 
   .settings__back {
@@ -908,6 +1286,123 @@
   }
   .set-slider input[type='range'] {
     flex: 1 1 auto;
+    width: auto;
+  }
+}
+
+/* Sound pickers, and the sound per person.
+ *
+ * A picker and its audition button are one control, so they sit in one row with
+ * no gap wide enough to read as two. */
+
+.set-sound {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.set-sound .set-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.set-play {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg-raised);
+  color: var(--text-mute);
+  transition:
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.set-play:hover {
+  color: var(--ember);
+  border-color: var(--ember);
+}
+
+.set-play:active {
+  transform: translateY(1px);
+}
+
+.set-play:focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: 2px;
+}
+
+.set-people__lede {
+  margin: 0 0 12px;
+  color: var(--text-mute);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.set-people {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* A row per person: who on the left, their two choices on the right. The
+   avatar is here because the whole feature is about recognising someone
+   quickly, and a name alone in a list of ten is not that. */
+.set-person {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  background: var(--bg-panel-alt);
+}
+
+.set-person__who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.set-person__name {
+  color: var(--text-hi);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.set-person__picks {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 auto;
+}
+
+.set-person__picks .set-sound {
+  width: 190px;
+}
+
+/* Narrow: the two pickers go under the name rather than squeezing it out. */
+@media (max-width: 720px) {
+  .set-person {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .set-person__picks {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .set-person__picks .set-sound {
     width: auto;
   }
 }

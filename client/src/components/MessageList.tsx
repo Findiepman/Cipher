@@ -1,4 +1,7 @@
 import { useEffect, useRef } from 'react';
+import { clockTime, isSameDay, shortDay } from '../lib/i18n/format';
+import type { Locale } from '../lib/i18n/locales';
+import { useI18n, useT, type Translate } from '../state/I18nProvider';
 import type { Channel, Message, User } from '../types';
 import { Avatar } from './Avatar';
 import { BrandMark } from './BrandMark';
@@ -24,6 +27,7 @@ export function MessageList({
   currentUserId,
   currentUserName,
 }: Props) {
+  const { locale, t } = useI18n();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -45,7 +49,7 @@ export function MessageList({
 
         return (
           <div key={message.id}>
-            {newDay && <DateDivider iso={message.sentAt} />}
+            {newDay && <DateDivider iso={message.sentAt} locale={locale} t={t} />}
             <Bubble
               message={message}
               author={author}
@@ -53,6 +57,7 @@ export function MessageList({
               runStart={runStart}
               runEnd={runEnd}
               mentionsMe={mentions(message, currentUserName)}
+              locale={locale}
             />
           </div>
         );
@@ -70,6 +75,7 @@ function Bubble({
   runStart,
   runEnd,
   mentionsMe,
+  locale,
 }: {
   message: Message;
   author?: User;
@@ -77,8 +83,10 @@ function Bubble({
   runStart: boolean;
   runEnd: boolean;
   mentionsMe: boolean;
+  locale: Locale;
 }) {
   const menu = usePersonMenu();
+  const t = useT();
   const locked = message.state === 'encrypted' || message.state === 'failed';
 
   return (
@@ -106,7 +114,7 @@ function Bubble({
         {runStart && !own && author && (
           <span className="message__author" style={{ color: author.color }}>
             {author.name}
-            {author.bot && <span className="message__bot mono">bot</span>}
+            {author.bot && <span className="message__bot mono">{t('chat.bot')}</span>}
           </span>
         )}
 
@@ -125,8 +133,8 @@ function Bubble({
           >
             <span className="bubble__body">{message.body}</span>
             <span className="bubble__meta mono">
-              {message.edited && 'edited · '}
-              {formatTime(message.sentAt)}
+              {message.edited && `${t('chat.edited')} · `}
+              {clockTime(message.sentAt, locale)}
             </span>
           </div>
         )}
@@ -141,6 +149,7 @@ function Bubble({
  * retrying a forged message is not a recovery path.
  */
 function LockedBubble({ state, tail }: { state: Message['state']; tail: boolean }) {
+  const t = useT();
   const failed = state === 'failed';
 
   return (
@@ -155,28 +164,29 @@ function LockedBubble({ state, tail }: { state: Message['state']; tail: boolean 
     >
       <LockIcon size={15} />
       <span className="locked-bubble__text">
-        {failed ? 'This message could not be opened.' : 'This message cannot be read here.'}
+        {t(failed ? 'chat.lockedFailed' : 'chat.lockedHere')}
       </span>
     </div>
   );
 }
 
 function ChannelIntro({ channel }: { channel: Channel }) {
+  const t = useT();
   return (
     <div className="messages__intro">
       <div className="messages__intro-icon">
         <BrandMark size={34} />
       </div>
       <h2>{channel.name}</h2>
-      <p>This is the beginning of your conversation with {channel.name}.</p>
+      <p>{t('chat.intro', { name: channel.name })}</p>
     </div>
   );
 }
 
-function DateDivider({ iso }: { iso: string }) {
+function DateDivider({ iso, locale, t }: { iso: string; locale: Locale; t: Translate }) {
   return (
     <div className="messages__divider">
-      <span className="eyebrow">{formatDate(iso)}</span>
+      <span className="eyebrow">{formatDate(iso, locale, t)}</span>
     </div>
   );
 }
@@ -190,33 +200,18 @@ function sameRun(a: Message | undefined, b: Message | undefined): boolean {
   );
 }
 
-function mentions(message: Message, name: string): boolean {
+/** Exported so the notification sound uses the same rule the bubble does. */
+export function mentions(message: Message, name: string): boolean {
   return message.body?.includes(`@${name}`) ?? false;
 }
 
-function isSameDay(a: string, b: string): boolean {
-  return new Date(a).toDateString() === new Date(b).toDateString();
-}
-
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-}
-
-function formatDate(iso: string): string {
+function formatDate(iso: string, locale: Locale, t: Translate): string {
   const date = new Date(iso);
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
 
-  if (date.toDateString() === today.toDateString()) return 'today';
-  if (date.toDateString() === yesterday.toDateString()) return 'yesterday';
-  return date.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  if (isSameDay(date, today)) return t('common.today');
+  if (isSameDay(date, yesterday)) return t('common.yesterday');
+  return shortDay(date, locale);
 }

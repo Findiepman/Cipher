@@ -19,15 +19,19 @@ import { useEffect, useState } from 'react';
 import { SectionHeader } from '../../components/settings/controls';
 import { CloseIcon, ChevronLeftIcon } from '../../components/Icons';
 import { withProfile } from '../../lib/settings/profile';
+import type { Key } from '../../lib/i18n/en';
+import { useT } from '../../state/I18nProvider';
 import { useSettings } from '../../state/SettingsProvider';
 import { useSession } from '../../state/SessionProvider';
 import type { User } from '../../types';
 import { AccountSection } from './AccountSection';
 import { AppearanceSection } from './AppearanceSection';
 import { DevicesSection } from './DevicesSection';
+import { LanguageSection } from './LanguageSection';
 import { NotificationsSection } from './NotificationsSection';
 import { PrivacySection } from './PrivacySection';
 import { ProfileSection } from './ProfileSection';
+import { VaultSection } from './VaultSection';
 import { VoiceVideoSection } from './VoiceVideoSection';
 import '../../styles/settings.css';
 
@@ -36,67 +40,49 @@ export type SectionId =
   | 'profile'
   | 'privacy'
   | 'devices'
+  | 'vault'
+  | 'language'
   | 'appearance'
   | 'voice'
   | 'notifications';
 
+/**
+ * Keys rather than strings, because this list is module-level data and a
+ * module is evaluated once, long before anyone has picked a language. The
+ * label and the title were always the same string, so there is one key for
+ * both.
+ */
 interface SectionDef {
   id: SectionId;
-  label: string;
-  title: string;
-  lede: string;
+  name: Key;
+  lede: Key;
 }
 
-const GROUPS: { heading: string; sections: SectionDef[] }[] = [
+const GROUPS: { heading: Key; sections: SectionDef[] }[] = [
   {
-    heading: 'you',
+    heading: 'settings.group.you',
     sections: [
-      {
-        id: 'account',
-        label: 'My account',
-        title: 'My account',
-        lede: 'Your credentials, and the two of them that can only be changed from a device holding your key.',
-      },
-      {
-        id: 'profile',
-        label: 'Profile',
-        title: 'Profile',
-        lede: 'The picture, the name and the line under it.',
-      },
-      {
-        id: 'privacy',
-        label: 'Privacy',
-        title: 'Privacy',
-        lede: 'What people can tell about you once the messages themselves are sealed.',
-      },
-      {
-        id: 'devices',
-        label: 'Devices & keys',
-        title: 'Devices & keys',
-        lede: 'Your security number, your recovery code and everywhere you are signed in.',
-      },
+      { id: 'account', name: 'settings.section.account', lede: 'settings.lede.account' },
+      { id: 'profile', name: 'settings.section.profile', lede: 'settings.lede.profile' },
+      { id: 'privacy', name: 'settings.section.privacy', lede: 'settings.lede.privacy' },
+      { id: 'devices', name: 'settings.section.devices', lede: 'settings.lede.devices' },
+      { id: 'vault', name: 'settings.section.vault', lede: 'settings.lede.vault' },
     ],
   },
   {
-    heading: 'app',
+    heading: 'settings.group.app',
     sections: [
+      { id: 'language', name: 'settings.section.language', lede: 'settings.lede.language' },
       {
         id: 'appearance',
-        label: 'Appearance',
-        title: 'Appearance',
-        lede: 'How the app looks and how much room it gives a conversation.',
+        name: 'settings.section.appearance',
+        lede: 'settings.lede.appearance',
       },
-      {
-        id: 'voice',
-        label: 'Voice & video',
-        title: 'Voice & video',
-        lede: 'Which hardware a call would use, and a way to check it works before one starts.',
-      },
+      { id: 'voice', name: 'settings.section.voice', lede: 'settings.lede.voice' },
       {
         id: 'notifications',
-        label: 'Notifications',
-        title: 'Notifications',
-        lede: 'What interrupts you, and how much of a message it is allowed to show.',
+        name: 'settings.section.notifications',
+        lede: 'settings.lede.notifications',
       },
     ],
   },
@@ -114,6 +100,7 @@ export function SettingsScreen({
   onClose: () => void;
   initialSection?: SectionId;
 }) {
+  const t = useT();
   const [active, setActive] = useState<SectionId>(initialSection);
   // Only meaningful on a narrow window, where the two panes are two screens.
   const [showingList, setShowingList] = useState(false);
@@ -136,7 +123,7 @@ export function SettingsScreen({
 
   return (
     <div className="settings" data-pane={showingList ? 'list' : 'section'}>
-      <nav className="settings__nav" aria-label="Settings sections">
+      <nav className="settings__nav" aria-label={t('settings.nav')}>
         <div className="settings__nav-scroll scroller">
           <p className="settings__who">
             <span className="settings__who-name">
@@ -147,7 +134,7 @@ export function SettingsScreen({
 
           {GROUPS.map((group) => (
             <div key={group.heading} className="settings__group">
-              <span className="eyebrow">{group.heading}</span>
+              <span className="eyebrow">{t(group.heading)}</span>
               {group.sections.map((entry) => (
                 <button
                   key={entry.id}
@@ -163,7 +150,7 @@ export function SettingsScreen({
                     setShowingList(false);
                   }}
                 >
-                  {entry.label}
+                  {t(entry.name)}
                 </button>
               ))}
             </div>
@@ -172,14 +159,14 @@ export function SettingsScreen({
           {signedIn && (
             <div className="settings__group settings__group--exit">
               <button type="button" className="settings__link" onClick={lock}>
-                Lock
+                {t('settings.lock')}
               </button>
               <button
                 type="button"
                 className="settings__link settings__link--danger"
                 onClick={() => void logout()}
               >
-                Sign out
+                {t('settings.signOut')}
               </button>
             </div>
           )}
@@ -195,21 +182,21 @@ export function SettingsScreen({
               onClick={() => setShowingList(true)}
             >
               <ChevronLeftIcon size={16} />
-              <span>Settings</span>
+              <span>{t('settings.back')}</span>
             </button>
 
             <button
               type="button"
               className="settings__close"
               onClick={onClose}
-              aria-label="Close settings"
+              aria-label={t('settings.close')}
             >
               <CloseIcon size={16} />
               <span className="settings__close-key mono">esc</span>
             </button>
           </div>
 
-          <SectionHeader title={section.title} lede={section.lede} />
+          <SectionHeader title={t(section.name)} lede={t(section.lede)} />
 
           {active === 'account' && <AccountSection />}
           {active === 'profile' && (
@@ -220,6 +207,8 @@ export function SettingsScreen({
           )}
           {active === 'privacy' && <PrivacySection />}
           {active === 'devices' && <DevicesSection />}
+          {active === 'vault' && <VaultSection />}
+          {active === 'language' && <LanguageSection />}
           {active === 'appearance' && <AppearanceSection />}
           {active === 'voice' && <VoiceVideoSection />}
           {active === 'notifications' && <NotificationsSection />}

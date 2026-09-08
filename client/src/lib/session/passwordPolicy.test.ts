@@ -1,3 +1,11 @@
+import { en } from '../i18n/en';
+import { translate, type Phrase } from '../i18n/translate';
+
+/** What the screen does with a problem it is handed. */
+function say(phrase: Phrase<keyof typeof en>): string {
+  return translate(phrase.key, 'en', en, en, phrase.vars);
+}
+
 import { describe, expect, it } from 'vitest';
 import { MIN_PASSWORD_LENGTH, checkPassword } from './passwordPolicy';
 
@@ -11,7 +19,7 @@ describe('checkPassword', () => {
   it('rejects anything under the server minimum', () => {
     const result = checkPassword('short1!');
     expect(result.ok).toBe(false);
-    expect(result.problems[0]).toContain(String(MIN_PASSWORD_LENGTH));
+    expect(say(result.problems[0])).toBe(`Use at least ${MIN_PASSWORD_LENGTH} characters.`);
   });
 
   it('rejects long-but-common passwords', () => {
@@ -27,7 +35,7 @@ describe('checkPassword', () => {
   it('rejects a password built from the account it protects', () => {
     const result = checkPassword('samuelsamuel99', { email: 'samuel@example.com' });
     expect(result.ok).toBe(false);
-    expect(result.problems.join(' ')).toMatch(/email/);
+    expect(result.problems.map(say).join(' ')).toMatch(/email/);
   });
 
   it('scores length above variety, for a meter', () => {

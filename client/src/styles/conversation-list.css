@@ -15,6 +15,38 @@
   padding: 10px 6px 6px;
 }
 
+/* --- the pinned shelf ----------------------------------------------------
+ *
+ * The same rows on their own strip, so the eye reads a shelf above the list
+ * rather than the first few entries of it. One tint and one divider, because
+ * the section is meant to be findable at a glance and not to be a second
+ * design.
+ */
+.conversations__section--pinned {
+  margin: 0 -2px 4px;
+  padding: 0 2px 6px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.conversations__section--pinned .conversation {
+  background: var(--hover);
+}
+.conversations__section--pinned .conversation:hover {
+  background: var(--bg-raised);
+}
+.conversations__section--pinned .conversation + .conversation {
+  margin-top: 3px;
+}
+.conversations__section--pinned .conversation--active,
+.conversations__section--pinned .conversation--active:hover {
+  background: var(--bg-raised);
+}
+
+.conversations__pin {
+  align-self: center;
+  color: var(--text-faint);
+}
+
 .conversations__count {
   font-size: 10px;
   color: var(--text-faint);

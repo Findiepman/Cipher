@@ -22,7 +22,11 @@ the first feature in the app whose contents are genuinely encrypted rather than
 waiting on phase 2. The seventh is making the app yours: a banner and a real
 description on your profile, people pinned to the top of the conversation
 list, a palette you write from two colours and a wallpaper behind everything.
-What is left is parked on purpose rather
+The eighth is the desktop shell: `desktop/` is now a Tauri app that opens the
+deployed site in one native window, with signed auto-updates and a GitHub
+Actions workflow that builds installers for Windows, macOS and Linux. It
+compiles and builds on Windows; the workflow has not run yet and needs one
+secret first. What is left is parked on purpose rather
 than forgotten: the account endpoints behind settings and the backup cron on
 the box.
 
@@ -41,7 +45,9 @@ accurate but see *Deviations* below.
 ## In one paragraph
 
 An end-to-end-encrypted chat app, npm workspace, three live packages
-(`client/`, `server/`, `packages/crypto/`) plus an empty `desktop/`. **Accounts
+(`client/`, `server/`, `packages/crypto/`) plus `desktop/`, a Tauri shell that
+is a Rust crate rather than a workspace member and shows the deployed site
+in a window of its own. **Accounts
 and auth work end to end**: register, verify by email, sign in, unlock, lock,
 sign out, with real key custody: the account keypair is generated on the
 device and the server never receives a password, a recovery code, or a private
@@ -113,6 +119,7 @@ account-work axis (`backend-plan.md`).
 | Incoming call toast, in-call bar, call state in the DM header | `client/src/components/CallPanel.tsx`, `client/src/state/CallProvider.tsx` |
 | Same-origin client build (blank `VITE_API_URL`) | `client/src/lib/config.ts` |
 | Deployed: 4 containers, no host ports, Cloudflare Tunnel | `deploy/` |
+| Desktop shell: one native window on the deployed site, signed auto-update, Windows build done locally | `desktop/src-tauri/src/main.rs`, `.github/workflows/desktop.yml` |
 | Live registration + verification email landing in an inbox | verified by hand 2026-09-07 |
 
 542 tests pass in the two workspaces that are settled: 324 client, 218 server.
@@ -483,7 +490,18 @@ Two end-to-end proofs, both against a running server over real HTTP:
   holds none, which is decision 11; a device that has never been told simply
   uses the defaults.
 - **Phase 2 encryption.** See `packages/crypto/AGENTS.md`.
-- **`desktop/`.** Nothing but an `AGENTS.md`.
+- **The desktop shell has never been through its own pipeline.** The Tauri
+  app in `desktop/` compiles, and `npm run build` there produced a signed
+  NSIS installer on the Windows dev machine on 2026-09-07. Everything past
+  that is unrun: the GitHub Actions workflow has not been dispatched, the
+  `TAURI_SIGNING_PRIVATE_KEY` secret is not added (the private key is in
+  `~/.tauri/cipher.key` on the machine that generated it and nowhere else),
+  no macOS or Linux build exists, no release exists and so the updater has
+  never had a `latest.json` to read. **There are no code-signing
+  certificates** either, so the installers trip Gatekeeper and SmartScreen;
+  `desktop/README.md` says what that means on each OS. And the shell is only
+  a window: no tray, no native notifications, no OS keychain. The private key
+  on desktop sits in the WebView's IndexedDB exactly as it does in a browser.
 
 ---
 
@@ -653,6 +671,27 @@ worse for this specific app.
     message. `sealing.ts` is therefore the second and last caller of the
     crypto seam in the frontend, beside `chatController.ts`. ICE candidates are
     not sealed: they are addresses, and a relay sees them regardless.
+29. **The desktop shell loads the deployed site; it does not bundle
+    `client/dist`.** Loading the site means a client fix reaches desktop
+    users the moment `deploy.sh` runs, with no desktop release, no signed
+    update and no second copy of the UI to keep in step. The URL is compiled
+    into the binary (`CIPHER_DESKTOP_URL` at build time, else the production
+    URL in release and `localhost:5173` in debug), not read from a file, so a
+    shipped binary cannot be pointed at another origin and thereby hand that
+    origin the device key in its IndexedDB. The page also gets no IPC:
+    `desktop/src-tauri/capabilities/default.json` has no `remote` block, so
+    the site can do in the shell exactly what it can do in a browser. The
+    updater runs on the Rust side for that reason.
+30. **A desktop release is a published GitHub release, and only a manual
+    dispatch makes one.** A push touching `desktop/` builds and keeps
+    artifacts; `workflow_dispatch` creates a *draft* release with
+    `latest.json`, and publishing the draft is the act of shipping an update
+    to every installed copy. The updater reads
+    `releases/latest/download/latest.json`, which is GitHub's newest
+    published non-prerelease release of the whole repository. That is right
+    while desktop releases are the only kind; if another kind ever appears,
+    move to a fixed tag (`desktop/UPDATES.md` has the recipe, and the whole
+    release procedure).
 24. **The reset context endpoint is a POST, and it does not spend the token.**
     A GET would put a live credential in a query string, which is the part of
     a request that reliably reaches access logs and browser history. Not
@@ -744,6 +783,15 @@ npm run typecheck
 npm run build
 cd server && npm run smoke             # account lifecycle over real HTTP
 cd server && npm run smoke:messaging   # two accounts, a DM, over HTTP + sockets
+```
+
+The desktop shell is separate from the workspace (a Rust crate plus the Tauri
+CLI, needs rustup):
+
+```bash
+cd desktop && npm install
+npm run dev            # debug build, window on http://localhost:5173
+npm run build          # installer; needs the signing key, see desktop/README.md
 ```
 
 `VITE_BACKEND=mock` still short-circuits auth, but it no longer renders a chat:
@@ -909,6 +957,18 @@ suspended.
   through a `GainNode`, even at 100%, so moving the slider mid-call does not
   mean replacing the track under the connection. If audio is ever silent on a
   call with the mic test working, check the `AudioContext` is not suspended.
+- **`tauri build` needs the updater signing key, and an empty password set
+  explicitly.** `createUpdaterArtifacts` is on in
+  `desktop/src-tauri/tauri.conf.json`, so a local build needs the key's
+  content in `TAURI_SIGNING_PRIVATE_KEY` or it errors after bundling. With
+  the key present but `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` unset, the CLI
+  prompts for a password and, in a shell with no stdin, hangs silently
+  forever; export it as an empty string. `desktop/README.md` has the exact
+  lines. `cargo check` in `src-tauri/` needs nothing and is the fast way to
+  see if it compiles.
+  Also, `generate_context!` expands to code that wants `serde` and
+  `serde_json` in the app crate even though `main.rs` never names them;
+  removing those two "unused" dependencies breaks the build.
 - **The production env file must be named `deploy/.env`.** Compose reads that
   name automatically for both `${...}` substitution and the server's
   environment. Any other name needs `--env-file` on every command, and
@@ -946,7 +1006,14 @@ they are known, planned and not being done yet.
    `AGENTS.md` names as the precondition. The registry and the envelope model
    are already in place, so this is `encryptMessage`/`decryptMessage` plus the
    line in `packages/crypto/AGENTS.md`: no schema change, no data migration.
-5. **Fold the four credential audit actions into `lib/audit.ts`.** Small and
+5. **Ship the first desktop build.** Add `TAURI_SIGNING_PRIVATE_KEY` to the
+   repository's Actions secrets (the content of `~/.tauri/cipher.key`),
+   dispatch the `desktop` workflow, and see whether the macOS and Linux jobs
+   pass on their first run, since only Windows has been built so far. Then
+   install the result on a clean machine per `desktop/AGENTS.md` before
+   publishing the draft. Code-signing certificates are a separate, paid
+   decision and are not needed for this step.
+6. **Fold the four credential audit actions into `lib/audit.ts`.** Small and
    nagging: `recordCredentialAudit` in `modules/auth/service.ts` names
    `auth.reset_requested`, `auth.reset_completed`, `auth.password_changed` and
    `auth.recovery_code_rotated` locally and widens the type at one call site,

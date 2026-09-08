@@ -566,6 +566,11 @@ function element(loop: boolean): HTMLAudioElement | null {
   audio.preload = 'auto';
   if (loop) looper = audio;
   else oneShot = audio;
+  // Routed once, here, rather than before every play. `setSinkId` is awaited
+  // wherever it is called, and an implementation that is slow or never settles
+  // would then be silence rather than a wrong output device, which is much the
+  // worse of the two failures. Later changes come through setOutputDevice.
+  void applySink(audio);
   return audio;
 }
 
@@ -576,22 +581,109 @@ function element(loop: boolean): HTMLAudioElement | null {
  * a silent frame inside a real gesture is what buys the right to make a sound
  * later, when a call arrives and there is no gesture to hand.
  */
+/**
+ * Eight samples of nothing, as the smallest thing an element can be asked to
+ * play. 8kHz mono 16-bit: a 44 byte header and 16 zero bytes.
+ *
+ * It exists because `unlock()` needs something to succeed at. A fresh `Audio()`
+ * has no source, and `play()` on a source-less element rejects with
+ * NotSupportedError rather than granting anything, so the unlock this file has
+ * carried since it was written could never once have worked.
+ *
+ * A blob rather than a `data:` URL, and that is not a detail. The desktop
+ * shell serves the app under a CSP whose `media-src` is `'self' blob:`, so a
+ * data URL is refused before it can play and the unlock fails exactly as
+ * silently as it did before. Every real sound in this file already travels as
+ * a blob for the same reason; this now matches.
+ */
+let silenceUrl: string | null = null;
+
+function silence(): string | null {
+  if (silenceUrl) return silenceUrl;
+  if (typeof Blob === 'undefined' || typeof URL?.createObjectURL !== 'function') return null;
+
+  const bytes = new ArrayBuffer(44 + 16);
+  const view = new DataView(bytes);
+  const put = (offset: number, text: string) => {
+    for (let i = 0; i < text.length; i += 1) view.setUint8(offset + i, text.charCodeAt(i));
+  };
+  put(0, 'RIFF');
+  view.setUint32(4, 36 + 16, true);
+  put(8, 'WAVE');
+  put(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, 8000, true);
+  view.setUint32(28, 16000, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  put(36, 'data');
+  view.setUint32(40, 16, true);
+
+  silenceUrl = URL.createObjectURL(new Blob([view], { type: 'audio/wav' }));
+  return silenceUrl;
+}
+
 export function unlock(): void {
-  const audio = element(false);
-  if (!audio) return;
-  audio.muted = true;
-  void audio
+  const quiet = silence();
+  if (quiet === null || typeof Audio === 'undefined') return;
+
+  // Its own throwaway element, deliberately not the one the alerts play
+  // through. The previous version muted the shared one-shot element and
+  // unmuted it from a `.finally()`, which is fine right up until that promise
+  // does not settle: a media load the CSP refuses can leave `play()` pending
+  // forever, and then the shared element stays muted for the rest of the
+  // session. Every later chime plays into silence while the ringtone, which
+  // uses a different element, carries on working perfectly. That combination
+  // is almost impossible to read backwards from, so there is nothing shared
+  // here to leave in a bad state.
+  const probe = new Audio();
+  probe.muted = true;
+  probe.src = quiet;
+  void probe
     .play()
     .then(() => {
-      audio.pause();
-      audio.currentTime = 0;
+      probe.pause();
     })
-    .catch(() => {
-      /* Still locked. The next real gesture gets another go. */
-    })
-    .finally(() => {
-      audio.muted = false;
+    .catch((error: unknown) => {
+      // Still locked, and worth saying so: everything after this is silent as
+      // a consequence, and without a line here the cause is invisible.
+      console.warn('[sounds] unlock refused:', error);
     });
+}
+
+/** Set once `unlockOnFirstGesture` has wired its listeners. */
+let gestureHooked = false;
+
+/**
+ * Wires `unlock()` to the first real gesture, once, and then gets out of the
+ * way.
+ *
+ * `unlock()` above only buys anything when it runs *inside* a user gesture,
+ * and nothing in this app was calling it that way: the one caller was the ring
+ * handler, which fires when a call arrives and is by definition not a gesture.
+ * So the first alert of a session could be refused by the autoplay policy with
+ * nothing to show for it.
+ *
+ * Listening at the document rather than asking a screen to remember, because
+ * there is no one screen that is reliably clicked first: it may be the unlock
+ * screen, the sign in form or a conversation in an already open session.
+ * Capture phase and `once`, so a handler that stops propagation cannot swallow
+ * it and there is nothing left behind afterwards.
+ */
+export function unlockOnFirstGesture(): void {
+  if (gestureHooked || typeof document === 'undefined') return;
+  gestureHooked = true;
+
+  const fire = () => {
+    unlock();
+    document.removeEventListener('pointerdown', fire, true);
+    document.removeEventListener('keydown', fire, true);
+  };
+
+  document.addEventListener('pointerdown', fire, true);
+  document.addEventListener('keydown', fire, true);
 }
 
 /** 0 to 1. Wire this to `settings.voice.outputVolume / 100`. */
@@ -631,12 +723,19 @@ async function play(key: string, pattern: Pattern, loop: boolean): Promise<void>
 
   audio.src = url;
   audio.volume = volume;
-  await applySink(audio);
   try {
     audio.currentTime = 0;
     await audio.play();
-  } catch {
-    /* Blocked because nothing has been clicked yet. See unlock(). */
+  } catch (error) {
+    // Usually the autoplay policy before anything has been clicked, which is
+    // what unlock() is for. Reported rather than swallowed: an alert that is
+    // silent with a clean console is a bug that costs an afternoon.
+    //
+    // `warn` and not `debug`, which is the mistake this line was written with
+    // the first time: Chrome files console.debug under Verbose and hides that
+    // level unless you go and tick it, so the diagnostic was itself invisible
+    // and a silent failure looked exactly like no failure at all.
+    console.warn('[sounds] could not play %s:', key, error);
   }
 }
 

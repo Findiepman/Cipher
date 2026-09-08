@@ -5,12 +5,19 @@ description = "The Cipher desktop app: the bundled web client in a native shell,
 edition = "2021"
 publish = false
 
+[features]
+# Right-click, Inspect, in a build made with `--features devtools`. Off by
+# default, so a shipped Cipher has no inspector and the test build does.
+devtools = ["tauri/devtools"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
 # `tray-icon` is the one feature the shell needs beyond the defaults.
 tauri = { version = "2", features = ["tray-icon"] }
+# Decoding the avatar the page sends with a notification (src/commands.rs).
+base64 = "0.22"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # All official plugins, from tauri-apps/plugins-workspace. Each one is here

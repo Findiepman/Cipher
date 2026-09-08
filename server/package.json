@@ -19,7 +19,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
-    "smoke:messaging": "tsx scripts/smoke-messaging.ts"
+    "smoke:messaging": "tsx scripts/smoke-messaging.ts",
+    "account": "tsx scripts/make-account.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

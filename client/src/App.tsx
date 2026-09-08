@@ -29,6 +29,7 @@ import { CallPanel } from './components/CallPanel';
 import { CallRinger } from './components/CallRinger';
 import { DesktopNotifier } from './components/DesktopNotifier';
 import { MessageChime } from './components/MessageChime';
+import { MessageToasts } from './components/MessageToasts';
 import { splitPinned } from './lib/settings/pinned';
 import { withProfile } from './lib/settings/profile';
 import { resolveActivityBar } from './lib/settings/types';
@@ -83,6 +84,7 @@ export default function App() {
       <CallRinger />
       <MessageChime />
       <DesktopNotifier />
+      <MessageToasts />
 
       <Shell
         view={view}

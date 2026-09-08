@@ -108,6 +108,8 @@ account-work axis (`backend-plan.md`).
 | A profile banner, and a description with room to write one | `client/src/screens/settings/ProfileSection.tsx` |
 | Pinning people to the top of the conversation list | `client/src/lib/settings/pinned.ts`, `client/src/components/ConversationList.tsx` |
 | An OS notification when a message lands and the window is not in front | `client/src/components/DesktopNotifier.tsx`, `client/src/lib/settings/desktopNotifications.ts` |
+| A popup in the corner when one lands and the window *is* in front | `client/src/components/MessageToasts.tsx`, `client/src/lib/settings/messageToasts.ts` |
+| The sender's avatar on a desktop notification, beside the app's own name and logo (installed builds only, uncompiled) | `client/src/lib/platform/notificationIcon.ts`, `desktop/src-tauri/src/commands.rs` |
 | The vault: notes to yourself, sealed under a passkey, on this device | `client/src/lib/vault/`, `client/src/screens/VaultScreen.tsx` |
 | Two languages, English and Dutch, with dates, times and numbers to match | `client/src/lib/i18n/`, `client/src/state/I18nProvider.tsx` |
 | Alert sounds, synthesised rather than shipped, eight for a message and seven for a ring | `client/src/lib/media/sounds.ts` |
@@ -136,9 +138,10 @@ account-work axis (`backend-plan.md`).
 | Bearer-mode session survives a restart | `client/src/lib/storage/refreshTokenStore.ts` |
 | CORS admits the desktop origins, HTTP and socket | `server/src/lib/origins.ts` |
 | Desktop installers for three OSes from one workflow, Windows build done locally | `.github/workflows/desktop.yml` |
+| A hidden desktop window is kept awake, so close-to-tray keeps the socket up | `desktop/src-tauri/src/main.rs` (`BROWSER_ARGS`) |
 | Live registration + verification email landing in an inbox | verified by hand 2026-09-07 |
 
-595 tests pass: 41 crypto, 331 client, 223 server. `npm run
+616 tests pass: 41 crypto, 352 client, 223 server. `npm run
 typecheck` and `npm run build` are clean across all workspaces, and `cargo
 check` in `desktop/src-tauri/` is clean. That is the committed tree; on the
 other maintainer's machine, as of the 2026-09-08 client pass, **`packages/crypto`
@@ -276,6 +279,180 @@ sentences the server wrote, because the API answers with prose rather than
 codes and there is nothing to look up. Where it does answer with a code, as the
 friend-request endpoints do, the app decides what that means in words and
 translates it.
+
+**The alerts were never allowed to make a sound.** Found 2026-09-08, when the
+preview button in Settings, Notifications turned out to be silent in a plain
+browser as well as in the desktop app. The synthesis was never the problem: run
+against a real Web Audio implementation, `ding` renders 1.15s at peak 0.26 and
+the ring 3.39s at peak 0.32, with correct WAV headers. Three faults in the
+delivery, all in `lib/media/sounds.ts`:
+
+- `unlock()` documented itself as "call once from any early user gesture" and
+  nothing did. Its only caller was the ring handler, which fires when a call
+  arrives and is by definition not a gesture, so the autoplay policy could
+  refuse the first alert of a session. `unlockOnFirstGesture()` now claims the
+  right on the first click or key anywhere, and `main.tsx` calls it.
+- `play()` awaited `applySink()` on the way to `audio.play()`. `setSinkId` is
+  an output-device call that is absent on phones and flaky elsewhere, and one
+  that never settled would have meant permanent silence rather than a wrong
+  speaker. Routing now happens once when the element is made.
+- Every failure was swallowed by a bare `catch {}`, which is why this cost an
+  afternoon: no sound, no error, nothing in the console. It reports now.
+
+**The second one was it, and it is fixed.** Walked through in a browser on
+2026-09-08: the preview button in Settings, Notifications plays, where before
+it was silent. That also identifies the cause, by elimination rather than by
+guess. The preview button is a click, so the gesture fix cannot be what
+repaired it; and `applySink` swallows its own errors, so a `setSinkId` that
+*rejected* would have been caught and playback would have carried on. Only one
+that never settles leaves the await hanging and the sound unplayed, which is
+what was happening.
+
+**The first one is still unproven**, because nothing has exercised it. It is
+for the alert that arrives with no click of its own, which is to say the
+message chime and the incoming call ring, and testing those needs two accounts
+and a conversation rather than a button. `npm run account` in `server/` makes a
+verified one in a second, which is the fiddly half of that (register, find the
+right file in `.mail`, dig the token out) done for you. `sounds.test.ts` covers the gesture
+wiring so it cannot quietly go missing again, but a passing unit test is not
+the same as a chime heard across a room.
+
+**A message that lands while you are looking now says so.** Added
+2026-09-08, the third sibling on `useArrivingMessages` after the chime and the
+OS notification, and the one that fills the hole the other two left. The chime
+says something happened but not what or who; the notification says both, but
+only fires when you cannot see the app. In between sat the ordinary case, you
+at the keyboard reading one conversation while another moves, which had a
+sound and nothing to look at.
+
+The pairing is the design and it is exact: `toastable` requires that you can
+see the app, `notifiable` requires that you cannot, so any one message raises a
+toast or a notification, never both and never neither. That is asserted in
+`messageToasts.test.ts` rather than trusted, because it is the kind of property
+that survives every individual test and still breaks. The other gates are the
+familiar ones, plus one of its own: nothing toasts for the conversation already
+on screen, since you can watch it arrive.
+
+Two settings rather than one. `toast` turns the cards on and defaults on;
+`toastPreview` governs the text and also defaults on, which is the opposite of
+the desktop `preview` default and deliberately a separate switch. They look
+like the same question and are not: `preview` hands decrypted text to an OS
+notification centre that may log it, mirror it to a phone or paint it on a lock
+screen, while a toast is drawn inside a window you are already looking at and
+goes nowhere. One switch for both would have made the safer default the enemy
+of the useful one.
+
+Not yet walked through: written, typechecked, 16 tests, and the client builds.
+
+**A desktop notification can carry the sender's picture.** Added 2026-09-08,
+after a walk-through showed the desktop path throwing the avatar away:
+`invoke('notify', ...)` sent a title and a body, and the Rust command did not
+take an icon at all. The browser had been passing one to the Notification API
+the whole time, so this was the desktop half of a feature that already worked
+in a tab.
+
+Two conversions had to happen and they are split across the boundary on
+purpose. The page re-encodes: `lib/settings/avatarImage.ts` prefers WebP, which
+Windows toasts cannot draw, and a toast with an image it cannot decode simply
+draws none rather than complaining. So everything becomes a 96px PNG on the
+page side, which also keeps an image decoder out of the Rust process, leaving
+it nothing harder than a base64 decode. The shell writes: a Windows toast takes
+its image as a path and nothing else.
+
+That write is the one place a command touches the file system on the page's
+say, which the module comment used to promise it never did. Rewritten to say
+what is true, and kept narrow: only a `data:image/png;base64,` string is
+accepted, so no path and no URL can be smuggled through; the shell picks the
+directory (its own cache) and the name (a hash of the bytes), so the page
+controls neither; and the decoded size is capped so a page that has somehow
+been replaced cannot fill a disk one notification at a time.
+
+**Only an installed build shows the app's name and logo.** The notification
+plugin sets the AppUserModel ID only when the executable is not running out of
+`target/debug` or `target/release`, so `npm run dev` in `desktop/` gets a toast
+attributed to something else. That is worth knowing before concluding the
+change did nothing.
+
+**Uncompiled.** Same Smart App Control wall as everything else in `desktop/`
+from this machine. The client half typechecks and its tests pass; the Rust half
+has been read and not built.
+
+**There is a desktop build you can point at your own machine.** Added
+2026-09-08, because the shipped app cannot be pointed anywhere: `VITE_API_URL`
+is baked into the bundle and `CIPHER_DESKTOP_URL` is read by `option_env!`, so
+an installed Cipher is production permanently and cannot see a local account.
+That made the desktop shell untestable against anything you could set up
+yourself, which is most of what testing is.
+
+`npm run build:desktop-test` at the root builds it. Three things make it safe
+to have beside the real one: its own product name and identifier, so it
+installs as "Cipher Test" in its own directory rather than over Cipher; a CSP
+that admits `localhost:3000` and its websocket, which the shipped one does not
+and which would otherwise block every request the build makes; and an updater
+endpoint pointed at nothing, so a test build can never offer itself as an
+upgrade to the real app or be offered one.
+
+The client half is verified: the bundle builds, `localhost:3000` is baked in
+and `cipher.findiepman.dev` appears nowhere in it. The installer half has never
+been produced, because Smart App Control blocks cargo on the machine this was
+written on. Anyone with a working toolchain runs one command.
+
+**The audio unlock had never once worked, in three separate ways.** Found
+2026-09-08 by running the desktop build, where the message chime was silent
+while the call ringtone was not and the settings preview button worked in both.
+Three bugs stacked on each other, each one hiding the next:
+
+1. `unlock()` called `element(false)`, which hands back a fresh `Audio()` with
+   no source, and `play()` on a source-less element rejects with
+   `NotSupportedError` rather than granting anything. Its whole job is to start
+   a playback inside a real gesture so a later alert may sound, and it had been
+   attempting one that could never start.
+2. The fix for that used a `data:` URL. The desktop CSP is
+   `media-src 'self' blob:`, so the browser refused it before it could play.
+   Every real sound in `sounds.ts` already travels as a blob, which is why the
+   ringtone worked; the silence now does too, so no CSP change is needed and
+   the shipped app is unaffected.
+3. The worst one. `unlock()` muted the **shared** one-shot element and unmuted
+   it from a `.finally()`. A media load the CSP refuses can leave `play()`
+   pending forever, and the element then stays muted for the rest of the
+   session, so every later chime plays into silence. The ringtone is untouched
+   because it plays through `looper`, a different element. "Messages silent,
+   calls fine, no error" is close to unreadable backwards. The unlock uses its
+   own throwaway element now and touches nothing the alerts rely on.
+
+Why no browser showed any of this: Chromium lets an element play once the
+document has been interacted with at all, so ordinary clicking carried the
+broken unlock. A webview serving the app from its own scheme has no such
+history and is the strict case.
+
+**The diagnostics were themselves invisible.** The failure logs went through
+`console.debug`, which Chrome files under Verbose and hides unless you tick it,
+so a silent failure and no failure looked identical. Both are `console.warn`
+now, and the unlock logs its own refusal, which it previously swallowed.
+
+**Not confirmed fixed.** The build carrying the third fix was still compiling
+when work stopped on 2026-09-08. Bugs 1 and 2 are confirmed gone: the CSP
+violations that filled the console are absent from the last run. Whether the
+chime actually sounds is the first thing to check next time.
+
+**The test build can be inspected.** A `devtools` Cargo feature, off by
+default, on for `npm run build:desktop-test`. Every desktop problem this
+evening was diagnosed by reasoning rather than by reading an error, because a
+release build has no console, and the two real bugs (an `http` updater endpoint
+that panicked at startup, and this one) were both invisible until something
+printed. A shipped Cipher still has no inspector.
+
+**A hidden desktop window is kept awake.** The tray and close-to-tray came
+from the other maintainer (see the desktop rows above); this is the half his
+version did not carry. Close-to-tray leaves the app running with a hidden
+window, and a hidden window is a background window: Chromium clamps its timers
+and can freeze the renderer outright, which would leave the app resident and
+deaf and defeat the point of staying in the tray. `BROWSER_ARGS` in
+`desktop/src-tauri/src/main.rs` turns the three backgrounding behaviours off on
+Windows. It repeats Tauri's own default switch on purpose, because
+`additional_browser_args` replaces that default rather than adding to it.
+Not yet proven: the flags are the kind of thing that only shows up after the
+window has been hidden for ten minutes or more, so a quick test says nothing.
 
 **Making the app yours: a banner, a description, pinned people and a theme you
 write.** Added 2026-09-08, on top of the appearance pass, and it is one pass
@@ -435,6 +612,13 @@ Two end-to-end proofs, both against a running server over real HTTP:
   about yourself and any number of saved variants to switch between. All of it is
   device-local: `PATCH /account/me` does not exist, so nobody else sees a word
   of it. `UserProfile` still renders other people from what the server knows.
+  Walked through on 2026-09-08 and it bites in one more place than expected:
+  a desktop notification has an avatar slot and arrives empty, because the
+  picture it would draw is the *sender's* and this device has never been told
+  it. The plumbing for that slot is built and works, proven with the "Show one
+  now" button in Settings, which sends your own picture and draws it. So the
+  notification is one synced field away from being complete, and nothing more
+  is needed on the client.
 - **Blocking somebody you have never met.** The API takes any user id, but the
   only way into the UI is a right-click on a person already on screen, and a
   stranger is not on screen. In practice you unfriend or decline instead.
@@ -486,6 +670,19 @@ Two end-to-end proofs, both against a running server over real HTTP:
   yet in `deploy/.env`, so the deployed server hands out STUN only and a call
   between two home networks will not connect. `DEPLOY.md` → *Voice calls* has
   the two steps.
+- **Friend requests do not arrive live.** Found by hand on 2026-09-08, and
+  worth stating because the capability table above reads as though they do.
+  Nothing in `server/src/modules/friends/` or `server/src/realtime/` emits a
+  socket event when a request is sent, accepted or declined, and the client's
+  socket listens only for `message:new`, `typing`, `presence`, `read` and the
+  `call:*` family. `reloadFriends()` in `ChatProvider` runs on mount and after
+  an action you took yourself, so a request that lands while the other side is
+  simply sitting there open is invisible until the page is reloaded. Messages
+  are pushed, so the asymmetry is surprising rather than obviously absent: the
+  first thing two new accounts do is send a request, and it looks broken. The
+  fix is one emit per transition on the server and one listener that calls
+  `reloadFriends`, but the server half is the other maintainer's.
+
 - **Notifications with the app closed.** The half that works while the app is
   open in a background tab or behind another window is built (see above). The
   half that survives quitting the browser, or a phone with the site not open,
@@ -497,7 +694,10 @@ Two end-to-end proofs, both against a running server over real HTTP:
   it travels through Google's or Apple's push service, so the push is a
   contentless wake-up and the client fetches and decrypts, which is also what
   the `preview` setting already promises. On iOS this needs the site added to
-  the home screen (16.4+).
+  the home screen (16.4+). The desktop shell narrows this a little: closing its
+  window now hides it rather than quitting, so notifications and ringing carry
+  on there. Actually quitting it still stops both, and the browser and the
+  phone are untouched by that.
 - **Screen sharing.** Deliberately out of scope for now
   ([`voice-plan.md`](voice-plan.md), *Explicitly out of scope*): it needs
   `getDisplayMedia` and a second track lifecycle on a peer connection that is
@@ -1039,6 +1239,21 @@ suspended.
 ---
 
 ## Reasonable next steps
+
+**Where 2026-09-08 stopped, pick this up first.** The desktop test build
+(`npm run build:desktop-test`, installs as "Cipher Test" beside the real app)
+was rebuilding with the third unlock fix and had not been installed. So:
+install it, sign in as a local account, minimise it and have a message sent
+from `localhost:5173`. If the chime sounds, the audio work is done and the
+commit can say so. If it does not, the console now says why in plain sight:
+`[sounds] could not play` or `[sounds] unlock refused`, at warning level, and
+devtools are compiled into that build (F12). Run `npm run dev:server` first or
+the app cannot sign in at all.
+
+Two things known to be unfinished and deliberately left: a desktop
+notification arrives with no avatar, because the picture it wants belongs to
+the sender and profiles are device-local (see *Sharing your profile*), and
+friend requests do not arrive live.
 
 Pick one; they are roughly independent. The first two are deliberately parked:
 they are known, planned and not being done yet.

@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "dev:desktop": "vite --mode desktop-dev",
-    "build:desktop": "tsc --noEmit && vite build --mode desktop"
+    "build:desktop": "tsc --noEmit && vite build --mode desktop",
+    "build:desktop-test": "tsc --noEmit && vite build --mode desktop-test"
   },
   "dependencies": {
     "@cipher/crypto": "*",

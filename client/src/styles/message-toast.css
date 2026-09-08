@@ -1,0 +1,137 @@
+/* The stack of arriving-message cards, top right, over everything.
+
+   Fixed rather than in the layout, because the activity bar docks to any of
+   the four edges and a toast that moved with it would land under the pointer
+   half the time. Top right is where a notification has been for twenty years,
+   and being the one thing on screen that does not move is worth more here than
+   being tidy about the dock. */
+.toasts {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* The strip itself must not eat clicks meant for the app behind it; the
+     cards turn pointer events back on for themselves. */
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: stretch;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-raised);
+  /* Deeper than anything in the page, because this is the one element that is
+     genuinely floating above the app rather than part of it. */
+  box-shadow: 0 10px 30px rgb(0 0 0 / 28%);
+  overflow: hidden;
+  animation: toast-in 160ms ease-out;
+}
+
+/* From the edge it belongs to, not from nowhere: it reads as having come from
+   off screen rather than having been conjured over the conversation. */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}
+
+.toast__open {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px 10px 10px;
+  background: none;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.toast__open:hover {
+  background: var(--hover);
+}
+
+/* Keeps the text column aligned when there is no avatar to draw, rather than
+   letting the name slide left and the stack look ragged. */
+.toast__avatar-gap {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+}
+
+.toast__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.toast__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* One line, clipped. A toast that grows to fit a paragraph stops being a
+   glance, and the conversation is one click away for the rest of it. */
+.toast__body {
+  font-size: 12px;
+  color: var(--text-mute);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toast__title,
+.toast__body {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toast__dismiss {
+  flex: 0 0 auto;
+  width: 28px;
+  background: none;
+  border: 0;
+  color: var(--text-mute);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.toast__dismiss:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+/* On a phone the stack spans the width, because a 320px card beside a 360px
+   screen is a card with no margin on one side. */
+@media (max-width: 480px) {
+  .toasts {
+    left: 16px;
+  }
+  .toast {
+    width: auto;
+  }
+}

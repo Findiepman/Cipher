@@ -504,6 +504,16 @@ export const nl: Catalogue<Key> = {
     'Uit zegt een melding alleen dat iemand je iets stuurde. Aan staat erbij wat diegene zei, en dat geeft ontsleutelde tekst aan het meldingencentrum van je besturingssysteem, waar het gelogd kan worden, naar een ander apparaat gespiegeld, of op een vergrendeld scherm getoond.',
   'notify.previewWarn':
     'Berichttekst gaat bij elke melding buiten het bereik van de app.',
+  'notify.toast':
+    'Pop-up in de app tonen',
+  'notify.toastHint':
+    'Een kaartje in de hoek als er een bericht binnenkomt in een gesprek dat je niet leest. Precies het tegenovergestelde van een bureaubladmelding: deze verschijnt alleen als je de app kunt zien, die andere alleen als dat niet zo is, dus een bericht geeft altijd de een of de ander en nooit allebei.',
+  'notify.toastPreview':
+    'Berichttekst in pop-ups tonen',
+  'notify.toastPreviewHint':
+    'Los van de instelling hierboven, omdat het risico anders is. Een pop-up wordt getekend in een venster waar je toch al naar kijkt en gaat nergens anders heen, dus hij staat aan. Zet hem uit als mensen over je schouder meelezen.',
+  'notify.toastDismiss':
+    'Sluiten',
   'notify.test': 'Probeer er een',
   'notify.testHint':
     'Meldingen verschijnen alleen als dit venster op de achtergrond staat, dus dit is de enige melding die je niet kunt controleren door hem aan te zetten en te wachten.',

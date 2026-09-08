@@ -486,6 +486,16 @@ export const en = {
     "Off, a notification says only that someone messaged you. On, it includes what they said, which hands decrypted text to the operating system's notification centre, where it may be logged, mirrored to another device or shown on a locked screen.",
   'notify.previewWarn':
     "Message text will leave the app's control every time a notification is shown.",
+  'notify.toast':
+    'Show a popup in the app',
+  'notify.toastHint':
+    'A card in the corner when a message lands in a conversation you are not reading. The exact opposite of a desktop notification: this one appears only while you can see the app, that one only while you cannot, so a message raises one or the other and never both.',
+  'notify.toastPreview':
+    'Show message text in popups',
+  'notify.toastPreviewHint':
+    'Separate from the setting above, because the risk is not the same. A popup is drawn inside a window you are already looking at and goes nowhere else, so it starts on. Turn it off if people read over your shoulder.',
+  'notify.toastDismiss':
+    'Dismiss',
   'notify.test': 'Try one',
   'notify.testHint':
     'Notifications only appear while this window is in the background, so this is the one alert you cannot check by switching it on and waiting.',

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Cipher Test",
+  "identifier": "dev.findiepman.cipher.test",
+  "build": {
+    "beforeBuildCommand": "npm run --prefix .. build:desktop-test-client"
+  },
+  "app": {
+    "security": {
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self' 'wasm-unsafe-eval'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: blob:",
+        "font-src": "'self'",
+        "media-src": "'self' blob:",
+        "connect-src": "'self' ipc: http://ipc.localhost http://localhost:3000 ws://localhost:3000 http://127.0.0.1:3000 ws://127.0.0.1:3000",
+        "object-src": "'none'",
+        "base-uri": "'none'",
+        "frame-src": "'none'",
+        "form-action": "'self'"
+      }
+    }
+  },
+  "bundle": {
+    "createUpdaterArtifacts": false,
+    "shortDescription": "Cipher Test",
+    "longDescription": "A test build of the Cipher desktop shell, pointed at a server on this machine. Not the real app."
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://updates.invalid/never/latest.json"
+      ]
+    }
+  }
+}

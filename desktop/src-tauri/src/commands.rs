@@ -1,11 +1,27 @@
 //! The small commands: what the page asks the shell for, one line each on
 //! the page side (client/src/lib/platform/desktop.ts). Every argument here
 //! came from the page and is treated accordingly, even though the page is
-//! bundled: a URL is checked before it is opened, a count is bounded, and
-//! nothing here can reach the file system or the network on the page's say.
+//! bundled: a URL is checked before it is opened, and a count is bounded.
+//!
+//! One command does touch the file system on the page's say, and it is worth
+//! being explicit about rather than leaving to be discovered. `notify` writes
+//! the sender's avatar to a file, because a Windows toast takes its image as a
+//! path and nothing else. What keeps that narrow:
+//!
+//!   - Only a `data:image/png;base64,` string is accepted. Not a path, not a
+//!     URL, not another scheme, so the page cannot name a file to read or a
+//!     host to reach.
+//!   - The shell chooses the name, from a hash of the bytes, and the
+//!     directory, which is this app's own cache. The page influences neither.
+//!   - The decoded image is size-capped, so a page that has somehow been
+//!     replaced cannot fill the disk one notification at a time.
 
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash as _, Hasher as _};
+use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 
+use base64::Engine as _;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, UserAttentionType};
 use tauri_plugin_autostart::ManagerExt as _;
@@ -114,14 +130,69 @@ fn unread_dot() -> tauri::image::Image<'static> {
     tauri::image::Image::new_owned(rgba, SIZE, SIZE)
 }
 
+/// The largest avatar worth accepting, decoded. The page sends a 96px PNG,
+/// which is a few kilobytes; this is loose enough never to reject a real one
+/// and tight enough that the cache cannot run away.
+const MAX_ICON_BYTES: usize = 512 * 1024;
+
+const ICON_PREFIX: &str = "data:image/png;base64,";
+
+/// The sender's avatar on disk, as a path the toast can point at.
+///
+/// Returns None for anything it does not like, and the notification then goes
+/// out without a picture, which is the behaviour this had before there were
+/// pictures at all. Nothing here is worth failing a notification over.
+fn icon_path(app: &AppHandle, data_url: &str) -> Option<PathBuf> {
+    let encoded = data_url.strip_prefix(ICON_PREFIX)?;
+    // Rough check before decoding, so an enormous string is refused rather
+    // than allocated: base64 is 4 characters per 3 bytes.
+    if encoded.len() / 4 * 3 > MAX_ICON_BYTES {
+        return None;
+    }
+
+    let bytes = base64::engine::general_purpose::STANDARD.decode(encoded).ok()?;
+    if bytes.len() > MAX_ICON_BYTES {
+        return None;
+    }
+
+    // The name is the content, so the same avatar is written once and reused,
+    // a changed one lands beside it, and the page has no say in either.
+    let mut hasher = DefaultHasher::new();
+    bytes.hash(&mut hasher);
+    let dir = app.path().app_cache_dir().ok()?.join("notification-icons");
+    let path = dir.join(format!("{:016x}.png", hasher.finish()));
+
+    if !path.exists() {
+        std::fs::create_dir_all(&dir).ok()?;
+        std::fs::write(&path, &bytes).ok()?;
+    }
+    Some(path)
+}
+
 /// A native notification. The page has already decided whether one is
 /// wanted and what it may say (lib/settings/desktopNotifications.ts); this only
 /// hands the text to the operating system. Nothing is logged.
+///
+/// `icon` is the sender's avatar as a PNG data URL, already re-encoded and
+/// scaled by the page (lib/platform/notificationIcon.ts). It becomes the
+/// picture on the toast, beside the app's own name and logo, which Windows
+/// draws from the bundle. Note that Windows only shows those two for an
+/// *installed* build: the notification plugin sets the AppUserModel ID only
+/// when the executable is not running out of target/debug or target/release,
+/// so `cargo run` gets a toast attributed to something else entirely.
 #[tauri::command]
-pub fn notify(app: AppHandle, title: String, body: Option<String>) -> Result<(), String> {
+pub fn notify(
+    app: AppHandle,
+    title: String,
+    body: Option<String>,
+    icon: Option<String>,
+) -> Result<(), String> {
     let mut builder = app.notification().builder().title(title);
     if let Some(body) = body {
         builder = builder.body(body);
+    }
+    if let Some(path) = icon.as_deref().and_then(|data| icon_path(&app, data)) {
+        builder = builder.icon(path.to_string_lossy().into_owned());
     }
     builder.show().map_err(|err| err.to_string())
 }

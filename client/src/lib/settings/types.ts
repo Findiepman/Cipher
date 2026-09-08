@@ -285,6 +285,25 @@ export type NotificationSettings = {
    * screen. Off by default, and the UI says why.
    */
   preview: boolean;
+  /**
+   * Whether a message landing while you are using the app raises a toast in
+   * the corner. The in-app twin of `desktop`, and the exact complement of it:
+   * that one fires only when you cannot see the app, this one only when you
+   * can.
+   */
+  toast: boolean;
+  /**
+   * Whether that toast may contain the message text.
+   *
+   * Deliberately not `preview`, which governs the desktop notification. The
+   * two look like the same question and are not: `preview` is about handing
+   * decrypted text to an OS notification centre that may log it, sync it to a
+   * phone or paint it on a lock screen, and it is off by default for that
+   * reason. A toast is drawn inside a window you are already looking at and
+   * goes nowhere else, so it defaults on. One switch for both would have made
+   * the safer default the enemy of the useful one.
+   */
+  toastPreview: boolean;
   soundOnMessage: boolean;
   soundOnMention: boolean;
   soundOnSend: boolean;
@@ -428,6 +447,8 @@ export const DEFAULT_SETTINGS: Settings = {
   notifications: {
     desktop: false,
     preview: false,
+    toast: true,
+    toastPreview: true,
     soundOnMessage: true,
     soundOnMention: true,
     soundOnSend: false,

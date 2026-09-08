@@ -10,6 +10,7 @@
  * in a desktop build, so the web bundle never carries the Tauri client.
  */
 import { invoke } from '@tauri-apps/api/core';
+import { pngForNotification } from './notificationIcon';
 import { listen } from '@tauri-apps/api/event';
 import type {
   NotificationRequest,
@@ -72,7 +73,15 @@ export function createDesktopPlatform(): Platform {
     },
 
     async notify(request: NotificationRequest) {
-      await invoke('notify', { title: request.title, body: request.body ?? null });
+      // The avatar is re-encoded here rather than in the shell. It arrives as
+      // a WebP or JPEG data URL and Windows toasts draw neither, and doing the
+      // conversion on this side keeps an image decoder out of the Rust
+      // process: what crosses is a PNG the shell only has to base64-decode.
+      await invoke('notify', {
+        title: request.title,
+        body: request.body ?? null,
+        icon: await pngForNotification(request.icon),
+      });
     },
 
     dismissNotifications() {

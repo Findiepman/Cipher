@@ -2,11 +2,18 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppRoot } from './AppRoot';
 import { UpdateBanner } from './components/UpdateBanner';
+import { unlockOnFirstGesture } from './lib/media/sounds';
 import { DesktopPrefsSync } from './state/DesktopPrefsSync';
 import { I18nProvider } from './state/I18nProvider';
 import { PlatformProvider } from './state/PlatformProvider';
 import { SessionProvider } from './state/SessionProvider';
 import { SettingsProvider } from './state/SettingsProvider';
+
+// Browsers refuse to play audio until the page has been interacted with, and
+// the alerts that matter (a message landing, a call ringing) arrive with no
+// gesture of their own. Claiming the right here, on the first click or key
+// anywhere, is what lets them make a sound later.
+unlockOnFirstGesture();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

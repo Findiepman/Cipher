@@ -34,6 +34,25 @@ pub const MAIN_WINDOW: &str = "main";
 /// instead of putting a window on a desktop nobody has looked at yet.
 pub const MINIMIZED_FLAG: &str = "--minimized";
 
+/// Extra WebView2 switches, Windows only.
+///
+/// Close-to-tray leaves the app running with a hidden window, and a hidden
+/// window is a background window: Chromium clamps its timers and can freeze
+/// the renderer outright. That would leave the app resident and deaf, which
+/// is the opposite of the point, so the three backgrounding behaviours are
+/// turned off.
+///
+/// The first switch is not ours. It is what Tauri passes by default, and
+/// `additional_browser_args` replaces that default rather than adding to it,
+/// so dropping it would quietly change unrelated WebView2 behaviour.
+#[cfg(windows)]
+const BROWSER_ARGS: &str = concat!(
+    "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection",
+    " --disable-background-timer-throttling",
+    " --disable-renderer-backgrounding",
+    " --disable-backgrounding-occluded-windows",
+);
+
 /// Preferences the page pushes into the shell (see `set_close_to_tray`).
 /// They default to the safer behaviour so a close before the page has loaded
 /// does the same thing as a close after it.
@@ -87,7 +106,8 @@ fn main() {
         ])
         .setup(|app| {
             let handle = app.handle().clone();
-            let window = WebviewWindowBuilder::new(app, MAIN_WINDOW, WebviewUrl::default())
+            #[allow(unused_mut)]
+            let mut builder = WebviewWindowBuilder::new(app, MAIN_WINDOW, WebviewUrl::default())
                 .title("Cipher")
                 .inner_size(1180.0, 760.0)
                 .min_inner_size(720.0, 480.0)
@@ -107,8 +127,14 @@ fn main() {
                         eprintln!("could not open {target} in the browser: {err}");
                     }
                     false
-                })
-                .build()?;
+                });
+
+            #[cfg(windows)]
+            {
+                builder = builder.additional_browser_args(BROWSER_ARGS);
+            }
+
+            let window = builder.build()?;
 
             tray::install(app.handle())?;
 

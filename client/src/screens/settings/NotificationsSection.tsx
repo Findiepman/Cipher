@@ -49,6 +49,7 @@ const MUTE_OPTIONS: { label: Key; minutes: number | null }[] = [
 
 export function NotificationsSection() {
   const { settings, update } = useSettings();
+  const { self } = useChat();
   const { locale, t } = useI18n();
   // Asked of the platform rather than of `Notification` directly: in the
   // desktop app the operating system holds the answer and the browser's
@@ -88,6 +89,12 @@ export function NotificationsSection() {
       title: t('notify.testTitle'),
       body: t('notify.testBody'),
       tag: 'cipher/test',
+      // Your own picture, so the test exercises the whole icon path rather
+      // than half of it. On the desktop that path is the longest part of a
+      // notification: re-encode to PNG here, base64 across to the shell, a
+      // file written, a path handed to Windows. A test that skipped it would
+      // pass on a build where the picture never appears.
+      icon: self?.avatarUrl,
     });
   }
 
@@ -164,6 +171,26 @@ export function NotificationsSection() {
         {notifications.preview && (
           <Note tone="warn">{t('notify.previewWarn')}</Note>
         )}
+
+        {/* The in-app half of the same idea, and deliberately not gated on the
+            browser's notification permission: a card drawn inside the app's
+            own window needs nobody's leave. */}
+        <Row label={t('notify.toast')} hint={t('notify.toastHint')}>
+          <Toggle
+            label={t('notify.toast')}
+            checked={notifications.toast}
+            onChange={(toast) => update('notifications', { toast })}
+          />
+        </Row>
+
+        <Row label={t('notify.toastPreview')} hint={t('notify.toastPreviewHint')}>
+          <Toggle
+            label={t('notify.toastPreview')}
+            checked={notifications.toastPreview}
+            disabled={!notifications.toast}
+            onChange={(toastPreview) => update('notifications', { toastPreview })}
+          />
+        </Row>
 
         {permission === 'granted' && (
           <Row label={t('notify.test')} hint={t('notify.testHint')}>

@@ -16,7 +16,9 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "dev:desktop-client": "npm run dev:desktop --workspace @cipher/client",
-    "build:desktop-client": "npm run build:desktop --workspace @cipher/client"
+    "build:desktop-client": "npm run build:desktop --workspace @cipher/client",
+    "build:desktop-test": "npm --prefix desktop install && npm --prefix desktop run build:test",
+    "build:desktop-test-client": "npm run build:desktop-test --workspace @cipher/client"
   },
   "engines": {
     "node": ">=20"

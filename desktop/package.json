@@ -8,7 +8,8 @@
     "dev": "tauri dev",
     "build": "tauri build",
     "check": "cd src-tauri && cargo check",
-    "icons": "tauri icon ../client/public/logo.png -o src-tauri/icons"
+    "icons": "tauri icon ../client/public/logo.png -o src-tauri/icons",
+    "build:test": "tauri build --features devtools --config src-tauri/tauri.test.conf.json"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4"

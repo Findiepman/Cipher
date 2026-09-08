@@ -23,6 +23,7 @@ import type { FastifyInstance } from 'fastify';
 import { Server, type Socket } from 'socket.io';
 import { env } from '../env.js';
 import { ACCESS_COOKIE } from '../lib/cookies.js';
+import { allowedOrigins } from '../lib/origins.js';
 import { loadLiveSession } from '../lib/session-guard.js';
 import type { AccessTokenPayload } from '../plugins/auth.js';
 import { listFriends } from '../modules/friends/service.js';
@@ -58,7 +59,9 @@ export interface RealtimeOptions {
 
 export function attachRealtime(app: FastifyInstance, options: RealtimeOptions = {}): Realtime {
   const io = new Server(app.server, {
-    cors: { origin: [env.APP_URL], credentials: true },
+    // The same allowlist as the HTTP API, or the desktop app could sign in
+    // and then never connect. See lib/origins.ts.
+    cors: { origin: allowedOrigins(), credentials: true },
     // The client's own outbox handles retries and ordering, so a slow reconnect
     // costs nothing but a delay.
     connectionStateRecovery: {},

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Nothing is granted to the page on purpose. The window shows a remote origin, and a capability without a remote block only ever applies to tauri:// content, so even core:default is unreachable from the site. The updater and the dialogs run from Rust and need no permission. Do not add a remote block here without reading desktop/AGENTS.md first.",
+  "description": "What the bundled page may ask of the shell. The page is local content (client/dist, or the Vite dev server in development), so the shell's own commands in src/commands.rs and src/updater.rs are reachable without an entry here. Plugins are not: each one the page calls directly has to be listed. Today that is only the opener, and only so that a link with target=_blank opens in the system browser instead of inside the app. Everything else (notifications, the badge, autostart, the updater) is reached through the shell's commands, which validate their arguments, rather than by granting the page the plugin. Keep it that way, and never add a remote block: the page is bundled, and a remote origin has no business calling into this process.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "opener:default"]
 }

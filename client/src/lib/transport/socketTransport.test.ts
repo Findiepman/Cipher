@@ -366,3 +366,36 @@ describe('read positions', () => {
     });
   });
 });
+
+describe('the handshake token', () => {
+  it('hands the socket a getter that asks the API client afresh each time', async () => {
+    const api = fakeApi(() => json({}));
+    api.setTokens({
+      accessToken: 'access-1',
+      accessTokenExpiresAt: new Date(Date.now() + 900_000).toISOString(),
+      refreshToken: 'refresh-1',
+    });
+
+    let getter: (() => Promise<string | null>) | null = null;
+    const transport = new SocketTransport({
+      url: 'http://localhost:3000',
+      api,
+      connectTimeoutMs: 20,
+      createSocket: (_url, getToken) => {
+        getter = getToken;
+        return new FakeSocket();
+      },
+    });
+    await transport.connect();
+
+    // A function, not a value: socket.io calls it on every reconnect, and a
+    // token captured at the first connect would be long expired by then.
+    await expect(getter!()).resolves.toBe('access-1');
+    api.setTokens({
+      accessToken: 'access-2',
+      accessTokenExpiresAt: new Date(Date.now() + 900_000).toISOString(),
+      refreshToken: 'refresh-2',
+    });
+    await expect(getter!()).resolves.toBe('access-2');
+  });
+});

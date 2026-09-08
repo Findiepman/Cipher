@@ -1,19 +1,21 @@
-# Builds the desktop shell in desktop/ for Windows, macOS and Linux.
+# Builds the desktop app in desktop/ for Windows, macOS and Linux.
+#
+# The app bundles the web client, so this workflow builds client/ first (from
+# the repo root, with the whole workspace installed) and then the Tauri shell
+# around it. That also means a change under client/ only reaches desktop
+# users through a release made here; the web deploys on its own cadence from
+# deploy/. desktop/UPDATES.md is the release procedure.
 #
 # Two ways to run it, on purpose:
 #
-# - A push to main that touches desktop/ (or this file) builds all three
-#   platforms and keeps the installers as workflow artifacts for a week. That
-#   proves the packaging still works and gives you something to try, and it
-#   creates no release.
+# - A push to main that touches desktop/, client/, packages/ or this file
+#   builds all platforms and keeps the installers as workflow artifacts for a
+#   week. That proves the packaging still works and gives you something to
+#   try, and it creates no release.
 # - Manual dispatch does the same build and then publishes a DRAFT GitHub
 #   release tagged desktop-v<version>, with latest.json attached for the
 #   updater. Publishing the draft by hand is the release. Nothing installed
 #   anywhere sees an update until you press that button.
-#
-# Nothing else triggers it. The server deploys on its own cadence and a
-# desktop release is a rarer event, so this workflow never runs for a change
-# under client/ or server/.
 #
 # Secrets it needs (Settings -> Secrets and variables -> Actions):
 #
@@ -22,7 +24,7 @@
 #                                       without one. Set it if you regenerate
 #                                       the key with a password.
 #
-# The private key must never be committed. desktop/README.md says where it
+# The private key must never be committed. desktop/UPDATES.md says where it
 # lives and what to do if it is lost. There are no OS code-signing
 # certificates yet (Apple Developer ID, Windows Authenticode), so the
 # installers are unsigned; see desktop/README.md -> "Code signing" before
@@ -35,6 +37,10 @@ on:
     branches: [main]
     paths:
       - 'desktop/**'
+      - 'client/**'
+      - 'packages/**'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/desktop.yml'
   workflow_dispatch:
 
@@ -77,7 +83,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: desktop/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -89,13 +97,44 @@ jobs:
         with:
           workspaces: desktop/src-tauri -> target
 
-      # Only the Tauri CLI. There is no frontend to build here: the window
-      # loads the deployed site, so the web app ships from deploy/, not from
-      # this workflow.
+      # The whole workspace, because client/ depends on packages/crypto and
+      # the one lockfile lives at the root. server/'s postinstall runs
+      # `prisma generate`, which wants a DATABASE_URL to exist even though
+      # nothing here ever connects to it.
+      - name: Install the workspace
+        env:
+          DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build
+        run: npm ci
+
+      # The lockfile is generated on Windows and records only the Windows
+      # native binaries for rollup and esbuild; `npm ci` installs exactly
+      # what it lists, so on macOS and Linux both arrive without one and vite
+      # dies with "Cannot find module @rollup/rollup-<platform>" (npm/cli#4828).
+      # Same fix as client/Dockerfile: ask the tree what versions it holds,
+      # and add the binary for the machine doing the building.
+      - name: Install the native binaries the lockfile does not list
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -eux
+          case "$(uname -s)-$(uname -m)" in
+            Darwin-arm64) rollup=darwin-arm64; esbuild=darwin-arm64 ;;
+            Darwin-x86_64) rollup=darwin-x64; esbuild=darwin-x64 ;;
+            Linux-x86_64) rollup=linux-x64-gnu; esbuild=linux-x64 ;;
+            *) echo "unsupported builder: $(uname -s)-$(uname -m)" >&2; exit 1 ;;
+          esac
+          rollup_version="$(node -p "require('rollup/package.json').version")"
+          esbuild_version="$(node -p "require('esbuild/package.json').version")"
+          npm install --no-save --no-audit --no-fund \
+            "@rollup/rollup-${rollup}@${rollup_version}" \
+            "@esbuild/${esbuild}@${esbuild_version}"
+
       - name: Install the Tauri CLI
         working-directory: desktop
         run: npm ci
 
+      # `tauri build` runs beforeBuildCommand from tauri.conf.json first,
+      # which is the client build in desktop mode, then bundles it.
       - name: Build
         uses: tauri-apps/tauri-action@v1
         env:

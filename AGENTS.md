@@ -12,8 +12,8 @@ A Discord-like chat app (DMs today, servers/channels later) where message conten
 
 ## Repo layout
 
-- `client/`: the React app. This is the one UI codebase, built once and served two ways: as the web app, and wrapped by the desktop shell. Do not fork UI code between web and desktop; platform differences belong behind a small adapter, not a duplicated component tree.
-- `desktop/`: the Tauri (or Electron) shell that wraps `client/`'s build output into a desktop app. Contains only packaging/native-integration code, not app logic.
+- `client/`: the React app. This is the one UI codebase, built twice from the same source: as the web app, and again in desktop mode (`.env.desktop`) for the desktop app. Do not fork UI code between web and desktop; platform differences belong behind the adapter in `client/src/lib/platform/`, not a duplicated component tree.
+- `desktop/`: the Tauri app that bundles `client/`'s desktop build and adds what a browser cannot: a tray, notifications, a badge, auto-update. Contains only packaging/native-integration code, not app logic. Every client change reaches desktop users through a release from here, so releasing is routine, not an event.
 - `server/`: Node backend, HTTP API, Socket.io real-time layer, Postgres access via Prisma.
 - `packages/crypto/`: the shared encryption module. Both `client/` and (for validation only, never decryption) `server/` may depend on it. This is the only place that should ever call libsodium directly.
 

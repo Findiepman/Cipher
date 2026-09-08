@@ -25,6 +25,7 @@ import {
 } from '@cipher/crypto';
 import { ApiClient, api } from '../api';
 import { createAccountApi, createAuthApi } from '../api/endpoints';
+import { isDesktop } from '../config';
 import type { AccountDto, DeviceDto, ResetContextResponse } from '../api/types';
 import { KeyManager, keyManager as defaultKeyManager } from './keyManager';
 
@@ -102,6 +103,16 @@ export class AuthService {
     // impossible), and the wrapped blobs are safe on the server. The first
     // successful login downloads and unwraps them.
     return { recoveryCode };
+  }
+
+  /**
+   * Picks up whatever session the last launch left behind. In cookie mode
+   * that is the browser's job and this does nothing; in bearer mode it reads
+   * the stored refresh token so `me()` can refresh rather than fail. Called
+   * once, by SessionProvider, before the first request.
+   */
+  restoreSession(): Promise<void> {
+    return this.client.restoreSession();
   }
 
   async login(input: LoginInput): Promise<AccountDto> {
@@ -410,13 +421,6 @@ export class AuthService {
 export function describeDevice(): string {
   if (typeof navigator === 'undefined') return 'Unknown device';
   const ua = navigator.userAgent;
-  const browser =
-    /Edg\//.test(ua) ? 'Edge'
-    : /OPR\//.test(ua) ? 'Opera'
-    : /Firefox\//.test(ua) ? 'Firefox'
-    : /Chrome\//.test(ua) ? 'Chrome'
-    : /Safari\//.test(ua) ? 'Safari'
-    : 'Browser';
   const platform =
     /Windows/.test(ua) ? 'Windows'
     : /Mac OS X/.test(ua) ? 'macOS'
@@ -424,6 +428,16 @@ export function describeDevice(): string {
     : /(iPhone|iPad)/.test(ua) ? 'iOS'
     : /Linux/.test(ua) ? 'Linux'
     : 'Unknown';
+  // The desktop app's WebView reports itself as Edge, Safari or Chrome
+  // depending on the OS, none of which is what the session list should say.
+  if (isDesktop) return `Cipher desktop on ${platform}`;
+  const browser =
+    /Edg\//.test(ua) ? 'Edge'
+    : /OPR\//.test(ua) ? 'Opera'
+    : /Firefox\//.test(ua) ? 'Firefox'
+    : /Chrome\//.test(ua) ? 'Chrome'
+    : /Safari\//.test(ua) ? 'Safari'
+    : 'Browser';
   return `${browser} on ${platform}`;
 }
 

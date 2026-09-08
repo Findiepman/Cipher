@@ -106,7 +106,9 @@ export function SessionProvider({
     let cancelled = false;
 
     async function bootstrap() {
-      await keys.restore();
+      // Both are reads of what the last launch left on this device: the
+      // identity, and (in bearer mode) the session. Neither needs the other.
+      await Promise.all([keys.restore(), auth.restoreSession()]);
       if (isMockBackend) {
         // No server to ask. The UI decides what to show for a signed-out user.
         if (!cancelled) setStatus('anonymous');

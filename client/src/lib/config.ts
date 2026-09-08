@@ -9,6 +9,7 @@
 
 export type AuthMode = 'cookie' | 'bearer';
 export type BackendMode = 'mock' | 'http';
+export type PlatformKind = 'web' | 'desktop';
 
 function readEnv(): ImportMetaEnv {
   // Guarded so this module can also be imported from a plain Node context
@@ -29,13 +30,26 @@ export const config = {
    *
    * Development is genuinely cross-origin (Vite on :5173, Fastify on :3000),
    * so leaving the variable unset keeps the localhost default.
+   *
+   * The desktop build is cross-origin too, and permanently so: its page is
+   * served from the app's own origin and the API is the deployed site, which
+   * is why `.env.desktop` sets this to the full URL and `authMode` to bearer.
    */
   apiUrl: (env.VITE_API_URL ?? 'http://localhost:3000').replace(/\/+$/, ''),
   authMode: (env.VITE_AUTH_MODE ?? 'cookie') as AuthMode,
   backend: (env.VITE_BACKEND ?? 'http') as BackendMode,
+  /**
+   * Which platform adapter to load (lib/platform). A build-time constant, so
+   * the web bundle never even contains the desktop adapter and its Tauri
+   * imports: Vite drops the branch that would load it.
+   */
+  platform: (env.VITE_PLATFORM ?? 'web') as PlatformKind,
 } as const;
 
 export const isMockBackend = config.backend === 'mock';
+
+/** True in the build the Tauri shell bundles, false in a browser. */
+export const isDesktop = config.platform === 'desktop';
 
 /**
  * True only in `vite dev`. Vite substitutes this at build time, so anything

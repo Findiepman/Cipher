@@ -7,28 +7,28 @@ One npm workspace, four packages:
 
 | Path | What it is |
 |---|---|
-| `client/` | The React + Vite app. One UI codebase, built twice: as the web app, and wrapped by the desktop shell. |
+| `client/` | The React + Vite app. One UI codebase, built twice: as the web app and again in desktop mode for the desktop app. |
 | `server/` | Fastify API, Socket.io, Postgres via Prisma. Accounts and auth ([`backend-plan.md`](backend-plan.md)) plus friends and DMs ([`messaging-plan.md`](messaging-plan.md)). |
 | `packages/crypto/` | `@cipher/crypto`. The only place in the repo that calls libsodium. |
-| `desktop/` | The Tauri/Electron shell around `client/`'s build output. Not started. |
+| `desktop/` | The Tauri desktop app: `client/` bundled, plus a tray, notifications and signed auto-updates. See [`desktop/README.md`](desktop/README.md). |
 
 Read [`AGENTS.md`](AGENTS.md) before changing anything, then
-[`STATUS.md`](STATUS.md) for where the project actually is — what works, what is
-missing, and the decisions worth not undoing — then the `AGENTS.md` in the
+[`STATUS.md`](STATUS.md) for where the project actually is (what works, what is
+missing and the decisions worth not undoing), then the `AGENTS.md` in the
 directory you are working in. [`stack.md`](stack.md) records why the stack is
 what it is, and [`DEPLOY.md`](DEPLOY.md) is the runbook for putting it on a
 server.
 
 ## Getting it running
 
-Install once from the repo root — the workspaces share a single lockfile, so
+Install once from the repo root: the workspaces share a single lockfile, so
 running `npm install` inside `client/` or `server/` is not what you want:
 
 ```bash
 npm install
 ```
 
-You need both halves running to sign in. Start the server first — it needs
+You need both halves running to sign in. Start the server first, because it needs
 Postgres and a `.env`, both covered in [`server/README.md`](server/README.md):
 
 ```bash
@@ -37,7 +37,7 @@ npm run dev            # http://localhost:5173
 ```
 
 Open http://localhost:5173 and create an account. With `MAIL_TRANSPORT=file`,
-the verification email lands as a file in `server/.mail/` — open the
+the verification email lands as a file in `server/.mail/`. Open the
 `/verify-email?token=…` link inside it.
 
 To work on the UI without a server at all, copy `client/.env.example` to
@@ -58,8 +58,8 @@ need nothing.
 ## Where the encryption is at
 
 **Phase 1.** `encryptMessage()` and `decryptMessage()` are deliberately no-ops
-that base64 a body rather than sealing it, so the chat pipeline — auth, sockets,
-reconnect, offline queueing, desktop packaging — gets debugged without a crypto
+that base64 a body rather than sealing it, so the chat pipeline (auth, sockets,
+reconnect, offline queueing, desktop packaging) gets debugged without a crypto
 layer in the way. Every read and write already routes through those two
 functions, which is the seam phase 2 plugs into. Nothing in `client/` changes
 when it does.
@@ -78,7 +78,7 @@ The client and server speak one protocol, and the password is not part of it.
 1. **Create account.** A keypair is generated on the device. The password is
    stretched into an `authHash` (which goes to the server) and, separately, into
    a key that wraps the private key (which does not). The wrapped key is
-   uploaded twice — once under the password, once under a recovery code shown
+   uploaded twice: once under the password, once under a recovery code shown
    on screen exactly once.
 2. **Verify email.** The link is `/verify-email?token=…`. Running locally with
    `MAIL_TRANSPORT=file`, the email is a file in `server/.mail/`.
@@ -124,14 +124,14 @@ cp deploy/.env.example deploy/.env    # fill it in
 ```
 
 **Mail is a hard prerequisite, not polish.** Verification is required before
-login, so if mail does not send, nobody can create an account — including you.
+login, so if mail does not send, nobody can create an account, including you.
 `cd server && npm run mail:test -- you@example.com` proves the relay works
 before anything depends on it.
 
 ## Still to build
 
 - **Group servers and channels.** DMs only. The message tables are generic
-  enough for groups, but the key model is not chosen — see
+  enough for groups, but the key model is not chosen, see
   `packages/crypto/AGENTS.md`.
 - **Message editing, deletion, read receipts, attachments, search.** None of
   it, and nothing is ever marked read.

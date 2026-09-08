@@ -5,6 +5,7 @@ import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import { ZodError } from 'zod';
 import { env, isProduction } from './env.js';
 import { AppError } from './lib/errors.js';
+import { allowedOrigins } from './lib/origins.js';
 import { createMailer, type Mailer } from './lib/mailer.js';
 import authPlugin from './plugins/auth.js';
 import csrfPlugin from './plugins/csrf.js';
@@ -71,7 +72,9 @@ export async function buildApp(
   });
 
   await app.register(fastifyCors, {
-    origin: [env.APP_URL],
+    // The web app and the desktop app. See lib/origins.ts for why the
+    // desktop needs an entry of its own and what it does not get from it.
+    origin: allowedOrigins(),
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   });

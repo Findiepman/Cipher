@@ -39,7 +39,9 @@ import {
   listDevices,
   openMicrophone,
 } from '../lib/media/devices';
+import { shouldNotify } from '../lib/platform';
 import { useChat } from './ChatProvider';
+import { usePlatform } from './PlatformProvider';
 import { useSession } from './SessionProvider';
 import { useSettings } from './SettingsProvider';
 
@@ -254,6 +256,46 @@ export function CallProvider({
       engine.setTalking(false);
     };
   }, [engine, pushToTalk]);
+
+  // A ring while the window is somewhere behind: flash the taskbar entry (or
+  // bounce the dock) and, if notifications are on, say who it is. The in-app
+  // toast is what you see when the window is in front, and this is for when
+  // it is not. Nothing here answers the call: that is still a click away.
+  const platform = usePlatform();
+  const { usersById } = useChat();
+  const ringing = call.phase === 'ringing' && call.direction === 'incoming';
+  const peerName = call.peerId ? (usersById.get(call.peerId)?.name ?? 'Someone') : 'Someone';
+  useEffect(() => {
+    if (!ringing) return;
+    void platform.attention(true);
+    if (typeof document !== 'undefined' && document.hasFocus()) return;
+
+    const { notifications } = settings;
+    let live = true;
+    void platform.notificationPermission().then((permission) => {
+      if (!live) return;
+      const wanted = shouldNotify({
+        settings: notifications,
+        permission,
+        authorId: 'caller',
+        selfId: null,
+        focused: false,
+      });
+      if (!wanted) return;
+      void platform.notify({
+        title: 'Incoming call',
+        body: notifications.preview ? `${peerName} is calling.` : 'Someone is calling you.',
+        tag: 'call',
+        onClick: () => void platform.focus(),
+      });
+    });
+    return () => {
+      live = false;
+    };
+    // Deliberately not depending on the name or the settings: the ones at the
+    // moment the ring starts are the ones to use, and a rename mid-ring is
+    // not worth a second popup.
+  }, [ringing, platform]);
 
   const value = useMemo<CallContextValue>(
     () => ({

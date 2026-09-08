@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Merged into the app bundle's Info.plist by the Tauri bundler. macOS
+     refuses getUserMedia outright, with no prompt, unless the app declares
+     why it wants the hardware, so without these two lines a voice call on a
+     Mac fails at "open the microphone" and the settings preview shows
+     nothing. -->
+<plist version="1.0">
+<dict>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Cipher uses the microphone for voice calls.</string>
+  <key>NSCameraUsageDescription</key>
+  <string>Cipher uses the camera to show you a preview in settings.</string>
+</dict>
+</plist>

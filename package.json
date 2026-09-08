@@ -14,7 +14,9 @@
     "dev:server": "npm run dev --workspace @cipher/server",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present",
+    "dev:desktop-client": "npm run dev:desktop --workspace @cipher/client",
+    "build:desktop-client": "npm run build:desktop --workspace @cipher/client"
   },
   "engines": {
     "node": ">=20"

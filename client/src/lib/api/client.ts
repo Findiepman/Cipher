@@ -10,8 +10,11 @@
  *      family (backend-plan.md, "Auth mechanics"). Getting this wrong logs the
  *      user out rather than degrading quietly.
  *   2. Cookie vs. bearer transport. The web build authenticates with httpOnly
- *      cookies plus a CSRF header; the desktop shell has no usable cookie jar
- *      and uses `Authorization: Bearer`. One switch, set from env.
+ *      cookies plus a CSRF header; the desktop app is served from its own
+ *      origin, so the WebView would never attach the API's cookies, and it
+ *      uses `Authorization: Bearer` instead. One switch, set from env. In
+ *      bearer mode the refresh token is also written to a store so the
+ *      session survives a restart, see lib/storage/refreshTokenStore.ts.
  *   3. Uniform errors: see ApiError.
  *   4. The outgoing-secret guard. Registered secrets (the private key, the
  *      password, the recovery code) are checked against every request body
@@ -22,6 +25,7 @@
 import { ApiError, SecretLeakError } from './errors';
 import type { RefreshResponse, TokenPair } from './types';
 import { config, type AuthMode } from '../config';
+import { SecureRefreshTokenStore, type RefreshTokenStore } from '../storage/refreshTokenStore';
 
 export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
@@ -43,6 +47,13 @@ export interface ApiClientOptions {
   readCookies?: () => string;
   /** Called when a refresh fails and the session is genuinely over. */
   onSessionExpired?: () => void;
+  /**
+   * Where the refresh token is kept between launches, in bearer mode. Left
+   * out, the client picks the IndexedDB-backed store where there is an
+   * IndexedDB and keeps the token in memory only elsewhere (tests, Node).
+   * Pass null to keep it in memory on purpose.
+   */
+  tokenStore?: RefreshTokenStore | null;
 }
 
 /** Anything registered here is refused if it appears in a request body. */
@@ -67,17 +78,25 @@ function pageOrigin(): string {
     : window.location.origin;
 }
 
+function defaultTokenStore(authMode: AuthMode): RefreshTokenStore | null {
+  if (authMode !== 'bearer' || typeof indexedDB === 'undefined') return null;
+  return new SecureRefreshTokenStore();
+}
+
 export class ApiClient {
   private readonly baseUrl: string;
   private readonly authMode: AuthMode;
   private readonly fetchImpl: typeof fetch;
   private readonly readCookies: () => string;
+  private readonly tokenStore: RefreshTokenStore | null;
 
   private onSessionExpired: (() => void) | undefined;
   private accessToken: string | null = null;
   private accessTokenExpiresAt: number | null = null;
   private refreshToken: string | null = null;
   private refreshInFlight: Promise<boolean> | null = null;
+  /** The last write to the token store, so a restore never races it. */
+  private storeWrite: Promise<void> = Promise.resolve();
   private readonly secretGuards = new Set<SecretGuard>();
 
   constructor(options: ApiClientOptions = {}) {
@@ -87,6 +106,8 @@ export class ApiClient {
     this.readCookies =
       options.readCookies ?? (() => (typeof document === 'undefined' ? '' : document.cookie));
     this.onSessionExpired = options.onSessionExpired;
+    this.tokenStore =
+      options.tokenStore === undefined ? defaultTokenStore(this.authMode) : options.tokenStore;
   }
 
   setSessionExpiredHandler(handler: () => void): void {
@@ -97,22 +118,62 @@ export class ApiClient {
    * Access tokens are held in memory only, never localStorage, which any
    * injected script can read. A page reload costs one refresh call, which is
    * the correct trade.
+   *
+   * The refresh token is different: in bearer mode it is the whole session,
+   * and a session that dies with the process is a sign-in per launch. It goes
+   * to the token store, whose file says exactly what that means.
    */
   setTokens(tokens: TokenPair | undefined): void {
     if (!tokens) return;
     this.accessToken = tokens.accessToken;
     this.accessTokenExpiresAt = Date.parse(tokens.accessTokenExpiresAt);
     this.refreshToken = tokens.refreshToken;
+    this.persist((store) => store.save(tokens.refreshToken));
   }
 
   clearTokens(): void {
     this.accessToken = null;
     this.accessTokenExpiresAt = null;
     this.refreshToken = null;
+    this.persist((store) => store.clear());
+  }
+
+  /**
+   * Picks up the refresh token a previous launch left in the store, so the
+   * first request can refresh instead of failing. A no-op in cookie mode and
+   * wherever there is no store. Call it once, before the first request.
+   */
+  async restoreSession(): Promise<void> {
+    if (!this.tokenStore || this.refreshToken) return;
+    await this.storeWrite;
+    try {
+      const stored = await this.tokenStore.load();
+      if (stored && !this.refreshToken) this.refreshToken = stored;
+    } catch {
+      // A store that cannot be read is a signed-out launch, not an error.
+    }
   }
 
   get hasAccessToken(): boolean {
     return this.accessToken !== null;
+  }
+
+  /**
+   * A token fit to present right now, refreshing first if the current one is
+   * about to expire or if only a refresh token is held. For the socket
+   * handshake, which reconnects on its own long after the token it was
+   * created with has expired. Null in cookie mode, and when there is no
+   * session to speak of.
+   */
+  async getAccessToken(): Promise<string | null> {
+    if (this.authMode !== 'bearer') return null;
+    const stale =
+      this.accessTokenExpiresAt !== null &&
+      this.accessTokenExpiresAt - Date.now() <= REFRESH_SKEW_MS;
+    if ((this.accessToken === null || stale) && this.refreshToken) {
+      await this.ensureRefreshed();
+    }
+    return this.accessToken;
   }
 
   /** Returns an unregister function. */
@@ -301,6 +362,22 @@ export class ApiClient {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Writes are serialized and never awaited by callers: a token change must
+   * not block on storage, and a failed write leaves the next launch signed
+   * out, which is the safe direction to fail in.
+   */
+  private persist(action: (store: RefreshTokenStore) => Promise<void>): void {
+    const store = this.tokenStore;
+    if (!store) return;
+    this.storeWrite = this.storeWrite.then(() => action(store)).catch(() => {});
+  }
+
+  /** Waits for pending token writes. For tests. */
+  flushTokenStore(): Promise<void> {
+    return this.storeWrite;
   }
 }
 

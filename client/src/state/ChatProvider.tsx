@@ -30,6 +30,7 @@ import type {
   FriendRequestDto,
   SendFriendRequestResponse,
 } from '../lib/api/types';
+import { describeIncoming, shouldNotify } from '../lib/platform';
 import { friendToUser } from '../lib/presentation';
 import { Outbox, SecureOutboxStorage } from '../lib/transport/outbox';
 import { SocketTransport } from '../lib/transport/socketTransport';
@@ -39,7 +40,9 @@ import { keyManager as defaultKeyManager, type KeyManager } from '../lib/session
 import type { Channel, Message, User } from '../types';
 import { ChatController, type Recipient } from './chatController';
 import { initialChatState, messagesForChannel, type ChatState } from './chatStore';
+import { usePlatform } from './PlatformProvider';
 import { useSession } from './SessionProvider';
+import { useSettings } from './SettingsProvider';
 
 /** How long a typing indicator survives without a fresh signal. */
 const TYPING_TTL_MS = 5_000;
@@ -408,6 +411,69 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
       document.removeEventListener('visibilitychange', apply);
     };
   }, [activeChannelId, controller]);
+
+  /* --------------------------------------------------- the platform side -- */
+
+  const platform = usePlatform();
+  const { settings } = useSettings();
+
+  // Read inside the incoming-message listener, which is subscribed once and
+  // must not be re-subscribed on every settings change or render.
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const usersRef = useRef(usersById);
+  usersRef.current = usersById;
+
+  /// A message that arrives while you are not looking at its conversation
+  /// gets a notification, under the rules in lib/platform/notifications.ts.
+  /// Clicking it (where the platform reports clicks) opens the conversation.
+  useEffect(() => {
+    if (!account) return;
+    let live = true;
+
+    const unsubscribe = controller.chat.onIncoming((message, focused) => {
+      if (!live) return;
+      const { notifications } = settingsRef.current;
+      void platform.notificationPermission().then((permission) => {
+        if (!live) return;
+        const wanted = shouldNotify({
+          settings: notifications,
+          permission,
+          authorId: message.authorId,
+          selfId: account.id,
+          focused,
+        });
+        if (!wanted) return;
+
+        const author = usersRef.current.get(message.authorId)?.name ?? 'Someone';
+        const described = describeIncoming(notifications, author, message.body);
+        void platform.notify({
+          ...described,
+          tag: `message:${message.channelId}`,
+          onClick: () => selectChannel(message.channelId),
+        });
+      });
+    });
+
+    return () => {
+      live = false;
+      unsubscribe();
+    };
+  }, [account, controller, platform, selectChannel]);
+
+  /// The unread total, on the icon and in the title. Cleared on the way out
+  /// so a sign-out does not leave a count standing for nobody.
+  const unreadTotal = Object.values(chatState.unread).reduce((sum, count) => sum + count, 0);
+  const unreadBadge = settings.notifications.unreadBadge;
+  useEffect(() => {
+    void platform.setBadge(unreadBadge ? unreadTotal : 0);
+  }, [platform, unreadBadge, unreadTotal]);
+  useEffect(
+    () => () => {
+      void platform.setBadge(0);
+    },
+    [platform],
+  );
 
   const send = useCallback(
     async (body: string) => {

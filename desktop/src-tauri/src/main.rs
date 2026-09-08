@@ -1,66 +1,106 @@
-// The Cipher desktop shell.
+// The Cipher desktop app.
 //
-// One native window, no browser chrome, showing the deployed web app. There is
-// no app logic here on purpose: `client/` is the one UI codebase (root
-// AGENTS.md) and this binary only provides what a browser tab cannot: a
-// window of its own, a dock or taskbar entry and signed auto-updates.
+// The web client from `client/` is bundled into this binary and served from
+// the app's own origin; there is no app logic here, only what a browser tab
+// cannot do. In order of how often somebody will notice: a window of its own
+// that remembers where it was, a tray icon that keeps the app running when
+// the window is closed, native notifications and an unread badge, one
+// instance at a time, starting with the computer, and signed auto-updates
+// that the page announces and the person approves.
 //
-// The page is loaded from a remote origin, so it gets no IPC access: Tauri's
-// ACL grants commands to `tauri://` content only, and nothing in
-// `capabilities/` opens that up. The updater therefore runs entirely on the
-// Rust side, and a compromised site cannot reach the file system through this
-// shell any more than it could through a browser.
+// Two files hold the parts that talk to the page: `commands.rs` for the
+// small things, `updater.rs` for the update flow. `tray.rs` is the tray.
+// Everything the page can call is a command here, so every argument that
+// crosses that boundary is checked on this side.
 
 // No console window behind the app on Windows in release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::{AppHandle, Url, WebviewUrl, WebviewWindowBuilder};
-use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
+mod commands;
+mod tray;
+mod updater;
+
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_opener::OpenerExt;
-use tauri_plugin_updater::UpdaterExt;
+use tauri_plugin_window_state::StateFlags;
 
-/// Where a release build points unless told otherwise.
-const PRODUCTION_URL: &str = "https://cipher.findiepman.dev";
+/// The one window. Commands and the tray find it by this label.
+pub const MAIN_WINDOW: &str = "main";
 
-/// Where a debug build (`npm run dev` in desktop/) points unless told
-/// otherwise: the Vite dev server from `npm run dev` at the repo root.
-const DEVELOPMENT_URL: &str = "http://localhost:5173";
+/// Passed by the autostart entry so a login-time launch stays in the tray
+/// instead of putting a window on a desktop nobody has looked at yet.
+pub const MINIMIZED_FLAG: &str = "--minimized";
 
-/// The site the window shows.
-///
-/// `CIPHER_DESKTOP_URL` in the environment at build time wins. Otherwise a
-/// debug build shows the dev server and a release build shows the deployed
-/// site. The value is compiled in rather than read at run time, so a shipped
-/// binary cannot be pointed at another origin by editing a file next to it.
-fn app_url() -> Url {
-    let configured = option_env!("CIPHER_DESKTOP_URL").filter(|value| !value.trim().is_empty());
-    let raw = configured.unwrap_or(if cfg!(debug_assertions) {
-        DEVELOPMENT_URL
-    } else {
-        PRODUCTION_URL
-    });
-    Url::parse(raw).unwrap_or_else(|err| panic!("CIPHER_DESKTOP_URL is not a URL ({raw}): {err}"))
+/// Preferences the page pushes into the shell (see `set_close_to_tray`).
+/// They default to the safer behaviour so a close before the page has loaded
+/// does the same thing as a close after it.
+pub struct Prefs {
+    pub close_to_tray: AtomicBool,
 }
 
 fn main() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_dialog::init())
+        // First, so a second launch is caught before this one builds a window.
+        // The second process hands its arguments over and exits; this one
+        // brings its window forward.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            commands::show_main(app);
+        }))
+        // Size and position survive a restart. Visibility is left out: whether
+        // the window shows at start is decided below, by the flag, not by
+        // whether it happened to be hidden in the tray when the app last quit.
+        .plugin(
+            tauri_plugin_window_state::Builder::new()
+                .with_state_flags(StateFlags::all() & !StateFlags::VISIBLE)
+                .build(),
+        )
+        // Links with target=_blank open in the system browser (the plugin
+        // intercepts the click on the page side), and `open_external` uses it
+        // from here for the same thing on demand.
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec![MINIMIZED_FLAG]),
+        ))
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(Prefs {
+            close_to_tray: AtomicBool::new(true),
+        })
+        .manage(updater::UpdateState::default())
+        .invoke_handler(tauri::generate_handler![
+            commands::shell_info,
+            commands::show_window,
+            commands::request_attention,
+            commands::set_badge,
+            commands::notify,
+            commands::open_external,
+            commands::set_close_to_tray,
+            commands::autostart_enabled,
+            commands::set_autostart,
+            updater::check_for_updates,
+            updater::pending_update,
+            updater::install_update,
+        ])
         .setup(|app| {
-            let url = app_url();
-            let origin = url.origin();
             let handle = app.handle().clone();
-
-            WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
+            let window = WebviewWindowBuilder::new(app, MAIN_WINDOW, WebviewUrl::default())
                 .title("Cipher")
                 .inner_size(1180.0, 760.0)
                 .min_inner_size(720.0, 480.0)
-                // A window with no address bar and no back button must not
-                // wander off. Anything outside the app's origin opens in the
-                // system browser instead of replacing the app.
+                // Painted before the page is, so the first frame is the
+                // app's own dark ground rather than a white flash.
+                .background_color(tauri::window::Color(0x10, 0x0d, 0x0c, 0xff))
+                // Shown below, once the saved size and position are on it.
+                .visible(false)
+                // The page is bundled and has no links out of itself, so a
+                // navigation to anywhere but its own origin is either a bug
+                // or an attempt. Either way it opens in the browser, not here.
                 .on_navigation(move |target| {
-                    if target.origin() == origin {
+                    if is_app_origin(target) {
                         return true;
                     }
                     if let Err(err) = handle.opener().open_url(target.as_str(), None::<&str>) {
@@ -70,61 +110,68 @@ fn main() {
                 })
                 .build()?;
 
-            // Only a release build checks: a debug build is not installed
-            // anywhere an update could replace, and the endpoint answers with
-            // whatever the last real release was.
-            if !cfg!(debug_assertions) {
-                let handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    if let Err(err) = offer_update(handle).await {
-                        // Offline, no release yet or a bad manifest: none of
-                        // it is worth interrupting the user for.
-                        eprintln!("update check skipped: {err}");
-                    }
-                });
+            tray::install(app.handle())?;
+
+            let started_minimized = std::env::args().any(|arg| arg == MINIMIZED_FLAG);
+            if !started_minimized {
+                window.show()?;
             }
 
+            updater::start_background_checks(app.handle().clone());
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("failed to start the Cipher desktop shell");
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() != MAIN_WINDOW {
+                    return;
+                }
+                // macOS keeps an app alive with no windows as a matter of
+                // course and the dock icon brings it back, so there the close
+                // button always hides. Elsewhere it is the preference.
+                let keep_running = cfg!(target_os = "macos")
+                    || window
+                        .state::<Prefs>()
+                        .close_to_tray
+                        .load(Ordering::Relaxed);
+                if keep_running {
+                    api.prevent_close();
+                    if let Err(err) = window.hide() {
+                        eprintln!("could not hide the window: {err}");
+                    }
+                }
+            }
+        })
+        .build(tauri::generate_context!())
+        .expect("failed to start the Cipher desktop app")
+        .run(|app, event| {
+            // The dock icon on macOS, when the window is hidden.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                commands::show_main(app);
+            }
+            let _ = (app, &event);
+        });
 }
 
-/// Ask the updater endpoint whether a newer signed build exists and, if the
-/// user agrees, install it and restart. The plugin verifies the minisign
-/// signature against the public key in `tauri.conf.json` before anything is
-/// written, which is what the "auto-update must verify signatures" rule in
-/// AGENTS.md asks for.
-async fn offer_update(app: AppHandle) -> tauri_plugin_updater::Result<()> {
-    let Some(update) = app.updater()?.check().await? else {
-        return Ok(());
-    };
-
-    let question = format!(
-        "Cipher {} is available (you have {}). Install it and restart now?",
-        update.version, update.current_version
-    );
-    let dialog = app.clone();
-    // A blocking dialog may not run on the main thread, and the async runtime
-    // should not be held up by a person reading a message box either.
-    let accepted = tauri::async_runtime::spawn_blocking(move || {
-        dialog
-            .dialog()
-            .message(question)
-            .title("Update available")
-            .buttons(MessageDialogButtons::OkCancelCustom(
-                "Install and restart".into(),
-                "Not now".into(),
-            ))
-            .blocking_show()
-    })
-    .await
-    .unwrap_or(false);
-
-    if !accepted {
-        return Ok(());
+/// Whether a navigation stays inside the app.
+///
+/// The bundled page lives at `tauri://localhost` (macOS, Linux) or
+/// `http://tauri.localhost` (Windows), and in development at the Vite dev
+/// server. Nothing else is the app.
+fn is_app_origin(url: &tauri::Url) -> bool {
+    match url.scheme() {
+        "tauri" => true,
+        "http" | "https" => {
+            let host = url.host_str().unwrap_or("");
+            host == "tauri.localhost"
+                || (cfg!(debug_assertions) && (host == "localhost" || host == "127.0.0.1"))
+        }
+        _ => false,
     }
+}
 
-    update.download_and_install(|_chunk, _total| {}, || {}).await?;
-    app.restart()
+/// Used by the tray and the single-instance hook, which have an `AppHandle`
+/// and no window.
+pub fn main_window(app: &AppHandle) -> Option<tauri::WebviewWindow> {
+    app.get_webview_window(MAIN_WINDOW)
 }

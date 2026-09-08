@@ -1,6 +1,6 @@
 # STATUS: where this project actually is
 
-Last updated **2026-09-07**, after two passes over the chat UI and one over
+Last updated **2026-09-08**, after two passes over the chat UI and one over
 the account layer. The first UI pass brought nicknames, right-click actions on
 a person, a password reveal on the auth screens and the removal of every
 encryption badge. The second added the profile panel, rebuilt the Friends
@@ -13,13 +13,17 @@ since been walked through by hand in a browser and works. The fourth pass is
 voice calls, stages 1 to 4 of [`voice-plan.md`](voice-plan.md): signalling,
 TURN credentials, a call engine and the UI for it, tested and then walked
 through for real: a call between two browsers on the live site, and one on a
-phone, both connected and carried audio. The fifth pass is the desktop shell:
-`desktop/` is now a Tauri app that opens the deployed site in one native
-window, with signed auto-updates and a GitHub Actions workflow that builds
-installers for Windows, macOS and Linux. It compiles and builds on Windows;
-the workflow has not run yet and needs one secret first. What is left is
-parked on purpose rather than forgotten: the account endpoints behind
-settings and the backup cron on the box.
+phone, both connected and carried audio. The fifth pass was a desktop shell
+that opened the deployed site in a window. The sixth pass, on 2026-09-08,
+replaced it: people will use the desktop more than the site, so `desktop/`
+is now a real app. It bundles the client, keeps its session across
+restarts, has a tray, native notifications, an unread badge, a taskbar
+flash for calls, one instance, start-with-computer and signed auto-updates
+announced by a banner in the app, and the client gained the platform
+adapter all of that goes through. It compiles and builds on Windows; the
+workflow has not run yet and needs one secret first. What is left is parked
+on purpose rather than forgotten: the account endpoints behind settings and
+the backup cron on the box.
 
 This file is the "get up to speed without reading everything" document. It says
 what works, what does not, and which decisions are load-bearing. Keep it
@@ -36,9 +40,9 @@ accurate but see *Deviations* below.
 ## In one paragraph
 
 An end-to-end-encrypted chat app, npm workspace, three live packages
-(`client/`, `server/`, `packages/crypto/`) plus `desktop/`, a Tauri shell that
-is a Rust crate rather than a workspace member and shows the deployed site
-in a window of its own. **Accounts
+(`client/`, `server/`, `packages/crypto/`) plus `desktop/`, a Tauri app that
+is a Rust crate rather than a workspace member and bundles the client built
+in desktop mode. **Accounts
 and auth work end to end**: register, verify by email, sign in, unlock, lock,
 sign out, with real key custody: the account keypair is generated on the
 device and the server never receives a password, a recovery code, or a private
@@ -103,11 +107,17 @@ account-work axis (`backend-plan.md`).
 | Incoming call toast, in-call bar, call state in the DM header | `client/src/components/CallPanel.tsx`, `client/src/state/CallProvider.tsx` |
 | Same-origin client build (blank `VITE_API_URL`) | `client/src/lib/config.ts` |
 | Deployed: 4 containers, no host ports, Cloudflare Tunnel | `deploy/` |
-| Desktop shell: one native window on the deployed site, signed auto-update, Windows build done locally | `desktop/src-tauri/src/main.rs`, `.github/workflows/desktop.yml` |
+| Desktop app: the client bundled, session kept across restarts, tray, notifications, badge, call attention, single instance, autostart | `desktop/src-tauri/src/`, `client/src/lib/platform/` |
+| Desktop auto-update: checked at start and every four hours, announced by a banner, installed on request, signed | `desktop/src-tauri/src/updater.rs`, `client/src/components/UpdateBanner.tsx` |
+| Desktop settings section: version, check for updates, close to tray, start with the computer | `client/src/screens/settings/DesktopSection.tsx` |
+| Bearer-mode session survives a restart | `client/src/lib/storage/refreshTokenStore.ts` |
+| CORS admits the desktop origins, HTTP and socket | `server/src/lib/origins.ts` |
+| Desktop installers for three OSes from one workflow, Windows build done locally | `.github/workflows/desktop.yml` |
 | Live registration + verification email landing in an inbox | verified by hand 2026-09-07 |
 
-458 tests pass: 34 crypto, 206 client, 218 server. `npm run typecheck` and
-`npm run build` are clean across all workspaces.
+479 tests pass: 34 crypto, 222 client, 223 server. `npm run typecheck` and
+`npm run build` are clean across all workspaces, and `cargo check` in
+`desktop/src-tauri/` is clean.
 
 **The UI has been driven by hand in a browser, and it works.** That is worth
 stating separately from the tests. Adding a friend and exchanging messages were
@@ -221,18 +231,33 @@ Two end-to-end proofs, both against a running server over real HTTP:
   between two home networks will not connect. `DEPLOY.md` → *Voice calls* has
   the two steps.
 - **Phase 2 encryption.** See `packages/crypto/AGENTS.md`.
-- **The desktop shell has never been through its own pipeline.** The Tauri
+- **The desktop app has never been through its own pipeline.** The Tauri
   app in `desktop/` compiles, and `npm run build` there produced a signed
-  NSIS installer on the Windows dev machine on 2026-09-07. Everything past
-  that is unrun: the GitHub Actions workflow has not been dispatched, the
+  NSIS installer on the Windows dev machine on 2026-09-08, and the release
+  binary launched and drew the sign-in screen from its bundled pages.
+  Signing in from the desktop against the deployed server, the tray, the
+  notifications, the badge and the update banner have not been walked
+  through by hand yet; their logic is tested, their wiring is not.
+  Everything past that is unrun: the
+  GitHub Actions workflow has not been dispatched, the
   `TAURI_SIGNING_PRIVATE_KEY` secret is not added (the private key is in
   `~/.tauri/cipher.key` on the machine that generated it and nowhere else),
   no macOS or Linux build exists, no release exists and so the updater has
   never had a `latest.json` to read. **There are no code-signing
   certificates** either, so the installers trip Gatekeeper and SmartScreen;
-  `desktop/README.md` says what that means on each OS. And the shell is only
-  a window: no tray, no native notifications, no OS keychain. The private key
-  on desktop sits in the WebView's IndexedDB exactly as it does in a browser.
+  `desktop/README.md` says what that means on each OS.
+- **No OS keychain on desktop.** The device key sits in the WebView's
+  IndexedDB exactly as it does in a browser, and so does the refresh token,
+  in the clear: bearer mode has no cookie jar, and a session that died with
+  the process would be a sign-in per launch. `desktop/AGENTS.md` says why
+  the keychain waits for the multi-device design rather than being bolted
+  on. Two smaller desktop gaps: clicking a native notification does not
+  open the conversation (no desktop platform reports the click to the
+  plugin), and the verification and reset emails still open the website,
+  so registering from the desktop means one trip through a browser.
+- **Notification sounds.** The three sound toggles in settings are stored
+  and nothing plays. Notifications themselves now work, on the web and the
+  desktop, under the rules in `client/src/lib/platform/notifications.ts`.
 
 ---
 
@@ -402,27 +427,43 @@ worse for this specific app.
     message. `sealing.ts` is therefore the second and last caller of the
     crypto seam in the frontend, beside `chatController.ts`. ICE candidates are
     not sealed: they are addresses, and a relay sees them regardless.
-29. **The desktop shell loads the deployed site; it does not bundle
-    `client/dist`.** Loading the site means a client fix reaches desktop
-    users the moment `deploy.sh` runs, with no desktop release, no signed
-    update and no second copy of the UI to keep in step. The URL is compiled
-    into the binary (`CIPHER_DESKTOP_URL` at build time, else the production
-    URL in release and `localhost:5173` in debug), not read from a file, so a
-    shipped binary cannot be pointed at another origin and thereby hand that
-    origin the device key in its IndexedDB. The page also gets no IPC:
-    `desktop/src-tauri/capabilities/default.json` has no `remote` block, so
-    the site can do in the shell exactly what it can do in a browser. The
-    updater runs on the Rust side for that reason.
+29. **The desktop app bundles the client; it is not a window on the site.**
+    Decided on 2026-09-08, reversing the day-old shell that loaded the
+    deployed site. People will use the desktop more than the web, and a
+    window on a website is not an app: it has no origin of its own, nothing
+    native the page can call, and nothing to show when the site is down.
+    The price is that a client change reaches desktop users only through a
+    release, which is why the workflow makes one a dispatch and a button
+    and why the version has to be bumped for a client-only change. The API
+    URL is compiled into the page (`client/.env.desktop`), not read at run
+    time, so a shipped binary cannot be pointed at another origin and
+    thereby hand that origin the session and device key in its IndexedDB.
+    Every native feature goes through `client/src/lib/platform/`, one
+    interface with a web and a desktop implementation; the page holds
+    `core:default` and `opener:default` and reaches everything else through
+    the shell's own commands, which check their arguments.
 30. **A desktop release is a published GitHub release, and only a manual
-    dispatch makes one.** A push touching `desktop/` builds and keeps
-    artifacts; `workflow_dispatch` creates a *draft* release with
-    `latest.json`, and publishing the draft is the act of shipping an update
-    to every installed copy. The updater reads
+    dispatch makes one.** A push touching `desktop/`, `client/` or
+    `packages/` builds and keeps artifacts; `workflow_dispatch` creates a
+    *draft* release with `latest.json`, and publishing the draft is the act
+    of shipping an update to every installed copy. The updater reads
     `releases/latest/download/latest.json`, which is GitHub's newest
     published non-prerelease release of the whole repository. That is right
     while desktop releases are the only kind; if another kind ever appears,
     move to a fixed tag (`desktop/UPDATES.md` has the recipe, and the whole
     release procedure).
+31. **The desktop uses bearer auth, and the refresh token is stored.** The
+    page's origin is the shell's (`http://tauri.localhost` on Windows,
+    `tauri://localhost` elsewhere) and the API's is the site's, so the
+    WebView would never attach the API's `SameSite=Lax` cookies and
+    loosening them for the web's sake was not on. Bearer mode already
+    existed; what was missing was a session that outlived the process, so
+    `ApiClient` writes the refresh token to the secure store in bearer mode
+    and reads it back at start. The socket asks for a fresh access token on
+    every reconnect rather than the one it was created with. The server side
+    of the same decision is `lib/origins.ts`: the desktop origins on the
+    CORS allowlist, HTTP and socket alike, which grants them nothing a
+    cookie-less bearer caller did not already have.
 24. **The reset context endpoint is a POST, and it does not spend the token.**
     A GET would put a live credential in a query string, which is the part of
     a request that reliably reaches access logs and browser history. Not
@@ -505,13 +546,15 @@ cd server && npm run smoke             # account lifecycle over real HTTP
 cd server && npm run smoke:messaging   # two accounts, a DM, over HTTP + sockets
 ```
 
-The desktop shell is separate from the workspace (a Rust crate plus the Tauri
-CLI, needs rustup):
+The desktop app is separate from the workspace (a Rust crate plus the Tauri
+CLI, needs rustup). Its `npm run dev` starts Vite itself, in desktop mode,
+so do not also run `npm run dev` at the root:
 
 ```bash
 cd desktop && npm install
-npm run dev            # debug build, window on http://localhost:5173
-npm run build          # installer; needs the signing key, see desktop/README.md
+npm run dev            # Vite in desktop-dev mode, then a debug build on it
+npm run build          # builds the client in desktop mode, then the installer;
+                       # needs the signing key, see desktop/README.md
 ```
 
 `VITE_BACKEND=mock` still short-circuits auth, but it no longer renders a chat:
@@ -677,6 +720,17 @@ UI change twice.
   Also, `generate_context!` expands to code that wants `serde` and
   `serde_json` in the app crate even though `main.rs` never names them;
   removing those two "unused" dependencies breaks the build.
+- **The desktop build of the client is `vite build --mode desktop`, and the
+  mode is what makes it desktop.** `client/.env.desktop` sets the API URL,
+  bearer auth and `VITE_PLATFORM`; a plain `npm run build` in `client/`
+  produces the web build, which inside the shell would try to talk to
+  itself. `desktop/`'s `beforeBuildCommand` runs the right one. Running
+  Vite at the root while `npm run dev` in `desktop/` is up starts a second
+  server on :5173 and the shell opens whichever answered first.
+- **The desktop's CSP lives in `tauri.conf.json`, not in the Caddyfile.**
+  A new host the client has to reach goes in both `connect-src` lists, and
+  only the desktop one needs the API host at all, because only the desktop
+  is cross-origin.
 - **The production env file must be named `deploy/.env`.** Compose reads that
   name automatically for both `${...}` substitution and the server's
   environment. Any other name needs `--env-file` on every command, and
@@ -720,7 +774,13 @@ they are known, planned and not being done yet.
    pass on their first run, since only Windows has been built so far. Then
    install the result on a clean machine per `desktop/AGENTS.md` before
    publishing the draft. Code-signing certificates are a separate, paid
-   decision and are not needed for this step.
+   decision and are not needed for this step. After that, releasing is the
+   normal way a client change reaches desktop users (decision 29), so it
+   should become routine rather than an event.
+7. **A `cipher://` deep link for the email flows.** Today the verification
+   and reset links open the website. A custom scheme registered by the
+   desktop app (Tauri's deep-link plugin) plus a second link in the emails
+   would keep someone who registered from the desktop inside it.
 6. **Fold the four credential audit actions into `lib/audit.ts`.** Small and
    nagging: `recordCredentialAudit` in `modules/auth/service.ts` names
    `auth.reset_requested`, `auth.reset_completed`, `auth.password_changed` and

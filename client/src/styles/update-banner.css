@@ -1,0 +1,70 @@
+/* One line across the top of the window, above whichever screen is up. Raised
+   rather than ember: it is a notice, not the thing you came here to press,
+   and the one button on it is the only ember in the strip. */
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--text);
+  font-size: 13px;
+  flex: 0 0 auto;
+}
+
+.update-banner__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.update-banner__install,
+.update-banner__later {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.update-banner__install {
+  background: var(--ember);
+  color: var(--ember-ink);
+}
+.update-banner__install:hover {
+  background: var(--ember-hover);
+}
+
+.update-banner__later {
+  border: 1px solid var(--line);
+  color: var(--text-mute);
+}
+.update-banner__later:hover {
+  color: var(--text-hi);
+  background: var(--hover);
+}
+
+/* The banner and the app share the window height: the app below it must
+   shrink rather than push the composer off the bottom. */
+.root-column {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.root-column__body {
+  flex: 1 1 auto;
+  min-height: 0;
+}

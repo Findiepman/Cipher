@@ -11,14 +11,11 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Actions, Group, Note, Row, Toggle } from '../../components/settings/controls';
+import { isMuted, type NotificationPermission } from '../../lib/platform';
+import { usePlatform } from '../../state/PlatformProvider';
 import { useSettings } from '../../state/SettingsProvider';
 
-type Permission = 'default' | 'granted' | 'denied' | 'unsupported';
-
-function readPermission(): Permission {
-  if (typeof Notification === 'undefined') return 'unsupported';
-  return Notification.permission;
-}
+export { isMuted };
 
 const MUTE_OPTIONS: { label: string; minutes: number | null }[] = [
   { label: '30 minutes', minutes: 30 },
@@ -29,8 +26,23 @@ const MUTE_OPTIONS: { label: string; minutes: number | null }[] = [
 
 export function NotificationsSection() {
   const { settings, update } = useSettings();
+  const platform = usePlatform();
   const notifications = settings.notifications;
-  const [permission, setPermission] = useState<Permission>(readPermission);
+  // Asked of the platform rather than of `Notification` directly: in the
+  // desktop app the operating system holds the answer, and the browser's
+  // object says "default" forever there. Null until it answers, which draws
+  // a disabled toggle for a frame rather than an Allow button that vanishes.
+  const [permission, setPermission] = useState<NotificationPermission | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    void platform.notificationPermission().then((current) => {
+      if (live) setPermission(current);
+    });
+    return () => {
+      live = false;
+    };
+  }, [platform]);
 
   const muted = isMuted(notifications.mutedUntil);
 
@@ -42,8 +54,7 @@ export function NotificationsSection() {
   );
 
   async function enable() {
-    if (typeof Notification === 'undefined') return;
-    const result = await Notification.requestPermission();
+    const result = await platform.requestNotificationPermission();
     setPermission(result);
     update('notifications', { desktop: result === 'granted' });
   }
@@ -182,14 +193,6 @@ export function NotificationsSection() {
 }
 
 /* --------------------------------------------------------------- muting --- */
-
-export function isMuted(until: string | null): boolean {
-  if (!until) return false;
-  // The sentinel for "indefinitely", so a paused state cannot silently expire.
-  if (until === 'forever') return true;
-  const at = Date.parse(until);
-  return Number.isNaN(at) ? false : at > Date.now();
-}
 
 function muteUntil(minutes: number | null): string {
   if (minutes === null) return 'forever';

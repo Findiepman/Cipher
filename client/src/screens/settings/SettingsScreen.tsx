@@ -18,12 +18,14 @@
 import { useEffect, useState } from 'react';
 import { SectionHeader } from '../../components/settings/controls';
 import { CloseIcon, ChevronLeftIcon } from '../../components/Icons';
+import { isDesktop } from '../../lib/config';
 import { withProfile } from '../../lib/settings/profile';
 import { useSettings } from '../../state/SettingsProvider';
 import { useSession } from '../../state/SessionProvider';
 import type { User } from '../../types';
 import { AccountSection } from './AccountSection';
 import { AppearanceSection } from './AppearanceSection';
+import { DesktopSection } from './DesktopSection';
 import { DevicesSection } from './DevicesSection';
 import { NotificationsSection } from './NotificationsSection';
 import { PrivacySection } from './PrivacySection';
@@ -38,7 +40,8 @@ export type SectionId =
   | 'devices'
   | 'appearance'
   | 'voice'
-  | 'notifications';
+  | 'notifications'
+  | 'desktop';
 
 interface SectionDef {
   id: SectionId;
@@ -98,6 +101,18 @@ const GROUPS: { heading: string; sections: SectionDef[] }[] = [
         title: 'Notifications',
         lede: 'What interrupts you, and how much of a message it is allowed to show.',
       },
+      // Only the desktop app has a shell to hold these. In a browser the
+      // entry is simply absent rather than greyed out.
+      ...(isDesktop
+        ? [
+            {
+              id: 'desktop' as const,
+              label: 'Desktop',
+              title: 'Desktop',
+              lede: 'The app around the app: updates, the tray and starting with your computer.',
+            },
+          ]
+        : []),
     ],
   },
 ];
@@ -223,6 +238,7 @@ export function SettingsScreen({
           {active === 'appearance' && <AppearanceSection />}
           {active === 'voice' && <VoiceVideoSection />}
           {active === 'notifications' && <NotificationsSection />}
+          {active === 'desktop' && <DesktopSection />}
         </div>
       </main>
     </div>

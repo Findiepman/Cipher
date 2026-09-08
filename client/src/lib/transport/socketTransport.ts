@@ -13,7 +13,7 @@
  * message, and there is deliberately no code path that would let it.
  */
 import { io } from 'socket.io-client';
-import { conversationsApi, type ApiClient } from '../api';
+import { api as defaultApi, conversationsApi, type ApiClient } from '../api';
 import { createConversationsApi } from '../api/endpoints';
 import {
   SignalRefusedError,
@@ -64,14 +64,18 @@ export interface SocketTransportOptions {
   /** Defaults to the API origin: the socket and the API share a host. */
   url?: string;
   /**
-   * Bearer mode (the desktop shell) hands the access token to the handshake.
-   * In cookie mode this is absent and the browser sends the cookie itself.
+   * Bearer mode (the desktop app) hands the access token to the handshake.
+   * Asked again on every connection attempt, not once: socket.io reconnects
+   * on its own, and a token minted at the first connect is long dead by the
+   * time a laptop wakes up. Defaults to the API client's own token, refreshed
+   * if it is stale. In cookie mode it answers null and the browser sends the
+   * cookie itself.
    */
-  getToken?: () => string | null;
+  getToken?: () => Promise<string | null> | string | null;
   /** Injectable so tests can drive a fake API. */
   api?: ApiClient;
   /** Injectable so tests can drive a fake socket. */
-  createSocket?: (url: string, token: string | null) => SocketLike;
+  createSocket?: (url: string, getToken: () => Promise<string | null>) => SocketLike;
   ackTimeoutMs?: number;
   connectTimeoutMs?: number;
 }
@@ -130,15 +134,17 @@ export class SocketTransport implements Transport {
   private readonly handlers = new Map<string, Set<(payload: never) => void>>();
   private readonly callHandlers = new Map<string, Set<(payload: never) => void>>();
   private readonly url: string;
-  private readonly getToken: () => string | null;
+  private readonly getToken: () => Promise<string | null>;
   private readonly conversations: ReturnType<typeof createConversationsApi>;
-  private readonly createSocket: (url: string, token: string | null) => SocketLike;
+  private readonly createSocket: (url: string, getToken: () => Promise<string | null>) => SocketLike;
   private readonly ackTimeoutMs: number;
   private readonly connectTimeoutMs: number;
 
   constructor(options: SocketTransportOptions = {}) {
     this.url = options.url ?? config.apiUrl;
-    this.getToken = options.getToken ?? (() => null);
+    const client = options.api ?? defaultApi;
+    const getToken = options.getToken ?? (() => client.getAccessToken());
+    this.getToken = () => Promise.resolve(getToken());
     this.conversations = options.api ? createConversationsApi(options.api) : conversationsApi;
     this.createSocket = options.createSocket ?? defaultSocketFactory;
     this.ackTimeoutMs = options.ackTimeoutMs ?? ACK_TIMEOUT_MS;
@@ -155,7 +161,7 @@ export class SocketTransport implements Transport {
 
     this.setState('connecting');
 
-    const socket = this.createSocket(this.url, this.getToken());
+    const socket = this.createSocket(this.url, this.getToken);
     this.socket = socket;
 
     socket.on('connect', () => this.setState('online'));
@@ -397,12 +403,18 @@ export class SocketTransport implements Transport {
   }
 }
 
-function defaultSocketFactory(url: string, token: string | null): SocketLike {
+function defaultSocketFactory(url: string, getToken: () => Promise<string | null>): SocketLike {
   const options = {
     // Cookie mode needs the browser to attach the httpOnly access cookie to
     // the handshake; bearer mode passes the token explicitly instead.
     withCredentials: config.authMode === 'cookie',
-    auth: token ? { token } : {},
+    // A function rather than an object, so socket.io asks for the token on
+    // every attempt and a reconnect after a long sleep presents a live one.
+    auth: (callback: (data: object) => void) => {
+      void Promise.resolve(getToken())
+        .then((token) => callback(token ? { token } : {}))
+        .catch(() => callback({}));
+    },
     // socket.io's own backoff. The outbox layers its own on top, for the queue.
     reconnection: true,
     reconnectionDelay: 500,

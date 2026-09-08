@@ -15,7 +15,10 @@
  * A reload no longer costs a password prompt, because blob_C (see
  * deviceKeyStore.ts and @cipher/crypto's deviceKey.ts) is sealed under a key
  * this device holds and cannot export. Everything written through this
- * interface is still sealed under something. Nothing raw goes in here.
+ * interface is still sealed under something, with one documented exception:
+ * the desktop app's refresh token (refreshTokenStore.ts), which is the
+ * session itself and has nothing to be sealed under. That file says what
+ * that costs.
  */
 
 import { SECURE_STORE, runInStore } from './idb';
@@ -28,9 +31,10 @@ export interface SecureStore {
 }
 
 /**
- * The desktop shell (desktop/) implements this over Tauri's keyring plugin or
- * Electron's safeStorage and hangs it on the window. `client/` only ever sees
- * the interface.
+ * The seam for an OS keychain. The desktop app does not implement it yet
+ * (desktop/AGENTS.md says why it waits for the multi-device design); when
+ * it does, it hangs an implementation on the window and `client/` only ever
+ * sees the interface.
  */
 export interface NativeSecureStorage {
   get(key: string): Promise<string | null>;

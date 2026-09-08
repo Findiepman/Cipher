@@ -102,6 +102,20 @@ export type PrivacySettings = {
   directMessagesFrom: DirectMessagePolicy;
 };
 
+/**
+ * Preferences that only mean something in the desktop app. Stored with the
+ * rest so they survive a reinstall of the shell, and pushed to it by
+ * PlatformProvider whenever they change. The web build carries them and
+ * ignores them.
+ */
+export type DesktopSettings = {
+  /**
+   * Closing the window keeps the app running in the tray, so messages and
+   * calls still arrive. Off, closing the window quits.
+   */
+  closeToTray: boolean;
+};
+
 export interface Settings {
   version: number;
   profile: ProfileSettings;
@@ -109,6 +123,7 @@ export interface Settings {
   voice: VoiceSettings;
   notifications: NotificationSettings;
   privacy: PrivacySettings;
+  desktop: DesktopSettings;
 }
 
 /** The avatar palette. Warm first, because the app is warm. */
@@ -166,6 +181,9 @@ export const DEFAULT_SETTINGS: Settings = {
     typingIndicators: true,
     linkPreviews: false,
     directMessagesFrom: 'everyone',
+  },
+  desktop: {
+    closeToTray: true,
   },
 };
 

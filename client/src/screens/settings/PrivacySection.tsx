@@ -7,75 +7,74 @@
  * than being buried as niceties in a notifications list.
  */
 import { Group, Note, Row, Segmented, Toggle } from '../../components/settings/controls';
+import type { Key } from '../../lib/i18n/en';
 import type { DirectMessagePolicy } from '../../lib/settings/types';
+import { useT } from '../../state/I18nProvider';
 import { useSettings } from '../../state/SettingsProvider';
 
-const POLICIES: { value: DirectMessagePolicy; label: string }[] = [
-  { value: 'everyone', label: 'Anyone' },
-  { value: 'known', label: 'People I know' },
-  { value: 'nobody', label: 'No one' },
+/* Keys, not words: this is module-level data, evaluated long before anyone has
+   picked a language. Every list of options in the app is written this way. */
+const POLICIES: { value: DirectMessagePolicy; label: Key }[] = [
+  { value: 'everyone', label: 'privacy.dm.everyone' },
+  { value: 'known', label: 'privacy.dm.known' },
+  { value: 'nobody', label: 'privacy.dm.nobody' },
 ];
 
 export function PrivacySection() {
   const { settings, update } = useSettings();
+  const t = useT();
   const privacy = settings.privacy;
+  const policies = POLICIES.map((policy) => ({ ...policy, label: t(policy.label) }));
 
   return (
     <>
-      <Group title="what you reveal">
+      <Group title={t('privacy.group.reveal')}>
         <Row
-          label="Read receipts"
-          hint="Lets the other person see when you have opened their message.
-                Turning this off also stops you seeing theirs."
+          label={t('privacy.readReceipts')}
+          hint={t('privacy.readReceiptsHint')}
         >
           <Toggle
-            label="Read receipts"
+            label={t('privacy.readReceipts')}
             checked={privacy.readReceipts}
             onChange={(readReceipts) => update('privacy', { readReceipts })}
           />
         </Row>
 
         <Row
-          label="Typing indicators"
-          hint="Shows the other person that you are writing something, including
-                the drafts you delete."
+          label={t('privacy.typing')}
+          hint={t('privacy.typingHint')}
         >
           <Toggle
-            label="Typing indicators"
+            label={t('privacy.typing')}
             checked={privacy.typingIndicators}
             onChange={(typingIndicators) => update('privacy', { typingIndicators })}
           />
         </Row>
 
         <Row
-          label="Link previews"
-          hint="Fetching a preview tells the linked site that someone opened the
-                link, from your address, at that moment. The message stays
-                encrypted; the visit is not."
+          label={t('privacy.linkPreviews')}
+          hint={t('privacy.linkPreviewsHint')}
         >
           <Toggle
-            label="Link previews"
+            label={t('privacy.linkPreviews')}
             checked={privacy.linkPreviews}
             onChange={(linkPreviews) => update('privacy', { linkPreviews })}
           />
         </Row>
       </Group>
 
-      <Group title="who can reach you">
-        <Row label="Direct messages from">
+      <Group title={t('privacy.group.reach')}>
+        <Row label={t('privacy.dmFrom')}>
           <Segmented
-            label="Direct messages from"
+            label={t('privacy.dmFrom')}
             value={privacy.directMessagesFrom}
-            options={POLICIES}
+            options={policies}
             onChange={(directMessagesFrom) => update('privacy', { directMessagesFrom })}
           />
         </Row>
       </Group>
 
-      <Note tone="sealed">
-        None of this changes what the server can read, which is nothing. It
-        changes what your contacts and the sites you link to can work out.
-      </Note>
+      <Note tone="sealed">{t('privacy.note')}</Note>
     </>
   );
 }

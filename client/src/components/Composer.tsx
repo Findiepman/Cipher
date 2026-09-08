@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
+import { useT } from '../state/I18nProvider';
 import { EmojiIcon, PlusIcon } from './Icons';
 import '../styles/composer.css';
 
@@ -18,6 +19,7 @@ const MAX_HEIGHT = 160;
 const TYPING_THROTTLE_MS = 2_500;
 
 export function Composer({ placeholder, onSend, typing = [], onTyping, notice }: Props) {
+  const t = useT();
   const [value, setValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lastTypingAt = useRef(0);
@@ -69,10 +71,10 @@ export function Composer({ placeholder, onSend, typing = [], onTyping, notice }:
           }}
         />
 
-        <button type="button" className="icon-button" aria-label="Upload a file">
+        <button type="button" className="icon-button" aria-label={t('chat.upload')}>
           <PlusIcon size={19} />
         </button>
-        <button type="button" className="icon-button" aria-label="Pick an emoji">
+        <button type="button" className="icon-button" aria-label={t('chat.emoji')}>
           <EmojiIcon size={19} />
         </button>
 
@@ -81,8 +83,8 @@ export function Composer({ placeholder, onSend, typing = [], onTyping, notice }:
           className="composer__send"
           onClick={send}
           disabled={empty}
-          aria-label="Send"
-          title="Send"
+          aria-label={t('chat.send')}
+          title={t('chat.send')}
         >
           <svg
             width="16"
@@ -109,15 +111,14 @@ export function Composer({ placeholder, onSend, typing = [], onTyping, notice }:
                 <i />
                 <i />
               </span>
-              {typing.join(', ')}
-              {typing.length === 1 ? ' is typing…' : ' are typing…'}
+              {t('chat.typing', { names: typing.join(', '), count: typing.length })}
             </>
           )}
         </span>
         {notice && (
           <span
             className="composer__notice mono"
-            title="Queued on this device. They go out as soon as there is a connection."
+            title={t('chat.queuedHint')}
           >
             {notice}
           </span>

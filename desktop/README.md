@@ -92,7 +92,7 @@ through the opener plugin.
 | Tray icon: open, quit | `tray.rs` | |
 | One instance; a second launch focuses the first | `tauri-plugin-single-instance` | |
 | Start with the computer, minimized to the tray | `tauri-plugin-autostart`, `--minimized` | Settings, Desktop |
-| Native notifications for messages and calls | `notify` | `ChatProvider`, `CallProvider`, `lib/platform/notifications.ts` |
+| Native notifications for messages and calls | `notify` | `components/DesktopNotifier.tsx`, `CallProvider`, `lib/settings/desktopNotifications.ts` |
 | Unread count on the icon (a dot on Windows) and in the title | `set_badge` | `ChatProvider` |
 | Taskbar flash or dock bounce on an incoming call | `request_attention` | `CallProvider` |
 | Update found, announced, installed on request | `updater.rs` | `UpdateBanner`, Settings, Desktop |

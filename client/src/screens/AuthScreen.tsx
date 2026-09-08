@@ -15,7 +15,9 @@ import { PasswordField } from '../components/PasswordField';
 import { ApiError } from '../lib/api';
 import { isDevelopment } from '../lib/config';
 import { API_ERROR_CODES } from '../lib/api/types';
+import type { Key } from '../lib/i18n/en';
 import { checkPassword } from '../lib/session/passwordPolicy';
+import { describeError, useT } from '../state/I18nProvider';
 import { useSession } from '../state/SessionProvider';
 import '../styles/auth.css';
 
@@ -77,12 +79,12 @@ function Shell({ children, wide = false }: { children: React.ReactNode; wide?: b
  * entered are not valid", which does not tell anyone which one or why.
  */
 function ErrorNote({ error }: { error: unknown }) {
+  const t = useT();
   if (!error) return null;
 
-  const message =
-    error instanceof ApiError || error instanceof Error
-      ? error.message
-      : 'Something went wrong.';
+  // Server prose stays in the server's English. It arrives as a sentence
+  // rather than as a code, so there is nothing to look up. See i18n-plan.md.
+  const message = describeError(error, t);
 
   const details = error instanceof ApiError ? fieldMessages(error.details) : [];
 
@@ -115,6 +117,7 @@ function fieldMessages(details: unknown): string[] {
 
 function SignInPanel({ onSwitch, onForgot }: { onSwitch: () => void; onForgot: () => void }) {
   const { login, busy, auth } = useSession();
+  const t = useT();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<unknown>(null);
@@ -144,15 +147,15 @@ function SignInPanel({ onSwitch, onForgot }: { onSwitch: () => void; onForgot: (
 
   return (
     <Shell>
-      <h1 className="auth-title">Sign in</h1>
-      <p className="auth-lede">Welcome back.</p>
+      <h1 className="auth-title">{t('auth.signIn')}</h1>
+      <p className="auth-lede">{t('auth.welcomeBack')}</p>
 
       <ErrorNote error={error} />
-      {resent && <p className="auth-note">Sent. Check your inbox for a new link.</p>}
+      {resent && <p className="auth-note">{t('auth.resent')}</p>}
 
       <form onSubmit={submit}>
         <label className="auth-field">
-          <span className="auth-label">Email</span>
+          <span className="auth-label">{t('auth.email')}</span>
           <input
             className="auth-input"
             type="email"
@@ -165,7 +168,7 @@ function SignInPanel({ onSwitch, onForgot }: { onSwitch: () => void; onForgot: (
         </label>
 
         <PasswordField
-          label="Password"
+          label={t('auth.password')}
           value={password}
           onChange={setPassword}
           autoComplete="current-password"
@@ -174,26 +177,26 @@ function SignInPanel({ onSwitch, onForgot }: { onSwitch: () => void; onForgot: (
         />
 
         <button className="auth-submit" type="submit" disabled={busy || !email || !password}>
-          {busy ? 'Signing in…' : 'Sign in'}
+          {t(busy ? 'auth.signingIn' : 'auth.signIn')}
         </button>
       </form>
 
       {unverified && (
         <button className="auth-secondary" type="button" onClick={resend} disabled={busy}>
-          Resend the verification email
+          {t('auth.resend')}
         </button>
       )}
 
       <p className="auth-aside">
         <button type="button" onClick={onForgot}>
-          Forgot your password?
+          {t('auth.forgot')}
         </button>
       </p>
 
       <p className="auth-switch">
-        No account yet?{' '}
+        {t('auth.noAccount')}{' '}
         <button type="button" onClick={onSwitch}>
-          Create one
+          {t('auth.createOne')}
         </button>
       </p>
     </Shell>
@@ -210,6 +213,7 @@ function CreateAccountPanel({
   onRegistered: (recoveryCode: string) => void;
 }) {
   const { register, busy } = useSession();
+  const t = useT();
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -232,14 +236,14 @@ function CreateAccountPanel({
 
   return (
     <Shell>
-      <h1 className="auth-title">Create an account</h1>
-      <p className="auth-lede">Pick a handle people can find you by, and a password.</p>
+      <h1 className="auth-title">{t('auth.create')}</h1>
+      <p className="auth-lede">{t('auth.createLede')}</p>
 
       <ErrorNote error={error} />
 
       <form onSubmit={submit}>
         <label className="auth-field">
-          <span className="auth-label">Email</span>
+          <span className="auth-label">{t('auth.email')}</span>
           <input
             className="auth-input"
             type="email"
@@ -252,7 +256,7 @@ function CreateAccountPanel({
         </label>
 
         <label className="auth-field">
-          <span className="auth-label">Username</span>
+          <span className="auth-label">{t('auth.username')}</span>
           <input
             className="auth-input"
             type="text"
@@ -264,11 +268,11 @@ function CreateAccountPanel({
             maxLength={32}
             required
           />
-          <p className="auth-hint">Letters, numbers and single . _ - between them.</p>
+          <p className="auth-hint">{t('auth.usernameHint')}</p>
         </label>
 
         <PasswordField
-          label="Password"
+          label={t('auth.password')}
           value={password}
           onChange={setPassword}
           autoComplete="new-password"
@@ -288,25 +292,22 @@ function CreateAccountPanel({
           {showProblems && (
             <ul className="auth-problems">
               {strength.problems.map((problem) => (
-                <li key={problem}>{problem}</li>
+                <li key={problem.key}>{t(problem)}</li>
               ))}
             </ul>
           )}
-          <p className="auth-hint">
-            There is no password reset that keeps your messages. Choose something
-            you will still have in a year.
-          </p>
+          <p className="auth-hint">{t('auth.passwordWarn')}</p>
         </PasswordField>
 
         <button className="auth-submit" type="submit" disabled={!canSubmit}>
-          {busy ? 'Setting things up…' : 'Create account'}
+          {t(busy ? 'auth.settingUp' : 'auth.createButton')}
         </button>
       </form>
 
       <p className="auth-switch">
-        Already have an account?{' '}
+        {t('auth.haveAccount')}{' '}
         <button type="button" onClick={onSwitch}>
-          Sign in
+          {t('auth.signIn')}
         </button>
       </p>
     </Shell>
@@ -327,29 +328,30 @@ function CreateAccountPanel({
 function RecoveryCodeStep({
   code,
   onDone,
-  title = 'Save your recovery code',
-  lede = 'This is shown once, and it is the only way back into your messages if you forget your password. Nobody can send it to you later.',
-  actionLabel = 'Continue',
+  title = 'auth.recovery.title',
+  lede = 'auth.recovery.lede',
+  actionLabel = 'auth.continue',
 }: {
   code: string;
   onDone: () => void;
-  title?: string;
-  lede?: string;
-  actionLabel?: string;
+  /* Catalogue keys, so the reset screen can substitute its own wording
+     without either screen holding a sentence. */
+  title?: Key;
+  lede?: Key;
+  actionLabel?: Key;
 }) {
+  const t = useT();
   const [acknowledged, setAcknowledged] = useState(false);
 
   return (
     <Shell wide>
-      <h1 className="auth-title">{title}</h1>
-      <p className="auth-lede">{lede}</p>
+      <h1 className="auth-title">{t(title)}</h1>
+      <p className="auth-lede">{t(lede)}</p>
 
       <p className="auth-code">{code}</p>
 
       <p className="auth-warn">
-        Write it down somewhere physical, or put it in a password manager.{' '}
-        <strong>Without it, a forgotten password means losing every message you
-        have ever received.</strong>
+        {t('auth.recovery.write')} <strong>{t('auth.recovery.withoutIt')}</strong>
       </p>
 
       <label className="auth-confirm">
@@ -358,11 +360,11 @@ function RecoveryCodeStep({
           checked={acknowledged}
           onChange={(e) => setAcknowledged(e.target.checked)}
         />
-        <span>I have saved this code somewhere I will still have it later.</span>
+        <span>{t('auth.recovery.confirm')}</span>
       </label>
 
       <button className="auth-submit" type="button" onClick={onDone} disabled={!acknowledged}>
-        {actionLabel}
+        {t(actionLabel)}
       </button>
     </Shell>
   );
@@ -380,6 +382,7 @@ function RecoveryCodeStep({
  */
 function ForgotPasswordPanel({ onBack }: { onBack: () => void }) {
   const { auth } = useSession();
+  const t = useT();
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [working, setWorking] = useState(false);
@@ -402,18 +405,11 @@ function ForgotPasswordPanel({ onBack }: { onBack: () => void }) {
   if (sent) {
     return (
       <Shell>
-        <h1 className="auth-title">Check your email</h1>
-        <p className="auth-lede">
-          If there is an account for {email}, a link to set a new password is on
-          its way. It works once and expires in an hour.
-        </p>
-        <p className="auth-note">
-          Have your recovery code ready. It is the only thing that can carry your
-          existing messages over to the new password, and nobody here can send it
-          to you.
-        </p>
+        <h1 className="auth-title">{t('auth.checkEmail')}</h1>
+        <p className="auth-lede">{t('auth.resetSent', { email })}</p>
+        <p className="auth-note">{t('auth.resetHaveCode')}</p>
         <button className="auth-submit" type="button" onClick={onBack}>
-          Back to sign in
+          {t('auth.backToSignIn')}
         </button>
       </Shell>
     );
@@ -421,17 +417,14 @@ function ForgotPasswordPanel({ onBack }: { onBack: () => void }) {
 
   return (
     <Shell>
-      <h1 className="auth-title">Forgot your password</h1>
-      <p className="auth-lede">
-        Give us the address on the account and we will send a link to set a new
-        password.
-      </p>
+      <h1 className="auth-title">{t('auth.forgotTitle')}</h1>
+      <p className="auth-lede">{t('auth.forgotLede')}</p>
 
       <ErrorNote error={error} />
 
       <form onSubmit={submit}>
         <label className="auth-field">
-          <span className="auth-label">Email</span>
+          <span className="auth-label">{t('auth.email')}</span>
           <input
             className="auth-input"
             type="email"
@@ -445,13 +438,13 @@ function ForgotPasswordPanel({ onBack }: { onBack: () => void }) {
         </label>
 
         <button className="auth-submit" type="submit" disabled={working || !email}>
-          {working ? 'Sending…' : 'Send the link'}
+          {t(working ? 'account.sending' : 'auth.sendLink')}
         </button>
       </form>
 
       <p className="auth-aside">
         <button type="button" onClick={onBack}>
-          Back to sign in
+          {t('auth.backToSignIn')}
         </button>
       </p>
     </Shell>
@@ -459,12 +452,11 @@ function ForgotPasswordPanel({ onBack }: { onBack: () => void }) {
 }
 
 function CheckEmailStep({ onSignIn }: { onSignIn: () => void }) {
+  const t = useT();
   return (
     <Shell>
-      <h1 className="auth-title">Check your email</h1>
-      <p className="auth-lede">
-        We have sent a verification link. Open it, then come back and sign in.
-      </p>
+      <h1 className="auth-title">{t('auth.checkEmail')}</h1>
+      <p className="auth-lede">{t('auth.verifySent')}</p>
       {/* The local-mail hint is a developer affordance and reads as nonsense in
           front of a real user, who has no server/ directory. Vite drops the
           whole branch from the production bundle. What a real user actually
@@ -476,13 +468,10 @@ function CheckEmailStep({ onSignIn }: { onSignIn: () => void }) {
           file in <code>server/.mail/</code>.
         </p>
       ) : (
-        <p className="auth-note">
-          Not there within a minute? Check your spam folder, it usually is at
-          first.
-        </p>
+        <p className="auth-note">{t('auth.checkSpam')}</p>
       )}
       <button className="auth-submit" type="button" onClick={onSignIn}>
-        Back to sign in
+        {t('auth.backToSignIn')}
       </button>
     </Shell>
   );

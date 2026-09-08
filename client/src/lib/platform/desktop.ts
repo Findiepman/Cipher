@@ -60,7 +60,7 @@ export function createDesktopPlatform(): Platform {
       return (await shellInfo()).os;
     },
 
-    async notificationPermission() {
+    notificationPermission() {
       // The operating system asks, the first time a notification is shown,
       // and remembers the answer where the shell cannot read it. Reporting
       // "granted" is what keeps the settings toggle usable.
@@ -73,6 +73,10 @@ export function createDesktopPlatform(): Platform {
 
     async notify(request: NotificationRequest) {
       await invoke('notify', { title: request.title, body: request.body ?? null });
+    },
+
+    dismissNotifications() {
+      // The shell hands notifications to the OS and cannot take them back.
     },
 
     async setBadge(count: number) {

@@ -14,11 +14,13 @@
 import { useEffect, useState } from 'react';
 import type { UpdateInfo, UpdateProgress } from '../lib/platform';
 import { describeProgress } from '../lib/platform/progress';
+import { useT } from '../state/I18nProvider';
 import { usePlatform } from '../state/PlatformProvider';
 import '../styles/update-banner.css';
 
 export function UpdateBanner() {
   const platform = usePlatform();
+  const t = useT();
   const updates = platform.updates;
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [dismissed, setDismissed] = useState<string | null>(null);
@@ -54,7 +56,7 @@ export function UpdateBanner() {
     try {
       await updates.install();
       // Resolving at all means the restart did not happen.
-      setError('Installed, but the app did not restart. Start it again by hand.');
+      setError(t('desktop.noRestart'));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
       setInstalling(false);
@@ -64,27 +66,23 @@ export function UpdateBanner() {
   return (
     <div className="update-banner" role="status">
       <span className="update-banner__text">
-        {error ? (
-          <>Could not update: {error}</>
-        ) : installing ? (
-          describeProgress(progress)
-        ) : (
-          <>
-            Cipher <span className="mono">{update.version}</span> is ready to install.
-          </>
-        )}
+        {error
+          ? t('update.failed', { message: error })
+          : installing
+            ? describeProgress(progress, t)
+            : t('update.ready', { version: update.version })}
       </span>
       {!installing && (
         <span className="update-banner__actions">
           <button type="button" className="update-banner__install" onClick={() => void install()}>
-            Restart to update
+            {t('update.restart')}
           </button>
           <button
             type="button"
             className="update-banner__later"
             onClick={() => setDismissed(update.version)}
           >
-            Later
+            {t('update.later')}
           </button>
         </span>
       )}

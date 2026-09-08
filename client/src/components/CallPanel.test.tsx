@@ -1,5 +1,23 @@
 import { describe, expect, it } from 'vitest';
+import { en } from '../lib/i18n/en';
+import { nl } from '../lib/i18n/nl';
+import { LOCALES, type Locale } from '../lib/i18n/locales';
+import { translate } from '../lib/i18n/translate';
 import { endedLabel, formatElapsed } from './CallPanel';
+
+/**
+ * `endedLabel` returns a catalogue key now, so the assertions go through the
+ * same lookup the panel does. That is what keeps them about the sentence
+ * somebody reads rather than about an identifier.
+ */
+function say(
+  call: Parameters<typeof endedLabel>[0],
+  name: string,
+  locale: Locale = 'en',
+): string {
+  const phrase = endedLabel(call, name);
+  return translate(phrase.key, locale, locale === 'en' ? en : nl, en, phrase.vars);
+}
 
 describe('the elapsed time', () => {
   it('shows minutes and seconds, and hours only once there are any', () => {
@@ -19,25 +37,29 @@ describe('why a call ended', () => {
   const base = { endMessage: null, relay: null };
 
   it('names the other person where it is about them', () => {
-    expect(endedLabel({ ...base, endReason: 'rejected' }, 'nova')).toBe('nova declined');
-    expect(endedLabel({ ...base, endReason: 'busy' }, 'nova')).toBe('nova is in another call');
-    expect(endedLabel({ ...base, endReason: 'missed' }, 'nova')).toBe('Missed call from nova');
+    expect(say({ ...base, endReason: 'rejected' }, 'nova')).toBe('nova declined');
+    expect(say({ ...base, endReason: 'busy' }, 'nova')).toBe('nova is in another call');
+    expect(say({ ...base, endReason: 'missed' }, 'nova')).toBe('Missed call from nova');
+    // The name has to survive translation, not just substitution.
+    expect(say({ ...base, endReason: 'missed' }, 'nova', 'nl')).toBe(
+      'Gemist gesprek van nova',
+    );
   });
 
   it('explains a failed connection differently when there was no relay to fall back on', () => {
-    expect(endedLabel({ ...base, endReason: 'failed', relay: true }, 'nova')).toBe(
+    expect(say({ ...base, endReason: 'failed', relay: true }, 'nova')).toBe(
       'The connection failed.',
     );
-    expect(endedLabel({ ...base, endReason: 'failed', relay: false }, 'nova')).toMatch(
-      /no relay/,
-    );
+    expect(say({ ...base, endReason: 'failed', relay: false }, 'nova')).toMatch(/no relay/);
   });
 
   it('passes the server message through for a refusal', () => {
+    // The server wrote that sentence, so it comes through untouched in every
+    // language. Only the fallback, which is ours, is translated.
     expect(
-      endedLabel({ ...base, endReason: 'refused', endMessage: 'You are not friends.' }, 'nova'),
+      say({ ...base, endReason: 'refused', endMessage: 'You are not friends.' }, 'nova', 'nl'),
     ).toBe('You are not friends.');
-    expect(endedLabel({ ...base, endReason: 'refused' }, 'nova')).toBe(
+    expect(say({ ...base, endReason: 'refused' }, 'nova')).toBe(
       'The call could not be placed.',
     );
   });
@@ -56,8 +78,15 @@ describe('why a call ended', () => {
       'failed',
       'refused',
     ] as const;
-    for (const endReason of reasons) {
-      expect(endedLabel({ ...base, endReason }, 'nova')).not.toMatch(/encrypt|secure|sealed/i);
+    // Checked in every language we ship, because a translation is exactly
+    // where an unearned claim would creep back in. The call audio is end to
+    // end, the signalling that set it up is not yet bound to your identity
+    // key, and a badge would be true in the half nobody checks.
+    const claims = /encrypt|secure|sealed|versleuteld|verzegeld|beveiligd|veilig/i;
+    for (const locale of LOCALES) {
+      for (const endReason of reasons) {
+        expect(say({ ...base, endReason }, 'nova', locale)).not.toMatch(claims);
+      }
     }
   });
 });

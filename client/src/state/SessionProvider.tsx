@@ -19,6 +19,7 @@
  * `locked` position is still reached, by pressing Lock, by signing in on a new
  * device, and once the remembered unlock expires, so nothing may assume it away.
  */
+import type { Key } from '../lib/i18n/en';
 import {
   createContext,
   useCallback,
@@ -37,8 +38,31 @@ import { keyManager as defaultKeyManager, type KeyManager, type KeyState } from 
 
 export type SessionStatus = 'loading' | 'anonymous' | 'locked' | 'authenticated';
 
+/**
+ * How far the first paint has got.
+ *
+ * Two real waits happen before the app can decide what to draw, and the loading
+ * screen counts them rather than animating something merely shaped like
+ * progress. A stage only advances once the work it names has finished, so a bar
+ * driven by this is measuring rather than guessing.
+ */
+export const BOOT_STEPS = ['keys', 'session', 'ready'] as const;
+export type BootStage = (typeof BOOT_STEPS)[number];
+
+/**
+ * What each step is doing, as catalogue keys for the loading screen to
+ * translate. This module runs before React does and has no `t` of its own.
+ */
+export const BOOT_LABELS: Record<BootStage, Key> = {
+  keys: 'load.boot.keys',
+  session: 'load.boot.session',
+  ready: 'load.boot.ready',
+};
+
 export interface SessionContextValue {
   status: SessionStatus;
+  /** Only meaningful while `status` is 'loading'. */
+  bootStage: BootStage;
   account: AccountDto | null;
   keyState: KeyState;
   /** Last error from a session action, cleared when the next one starts. */
@@ -73,6 +97,7 @@ export function SessionProvider({
   const [account, setAccount] = useState<AccountDto | null>(null);
   const [keyState, setKeyState] = useState<KeyState>(keys.state);
   const [status, setStatus] = useState<SessionStatus>('loading');
+  const [bootStage, setBootStage] = useState<BootStage>('keys');
   const [error, setError] = useState<ApiError | Error | null>(null);
   const [busy, setBusy] = useState(false);
   const mounted = useRef(true);
@@ -109,18 +134,26 @@ export function SessionProvider({
       // Both are reads of what the last launch left on this device: the
       // identity, and (in bearer mode) the session. Neither needs the other.
       await Promise.all([keys.restore(), auth.restoreSession()]);
+      if (!cancelled) setBootStage('session');
       if (isMockBackend) {
         // No server to ask. The UI decides what to show for a signed-out user.
-        if (!cancelled) setStatus('anonymous');
+        if (!cancelled) {
+          setBootStage('ready');
+          setStatus('anonymous');
+        }
         return;
       }
       try {
         const me = await auth.me();
         if (cancelled) return;
         setAccount(me);
+        setBootStage('ready');
         setStatus(keys.state === 'unlocked' ? 'authenticated' : 'locked');
       } catch {
-        if (!cancelled) setStatus('anonymous');
+        if (!cancelled) {
+          setBootStage('ready');
+          setStatus('anonymous');
+        }
       }
     }
 
@@ -195,6 +228,7 @@ export function SessionProvider({
   const value = useMemo<SessionContextValue>(
     () => ({
       status,
+      bootStage,
       account,
       keyState,
       error,
@@ -207,7 +241,7 @@ export function SessionProvider({
       refresh,
       auth,
     }),
-    [status, account, keyState, error, busy, register, login, unlock, lock, logout, refresh, auth],
+    [status, bootStage, account, keyState, error, busy, register, login, unlock, lock, logout, refresh, auth],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

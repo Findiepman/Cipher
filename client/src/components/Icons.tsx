@@ -99,6 +99,26 @@ export function UserMinusIcon({ size = 24, className }: Props) {
   );
 }
 
+/* A drawing pin seen from the side, leaning the way one does in a corkboard.
+   Straight-on it reads as a lollipop at 15px, which is the size it is used. */
+export function PinIcon({ size = 24, className }: Props) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M15.44 2.56a1 1 0 0 0-1.42 0l-.7.71a1 1 0 0 0 0 1.41l.35.36-4.3 3.07-2.8-.42a1 1 0 0 0-.85 1.7l4.6 4.6-4.61 6.02a.5.5 0 0 0 .74.66l6.02-4.61 4.6 4.6a1 1 0 0 0 1.7-.85l-.42-2.8 3.07-4.3.36.35a1 1 0 0 0 1.41 0l.71-.7a1 1 0 0 0 0-1.42l-8.46-8.38Z" />
+    </svg>
+  );
+}
+
+/* The same pin with a stroke through it, for taking one out again. */
+export function PinOffIcon({ size = 24, className }: Props) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M15.44 2.56a1 1 0 0 0-1.42 0l-.7.71a1 1 0 0 0 0 1.41l.35.36-4.3 3.07-2.8-.42a1 1 0 0 0-.85 1.7l4.6 4.6-4.61 6.02a.5.5 0 0 0 .74.66l6.02-4.61 4.6 4.6a1 1 0 0 0 1.7-.85l-.42-2.8 3.07-4.3.36.35a1 1 0 0 0 1.41 0l.71-.7a1 1 0 0 0 0-1.42l-8.46-8.38Z" opacity=".45" />
+      <path d="M3.7 2.3a1 1 0 0 0-1.4 1.4l18 18a1 1 0 0 0 1.4-1.4l-18-18Z" />
+    </svg>
+  );
+}
+
 export function BanIcon({ size = 24, className }: Props) {
   return (
     <svg {...base(size)} className={className}>

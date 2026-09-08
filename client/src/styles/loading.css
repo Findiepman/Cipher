@@ -1,0 +1,229 @@
+/* The loading screen, and the curtain built out of it.
+ *
+ * Everything here animates, so everything here also has a still frame: with
+ * reduced motion on, the bar becomes a filled track and the mark stops
+ * breathing, and the screen still says the same three things.
+ */
+
+.load {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: 24px;
+  background: var(--bg-app);
+}
+
+/* Over the app rather than instead of it: the conversation underneath keeps
+   its scroll position and whatever was half typed in the composer. */
+.load--overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  min-height: 0;
+  background: color-mix(in srgb, var(--bg-app) 88%, transparent);
+  backdrop-filter: blur(3px);
+  animation: load-in 260ms ease-out both;
+}
+
+@keyframes load-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.load__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 340px;
+  text-align: center;
+}
+
+/* The mark breathes while waiting. Slow, because a fast pulse reads as an alarm. */
+.load__mark {
+  display: grid;
+  place-items: center;
+  margin-bottom: 6px;
+  animation: load-breathe 2.8s ease-in-out infinite;
+}
+
+@keyframes load-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.045);
+    opacity: 0.82;
+  }
+}
+
+/* Finished: stop breathing and settle, so the screen reads as done rather
+   than as still working while it hands over. */
+.load__mark--done {
+  animation: load-settle 420ms cubic-bezier(0.32, 0.72, 0.28, 1) both;
+}
+
+@keyframes load-settle {
+  from {
+    transform: scale(1.045);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+/* Nothing is coming through, so the mark stops breathing and dims instead. */
+.load__mark--offline {
+  animation: none;
+  opacity: 0.55;
+  filter: grayscale(0.5);
+}
+
+.load__title {
+  margin: 0;
+  color: var(--text-hi);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.load__detail {
+  margin: 0;
+  max-width: 30ch;
+  color: var(--text-mute);
+  font-size: 13px;
+  line-height: 1.5;
+  text-wrap: balance;
+}
+
+/* ------------------------------------------------------------------- bar */
+
+.load__bar {
+  position: relative;
+  width: 190px;
+  height: 3px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--bg-raised);
+  transition: height 200ms ease, box-shadow 300ms ease;
+}
+
+/* Measured: a fill whose width is the fraction of work actually finished.
+   The transition is what makes a step landing read as progress rather than as
+   a jump, and it is deliberately slower than the steps usually are. */
+.load__fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(to right, #c9603c, var(--ember));
+  transition: width 420ms cubic-bezier(0.32, 0.72, 0.28, 1);
+}
+
+/* Done: the bar is full, so it thickens for a moment and lights up. This is
+   the only flourish on the screen, and it is spent on the one event worth
+   marking, the wait being over. */
+.load__bar--done {
+  height: 4px;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--ember) 55%, transparent);
+}
+
+.load__bar--done .load__fill {
+  background: var(--ember);
+}
+
+/* Sweeping: nothing to count, so a segment crosses the track and comes back.
+   Used only where a number would be invented, such as waiting on a network
+   that is not answering. */
+.load__run {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 42%;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--ember) 30%,
+    var(--ember) 70%,
+    transparent
+  );
+  animation: load-run 1.5s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+@keyframes load-run {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(340%);
+  }
+}
+
+/* Slower and dimmer while offline: still moving, no longer promising. */
+.load__bar--offline .load__run {
+  background: linear-gradient(to right, transparent, var(--text-faint) 50%, transparent);
+  animation-duration: 2.6s;
+}
+
+/* ------------------------------------------------------------------ tips */
+
+.load__tip {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 14px 0 0;
+  min-height: 3.4em; /* Reserved, so a longer tip does not shove the bar up. */
+  color: var(--text-mute);
+  font-size: 12.5px;
+  line-height: 1.55;
+  text-wrap: pretty;
+  /* Keyed on the tip in the JSX, so React remounts this and the fade replays
+     on every change. */
+  animation: load-tip 420ms ease-out both;
+}
+
+@keyframes load-tip {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.load__tip-label {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .load--overlay,
+  .load__mark,
+  .load__tip {
+    animation: none;
+  }
+
+  /* The measured bar keeps working, because it is information rather than
+     decoration. It simply arrives at each width instead of travelling to it. */
+  .load__fill {
+    transition: none;
+  }
+
+  .load__mark--done {
+    animation: none;
+  }
+
+  .load__run {
+    animation: none;
+    width: 100%;
+    /* A static track still has to look like a wait, not a finished download. */
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+  }
+}

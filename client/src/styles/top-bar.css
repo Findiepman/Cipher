@@ -1,3 +1,7 @@
+/* The activity bar has two shapes: this one, used along the top or the bottom,
+   and the rail at the bottom of this file for when it is docked to a side. Which
+   one is in play comes from data-placement, written by App.tsx from the
+   Appearance setting. The layout around it is in app.css. */
 .top-bar {
   height: 52px;
   flex: 0 0 52px;
@@ -141,5 +145,70 @@
 @media (max-width: 820px) {
   .top-bar__search {
     display: none;
+  }
+}
+
+/* --- docked to a side: a rail instead of a bar --------------------------- */
+
+/* Only above 820px, because below it app.css sends a side rail to the bottom
+   instead: at that width the rail and the conversation list cannot both have
+   the room they need, and the list is the one worth keeping. */
+@media (min-width: 821px) {
+  .top-bar[data-placement='left'],
+  .top-bar[data-placement='right'] {
+    height: auto;
+    width: 132px;
+    flex: 0 0 132px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    padding: 14px 12px;
+  }
+
+  .top-bar[data-placement='left'] .top-bar__brand,
+  .top-bar[data-placement='right'] .top-bar__brand {
+    padding: 2px 4px;
+  }
+
+  .top-bar[data-placement='left'] .top-bar__workspaces,
+  .top-bar[data-placement='right'] .top-bar__workspaces {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    overflow: visible;
+  }
+
+  /* A pill in a rail is a row: the label takes the space and the badge stays
+     pinned to the end of it, so two entries of different lengths line up. */
+  .top-bar[data-placement='left'] .workspace,
+  .top-bar[data-placement='right'] .workspace {
+    height: 34px;
+    border-radius: var(--r-sm);
+  }
+
+  .top-bar[data-placement='left'] .workspace__label,
+  .top-bar[data-placement='right'] .workspace__label {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* You, at the foot of the rail. `margin-top: auto` is what the horizontal bar
+     does with `margin-left: auto`, turned a quarter turn. */
+  .top-bar[data-placement='left'] .top-bar__right,
+  .top-bar[data-placement='right'] .top-bar__right {
+    margin-left: 0;
+    margin-top: auto;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* The one long string in here. In a rail it wraps rather than being cut. */
+  .top-bar[data-placement='left'] .top-bar__connection,
+  .top-bar[data-placement='right'] .top-bar__connection {
+    white-space: normal;
+    text-align: center;
+    line-height: 1.45;
   }
 }

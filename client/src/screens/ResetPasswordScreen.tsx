@@ -22,6 +22,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { PasswordField } from '../components/PasswordField';
 import type { ResetContextResponse } from '../lib/api/types';
 import { checkPassword } from '../lib/session/passwordPolicy';
+import { useT } from '../state/I18nProvider';
 import { useSession } from '../state/SessionProvider';
 import { AuthErrorNote, AuthRecoveryCodeStep, AuthShell } from './AuthScreen';
 import '../styles/auth.css';
@@ -40,6 +41,7 @@ export function ResetPasswordScreen({
   onLeave: () => void;
 }) {
   const { auth } = useSession();
+  const t = useT();
   const [state, setState] = useState<State>({ kind: 'checking' });
 
   // Fetching the context is what tells us the link is good, and it hands back
@@ -67,8 +69,8 @@ export function ResetPasswordScreen({
   if (state.kind === 'checking') {
     return (
       <AuthShell>
-        <h1 className="auth-title">Checking your link…</h1>
-        <p className="auth-lede">One moment.</p>
+        <h1 className="auth-title">{t('reset.checking')}</h1>
+        <p className="auth-lede">{t('reset.oneMoment')}</p>
       </AuthShell>
     );
   }
@@ -76,15 +78,11 @@ export function ResetPasswordScreen({
   if (state.kind === 'unusable') {
     return (
       <AuthShell>
-        <h1 className="auth-title">That link did not work</h1>
-        <p className="auth-lede">
-          Reset links work once and expire an hour after they are sent, and
-          asking for a new one retires the old one. Start again from the sign-in
-          screen and use the most recent email.
-        </p>
+        <h1 className="auth-title">{t('reset.badLink')}</h1>
+        <p className="auth-lede">{t('reset.badLinkLede')}</p>
         <AuthErrorNote error={state.error} />
         <button className="auth-submit" type="button" onClick={onLeave}>
-          Go to sign in
+          {t('reset.goToSignIn')}
         </button>
       </AuthShell>
     );
@@ -95,9 +93,9 @@ export function ResetPasswordScreen({
       <AuthRecoveryCodeStep
         code={state.code}
         onDone={onLeave}
-        title="Your new recovery code"
-        lede="The old code was spent by the reset, so here is the one that replaces it. Like the last one, this is the only time it will be shown."
-        actionLabel="Continue to sign in"
+        title="reset.newCodeTitle"
+        lede="reset.newCodeLede"
+        actionLabel="reset.continueToSignIn"
       />
     );
   }
@@ -121,6 +119,7 @@ function ResetForm({
   onDone: (recoveryCode: string) => void;
 }) {
   const { auth } = useSession();
+  const t = useT();
   const [path, setPath] = useState<'recovery' | 'discard'>('recovery');
   const [recoveryCode, setRecoveryCode] = useState('');
   const [password, setPassword] = useState('');
@@ -174,15 +173,15 @@ function ResetForm({
 
   return (
     <AuthShell wide>
-      <h1 className="auth-title">Set a new password</h1>
-      <p className="auth-lede">For {context.email}.</p>
+      <h1 className="auth-title">{t('reset.title')}</h1>
+      <p className="auth-lede">{t('reset.forEmail', { email: context.email })}</p>
 
       <AuthErrorNote error={error} />
 
       <form onSubmit={submit}>
         {path === 'recovery' ? (
           <label className="auth-field">
-            <span className="auth-label">Recovery code</span>
+            <span className="auth-label">{t('reset.recoveryCode')}</span>
             <input
               className="auth-input auth-input--code"
               type="text"
@@ -196,21 +195,13 @@ function ResetForm({
               required
               autoFocus
             />
-            <p className="auth-hint">
-              The code you were shown when you created the account. Dashes and
-              capitals do not matter.
-            </p>
+            <p className="auth-hint">{t('reset.recoveryCodeHint')}</p>
           </label>
         ) : (
           <>
             <p className="auth-warn">
-              You are about to start over with a new key.{' '}
-              <strong>
-                Every message already in this account stays sealed to the old
-                one, so it can never be read again, by you or by anyone.
-              </strong>{' '}
-              You keep the account, the username and your friends, and new
-              messages work normally from here.
+              {t('reset.discardLead')} <strong>{t('reset.discardWarn')}</strong>{' '}
+              {t('reset.discardKeeps')}
             </p>
 
             <label className="auth-confirm">
@@ -220,16 +211,13 @@ function ResetForm({
                 onChange={(e) => setUnderstood(e.target.checked)}
                 disabled={working}
               />
-              <span>
-                I understand my existing messages will be permanently
-                unreadable.
-              </span>
+              <span>{t('reset.discardConfirm')}</span>
             </label>
           </>
         )}
 
         <PasswordField
-          label="New password"
+          label={t('account.newPassword')}
           value={password}
           onChange={setPassword}
           autoComplete="new-password"
@@ -249,25 +237,25 @@ function ResetForm({
           {showProblems && (
             <ul className="auth-problems">
               {strength.problems.map((problem) => (
-                <li key={problem}>{problem}</li>
+                <li key={problem.key}>{t(problem)}</li>
               ))}
             </ul>
           )}
         </PasswordField>
 
         <button className="auth-submit" type="submit" disabled={!canSubmit}>
-          {working ? 'Setting it up…' : 'Set new password'}
+          {t(working ? 'reset.settingUp' : 'reset.setPassword')}
         </button>
       </form>
 
       <p className="auth-aside">
         {path === 'recovery' ? (
           <button type="button" onClick={() => choosePath('discard')} disabled={working}>
-            I do not have my recovery code
+            {t('reset.noCode')}
           </button>
         ) : (
           <button type="button" onClick={() => choosePath('recovery')} disabled={working}>
-            I found my recovery code after all
+            {t('reset.foundCode')}
           </button>
         )}
       </p>

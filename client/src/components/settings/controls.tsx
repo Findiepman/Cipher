@@ -247,6 +247,107 @@ export function TextField({
   );
 }
 
+/**
+ * A field for something longer than a name.
+ *
+ * Separate from TextField rather than a `multiline` flag on it, because almost
+ * nothing about the two is shared once the control is a textarea: it grows to
+ * fit what is in it, it keeps the line breaks somebody typed and the counter
+ * matters more, since the limit is the only thing standing between a profile
+ * card and an essay.
+ */
+export function TextArea({
+  value,
+  onChange,
+  label,
+  hint,
+  placeholder,
+  maxLength,
+  rows = 4,
+  counter = false,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  label: string;
+  hint?: ReactNode;
+  placeholder?: string;
+  maxLength?: number;
+  rows?: number;
+  counter?: boolean;
+}) {
+  const id = useId();
+  const near = maxLength !== undefined && value.length > maxLength * 0.9;
+  return (
+    <div className="set-field">
+      <label className="set-field__label" htmlFor={id}>
+        {label}
+        {counter && maxLength !== undefined && (
+          <span className={near ? 'set-field__counter mono set-field__counter--near' : 'set-field__counter mono'}>
+            {value.length}/{maxLength}
+          </span>
+        )}
+      </label>
+      <textarea
+        id={id}
+        className="set-input set-textarea"
+        value={value}
+        rows={rows}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {hint && <p className="set-field__hint">{hint}</p>}
+    </div>
+  );
+}
+
+/**
+ * One colour, picked in the browser's own picker.
+ *
+ * The hex is shown beside the swatch and can be typed into, because a picker
+ * is how you find a colour and a hex is how you tell somebody else about one.
+ * Anything that is not six hex digits never reaches the stylesheet: see
+ * resolveHex in lib/settings/types.ts.
+ */
+export function ColorField({
+  value,
+  onChange,
+  label,
+  hint,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  label: string;
+  hint?: ReactNode;
+}) {
+  const id = useId();
+  return (
+    <div className="set-field">
+      <label className="set-field__label" htmlFor={id}>
+        {label}
+      </label>
+      <div className="set-colour">
+        <input
+          id={id}
+          type="color"
+          className="set-colour__well"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        <input
+          className="set-input set-colour__hex mono"
+          value={value}
+          spellCheck={false}
+          maxLength={7}
+          aria-label={label}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </div>
+      {hint && <p className="set-field__hint">{hint}</p>}
+    </div>
+  );
+}
+
 export function Note({
   tone = 'plain',
   children,

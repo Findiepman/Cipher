@@ -10,7 +10,6 @@ import type { Platform } from './types';
 import { createWebPlatform } from './web';
 
 export type * from './types';
-export { describeIncoming, isMuted, shouldNotify } from './notifications';
 
 export const webPlatform: Platform = createWebPlatform();
 

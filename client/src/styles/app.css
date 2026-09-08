@@ -1,11 +1,70 @@
-/* The shell: a top bar, then two panels floating on the backdrop with a
+/* The shell: an activity bar, then two panels floating on the backdrop with a
    gutter between them. Nothing is flush against anything else, and that gutter
-   is doing most of the work of not looking like every other chat app. */
+   is doing most of the work of not looking like every other chat app.
+
+   The bar is dockable (Appearance, Activity bar), and every placement is the
+   same two children in a flex box pointed a different way. The padding moves
+   with it so the gutter between the bar and the panels stays 10px and the three
+   outer edges stay 10px, whichever edge the bar took. */
 .app {
   height: 100%;
   display: flex;
   flex-direction: column;
   background: var(--bg-app);
+  position: relative;
+}
+
+/* --- the wallpaper -------------------------------------------------------
+ *
+ * Two layers behind everything: the picture, and a scrim of the palette's own
+ * backdrop over it at whatever dim was asked for. The scrim is --bg-app rather
+ * than black so a light theme dims towards paper instead of towards soot, and
+ * so the app still reads as one palette with a picture behind it.
+ *
+ * Both sit at z-index -1, which is why .app itself goes transparent here: at a
+ * negative depth they would otherwise be painted behind .app's own opaque
+ * background and never be seen. Nothing establishes a stacking context on the
+ * way, so they land above the page canvas and below every panel.
+ *
+ * The panels then go slightly translucent, and that is the only reason a
+ * wallpaper is visible at all: nothing in this layout is background, every
+ * pixel belongs to a panel floating on the ground.
+ */
+:root[data-wallpaper='on'] .app {
+  background: transparent;
+}
+
+:root[data-wallpaper='on'] .app::before,
+:root[data-wallpaper='on'] .app::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+:root[data-wallpaper='on'] .app::before {
+  background-image: var(--wallpaper);
+  background-size: cover;
+  background-position: center;
+  filter: blur(var(--wallpaper-blur));
+  /* A blur samples past the edge and leaves a soft frame all the way round, so
+     the layer is grown a little and the overflow clipped by the app. */
+  transform: scale(1.08);
+}
+
+:root[data-wallpaper='on'] .app::after {
+  background: var(--bg-app);
+  opacity: var(--wallpaper-dim);
+}
+
+:root[data-wallpaper='on'] .panel {
+  background: color-mix(in srgb, var(--bg-panel) 84%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+:root[data-wallpaper='on'] .panel--chat {
+  background: color-mix(in srgb, var(--bg-panel-alt) 80%, transparent);
 }
 
 .app__body {
@@ -14,6 +73,46 @@
   display: flex;
   gap: 10px;
   padding: 0 10px 10px;
+}
+
+/* Along the bottom, where a thumb is. The bar is the second child in the
+   markup either way, so reversing the column is the whole change. */
+.app[data-bar='bottom'] {
+  flex-direction: column-reverse;
+}
+.app[data-bar='bottom'] .app__body {
+  padding: 10px 10px 0;
+}
+
+/* A rail down one side. Below this width there is not room for one beside a
+   conversation, so left and right fall back to the bottom bar rather than
+   eating a third of the screen; the setting is remembered and comes back on a
+   wider window. */
+@media (min-width: 821px) {
+  .app[data-bar='left'] {
+    flex-direction: row;
+  }
+  .app[data-bar='left'] .app__body {
+    padding: 10px 10px 10px 0;
+  }
+
+  .app[data-bar='right'] {
+    flex-direction: row-reverse;
+  }
+  .app[data-bar='right'] .app__body {
+    padding: 10px 0 10px 10px;
+  }
+}
+
+@media (max-width: 820px) {
+  .app[data-bar='left'],
+  .app[data-bar='right'] {
+    flex-direction: column-reverse;
+  }
+  .app[data-bar='left'] .app__body,
+  .app[data-bar='right'] .app__body {
+    padding: 10px 10px 0;
+  }
 }
 
 .panel {
@@ -65,6 +164,28 @@
   }
 }
 
+/* The sheet covers the conversation, never the activity bar: the bar is how you
+   get out of the screen you are on, and a panel sitting on top of it is a trap.
+   These are the two placements it would otherwise land on. */
+@media (max-width: 1100px) {
+  .app[data-bar='bottom'] .panel--profile {
+    bottom: 52px;
+  }
+}
+
+@media (min-width: 821px) and (max-width: 1100px) {
+  .app[data-bar='right'] .panel--profile {
+    right: 132px;
+  }
+}
+
+@media (max-width: 820px) {
+  .app[data-bar='left'] .panel--profile,
+  .app[data-bar='right'] .panel--profile {
+    bottom: 52px;
+  }
+}
+
 @keyframes profile-in {
   from {
     transform: translateX(24px);
@@ -76,7 +197,7 @@
   }
 }
 
-/* Narrow windows drop the conversation list; the top bar keeps working, so
+/* Narrow windows drop the conversation list; the activity bar keeps working, so
    you can still move between workspaces. */
 @media (max-width: 820px) {
   .panel--list {

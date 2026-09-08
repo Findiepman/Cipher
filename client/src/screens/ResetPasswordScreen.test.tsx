@@ -13,6 +13,7 @@
  * context fetch runs from an effect and a single pass hides the bugs that
  * makes possible.
  */
+import { Providers } from '../test/providers';
 import { StrictMode } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -52,9 +53,11 @@ function renderScreen(
 
   render(
     <StrictMode>
+      <Providers>
       <SessionContext.Provider value={{ auth } as unknown as SessionContextValue}>
         <ResetPasswordScreen token="a-token" onLeave={onLeave} />
       </SessionContext.Provider>
+      </Providers>
     </StrictMode>,
   );
 

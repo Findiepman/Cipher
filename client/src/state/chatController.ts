@@ -34,9 +34,6 @@ export interface ChatIdentity {
   publicKey: Uint8Array;
 }
 
-/** A live arrival, and whether it landed in the conversation on screen. */
-export type IncomingListener = (message: Message, focused: boolean) => void;
-
 /** Someone who must be able to open a message: their id and their public key. */
 export interface Recipient {
   userId: string;
@@ -66,7 +63,6 @@ export class ChatController {
   private state: ChatState = initialChatState;
   private identity: ChatIdentity | null = null;
   private readonly listeners = new Set<(state: ChatState) => void>();
-  private readonly incomingListeners = new Set<IncomingListener>();
   private readonly transport: Transport;
   private readonly outbox: Outbox;
   private readonly resolveRecipients: ((channelId: string) => Promise<Recipient[]>) | null;
@@ -100,20 +96,6 @@ export class ChatController {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
-    };
-  }
-
-  /**
-   * Hears each message as it arrives live, already opened, with whether it
-   * landed in the conversation on screen. The state subscription above
-   * cannot answer "what just happened", only "what is", and a notification
-   * is about the former. Backlog pulls do not fire this: they are history,
-   * not news.
-   */
-  onIncoming(listener: IncomingListener): () => void {
-    this.incomingListeners.add(listener);
-    return () => {
-      this.incomingListeners.delete(listener);
     };
   }
 
@@ -318,13 +300,10 @@ export class ChatController {
   }
 
   private async ingest(incoming: IncomingMessage): Promise<void> {
-    const message = await this.open(incoming);
-    this.dispatch({ type: 'received', message });
-    const focused = this.state.focusedChannelId === incoming.channelId;
-    for (const listener of this.incomingListeners) listener(message, focused);
+    this.dispatch({ type: 'received', message: await this.open(incoming) });
     // Arriving in the conversation somebody is looking at means it has been
     // read, which is the only way the marker keeps up during a live exchange.
-    if (focused) {
+    if (this.state.focusedChannelId === incoming.channelId) {
       await this.reportRead(incoming.channelId);
     }
   }

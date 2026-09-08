@@ -30,10 +30,10 @@ import type {
   FriendRequestDto,
   SendFriendRequestResponse,
 } from '../lib/api/types';
-import { describeIncoming, shouldNotify } from '../lib/platform';
 import { friendToUser } from '../lib/presentation';
 import { Outbox, SecureOutboxStorage } from '../lib/transport/outbox';
 import { SocketTransport } from '../lib/transport/socketTransport';
+import { ConnectionCurtain } from '../components/ConnectionCurtain';
 import type { ConnectionState } from '../lib/transport/types';
 import { createSecureStore } from '../lib/storage/secureStore';
 import { keyManager as defaultKeyManager, type KeyManager } from '../lib/session/keyManager';
@@ -417,52 +417,10 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
   const platform = usePlatform();
   const { settings } = useSettings();
 
-  // Read inside the incoming-message listener, which is subscribed once and
-  // must not be re-subscribed on every settings change or render.
-  const settingsRef = useRef(settings);
-  settingsRef.current = settings;
-  const usersRef = useRef(usersById);
-  usersRef.current = usersById;
-
-  /// A message that arrives while you are not looking at its conversation
-  /// gets a notification, under the rules in lib/platform/notifications.ts.
-  /// Clicking it (where the platform reports clicks) opens the conversation.
-  useEffect(() => {
-    if (!account) return;
-    let live = true;
-
-    const unsubscribe = controller.chat.onIncoming((message, focused) => {
-      if (!live) return;
-      const { notifications } = settingsRef.current;
-      void platform.notificationPermission().then((permission) => {
-        if (!live) return;
-        const wanted = shouldNotify({
-          settings: notifications,
-          permission,
-          authorId: message.authorId,
-          selfId: account.id,
-          focused,
-        });
-        if (!wanted) return;
-
-        const author = usersRef.current.get(message.authorId)?.name ?? 'Someone';
-        const described = describeIncoming(notifications, author, message.body);
-        void platform.notify({
-          ...described,
-          tag: `message:${message.channelId}`,
-          onClick: () => selectChannel(message.channelId),
-        });
-      });
-    });
-
-    return () => {
-      live = false;
-      unsubscribe();
-    };
-  }, [account, controller, platform, selectChannel]);
-
   /// The unread total, on the icon and in the title. Cleared on the way out
-  /// so a sign-out does not leave a count standing for nobody.
+  /// so a sign-out does not leave a count standing for nobody. Notifications
+  /// themselves are components/DesktopNotifier.tsx, which watches the
+  /// history this provider exposes.
   const unreadTotal = Object.values(chatState.unread).reduce((sum, count) => sum + count, 0);
   const unreadBadge = settings.notifications.unreadBadge;
   useEffect(() => {
@@ -651,7 +609,16 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
     ],
   );
 
-  return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
+  return (
+    <ChatContext.Provider value={value}>
+      {children}
+      {/* Rendered here because this is the component that owns the socket. The
+          curtain is a view of `connection` and nothing else, and every screen
+          under it would otherwise have to know about a state that has nothing
+          to do with what it draws. */}
+      <ConnectionCurtain connection={connection} />
+    </ChatContext.Provider>
+  );
 }
 
 export function useChat(): ChatContextValue {

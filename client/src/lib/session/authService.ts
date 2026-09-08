@@ -10,6 +10,7 @@
  *
  * Ordering matters in a few places and is called out where it does.
  */
+import type { Translatable } from '../i18n/errors';
 import {
   DOMAIN,
   UnwrapError,
@@ -48,7 +49,25 @@ export interface LoginInput {
  * credentials. Rare, but the UI must offer the recovery-code path rather than
  * saying "wrong password", which would be a lie.
  */
-export class IdentityUnavailableError extends Error {
+/**
+ * The recovery code did not open the blob it was given.
+ *
+ * An `UnwrapError` so every existing catch still works, with a phrase so the
+ * screen can say which of the two secrets was wrong. Told apart from a bad
+ * reset link on purpose: they are different mistakes with different fixes.
+ */
+export class WrongRecoveryCode extends UnwrapError implements Translatable {
+  readonly phrase = { key: 'error.wrongRecoveryCode' } as const;
+
+  constructor() {
+    super('That recovery code does not match this account.');
+    this.name = 'WrongRecoveryCode';
+  }
+}
+
+export class IdentityUnavailableError extends Error implements Translatable {
+  readonly phrase = { key: 'error.identityUnavailable' } as const;
+
   constructor() {
     super('Signed in, but this account’s encryption key could not be unlocked.');
     this.name = 'IdentityUnavailableError';
@@ -271,7 +290,7 @@ export class AuthService {
     } catch {
       // Distinguishable from "bad reset link" so the UI can say which one the
       // user got wrong.
-      throw new UnwrapError('That recovery code does not match this account.');
+      throw new WrongRecoveryCode();
     }
 
     const nextRecoveryCode = await generateRecoveryCode();

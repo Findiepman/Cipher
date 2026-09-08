@@ -24,13 +24,16 @@ export type NotificationPermission = 'granted' | 'denied' | 'default' | 'unsuppo
 
 export interface NotificationRequest {
   title: string;
-  body?: string;
+  /** The second line, or nothing. Never a blank string. */
+  body?: string | null;
   /**
    * Replaces an earlier notification carrying the same tag, where the platform
    * can. A second message from the same person should not stack a second
    * popup on the first.
    */
-  tag?: string;
+  tag: string;
+  /** A picture beside it, where the platform draws one. */
+  icon?: string;
   /**
    * Called when the notification is clicked, where the platform reports it.
    * The browser does; the desktop shell does not, so nothing may depend on
@@ -96,9 +99,21 @@ export interface Platform {
   /** The operating system the shell runs on. Null on the web. */
   os(): Promise<OperatingSystem | null>;
 
-  notificationPermission(): Promise<NotificationPermission>;
+  /**
+   * Synchronous, because the notifier reads it at the moment a message
+   * lands and both platforms know the answer without asking anyone: the
+   * browser holds it on `Notification`, the shell always says granted.
+   */
+  notificationPermission(): NotificationPermission;
   requestNotificationPermission(): Promise<NotificationPermission>;
+  /**
+   * Shows one, or does nothing. Whether one is wanted at all is decided
+   * before this is called (lib/settings/desktopNotifications.ts); this only
+   * hands the text over.
+   */
   notify(request: NotificationRequest): Promise<void>;
+  /** Takes back every notification this app raised and can still reach. */
+  dismissNotifications(): void;
 
   /** Unread count on the app icon and in the title. Zero clears it. */
   setBadge(count: number): Promise<void>;

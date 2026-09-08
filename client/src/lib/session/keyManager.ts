@@ -17,6 +17,7 @@
  * and `lock()` destroys both halves of it, which is what keeps "Lock" meaning
  * something.
  */
+import type { Translatable } from '../i18n/errors';
 import {
   DOMAIN,
   UnwrapError,
@@ -74,7 +75,9 @@ export interface StoredIdentity {
 
 export type KeyState = 'empty' | 'locked' | 'unlocked';
 
-export class KeyLockedError extends Error {
+export class KeyLockedError extends Error implements Translatable {
+  readonly phrase = { key: 'error.deviceLocked' } as const;
+
   constructor() {
     super('This device is locked. Enter your password to unlock your messages.');
     this.name = 'KeyLockedError';

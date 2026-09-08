@@ -9,6 +9,7 @@
  * <StrictMode> for that reason: under a single effect pass the broken version
  * passed too.
  */
+import { Providers } from '../test/providers';
 import { StrictMode } from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -33,9 +34,11 @@ function renderScreen(verifyEmail: (token: string) => Promise<unknown>) {
 
   render(
     <StrictMode>
+      <Providers>
       <SessionContext.Provider value={session}>
         <VerifyEmailScreen token="a-token" onContinue={onContinue} />
       </SessionContext.Provider>
+      </Providers>
     </StrictMode>,
   );
 

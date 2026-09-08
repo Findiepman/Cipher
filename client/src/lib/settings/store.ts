@@ -71,6 +71,24 @@ export class SettingsStore {
     });
   }
 
+  /**
+   * Change fields across several sections at once.
+   *
+   * One commit, so one write and one render. Switching profiles needs it:
+   * it moves the live profile and the shelf it came off together, and doing
+   * that as two patches would publish a state where they disagree.
+   */
+  patchSections(values: { [K in Section]?: Partial<Settings[K]> }): Settings {
+    const next: Settings = { ...this.settings };
+    for (const key of Object.keys(values) as Section[]) {
+      // Object.assign rather than `next[key] = ...`: indexing with a union of
+      // section names widens the target to the intersection of every section,
+      // which nothing satisfies.
+      Object.assign(next, { [key]: { ...this.settings[key], ...values[key] } });
+    }
+    return this.commit(next);
+  }
+
   /** Restores one section, or everything, to the defaults. */
   reset(section?: Section): Settings {
     return this.commit(
@@ -143,6 +161,14 @@ function merge(stored: unknown): Settings {
       const nullable = section[field] === null;
       if (value === null) {
         if (nullable) section[field] = null;
+        continue;
+      }
+      // typeof an array is 'object', so without this branch a hand-edited file
+      // could drop a plain object where a list belongs. What is inside is
+      // checked where it is read (resolveSavedProfiles), on the same principle
+      // as an unrecognised palette: fall back there rather than reject here.
+      if (Array.isArray(section[field])) {
+        if (Array.isArray(value)) section[field] = value;
         continue;
       }
       if (nullable ? typeof value === 'string' : typeof value === typeof section[field]) {

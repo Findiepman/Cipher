@@ -14,7 +14,7 @@
 import { useCallback, useState } from 'react';
 import App from './App';
 import { AccountStrip } from './components/AccountStrip';
-import { BrandMark } from './components/BrandMark';
+import { LoadingScreen } from './components/LoadingScreen';
 import { AuthScreen } from './screens/AuthScreen';
 import { NotFoundScreen } from './screens/NotFoundScreen';
 import { ResetPasswordScreen } from './screens/ResetPasswordScreen';
@@ -22,7 +22,8 @@ import { UnlockScreen } from './screens/UnlockScreen';
 import { VerifyEmailScreen } from './screens/VerifyEmailScreen';
 import { CallProvider } from './state/CallProvider';
 import { ChatProvider } from './state/ChatProvider';
-import { useSession } from './state/SessionProvider';
+import { VaultProvider } from './state/VaultProvider';
+import { BOOT_LABELS, BOOT_STEPS, useSession } from './state/SessionProvider';
 import './styles/auth.css';
 
 /**
@@ -60,7 +61,7 @@ function readResetToken(): string | null {
 }
 
 export function AppRoot() {
-  const { status } = useSession();
+  const { status, bootStage } = useSession();
   const [verifyToken, setVerifyToken] = useState(readVerifyToken);
   const [resetToken, setResetToken] = useState(readResetToken);
 
@@ -98,12 +99,13 @@ export function AppRoot() {
   // seen. Bare text here made the app look like it had not started yet.
   if (status === 'loading') {
     return (
-      <div className="auth-centered">
-        <div className="auth-splash">
-          <BrandMark size={44} label="Cipher" />
-          <span>Loading…</span>
-        </div>
-      </div>
+      <LoadingScreen
+        tone="boot"
+        detail={BOOT_LABELS[bootStage]}
+        // The last step is 'ready', so the denominator is the number of steps
+        // that involve actually waiting for something.
+        progress={BOOT_STEPS.indexOf(bootStage) / (BOOT_STEPS.length - 1)}
+      />
     );
   }
 
@@ -119,7 +121,11 @@ export function AppRoot() {
       <AccountStrip />
       <ChatProvider>
         <CallProvider>
-          <App />
+          {/* Inside `authenticated` like the rest: the vault is keyed to an
+              account, and its own lock sits behind the session's. */}
+          <VaultProvider>
+            <App />
+          </VaultProvider>
         </CallProvider>
       </ChatProvider>
     </div>

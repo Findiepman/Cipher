@@ -1,6 +1,6 @@
 # STATUS: where this project actually is
 
-Last updated **2026-09-08**, after two passes over the chat UI and one over
+Last updated **2026-09-08**, after three passes over the chat UI and one over
 the account layer. The first UI pass brought nicknames, right-click actions on
 a person, a password reveal on the auth screens and the removal of every
 encryption badge. The second added the profile panel, rebuilt the Friends
@@ -13,17 +13,25 @@ since been walked through by hand in a browser and works. The fourth pass is
 voice calls, stages 1 to 4 of [`voice-plan.md`](voice-plan.md): signalling,
 TURN credentials, a call engine and the UI for it, tested and then walked
 through for real: a call between two browsers on the live site, and one on a
-phone, both connected and carried audio. The fifth pass was a desktop shell
-that opened the deployed site in a window. The sixth pass, on 2026-09-08,
-replaced it: people will use the desktop more than the site, so `desktop/`
-is now a real app. It bundles the client, keeps its session across
-restarts, has a tray, native notifications, an unread badge, a taskbar
-flash for calls, one instance, start-with-computer and signed auto-updates
-announced by a banner in the app, and the client gained the platform
-adapter all of that goes through. It compiles and builds on Windows; the
-workflow has not run yet and needs one secret first. What is left is parked
-on purpose rather than forgotten: the account endpoints behind settings and
-the backup cron on the box.
+phone, both connected and carried audio. The fifth pass is
+appearance: five palettes in either light or dark, an activity bar that docks
+to any of the four edges and a close button that follows you down a settings
+section. The sixth is the vault, stage 1 of
+[`vault-plan.md`](vault-plan.md): a private space behind a passkey, which is
+the first feature in the app whose contents are genuinely encrypted rather than
+waiting on phase 2. The seventh is making the app yours: a banner and a real
+description on your profile, people pinned to the top of the conversation
+list, a palette you write from two colours and a wallpaper behind everything.
+The eighth was a desktop shell that opened the deployed site in a window.
+The ninth, also on 2026-09-08, replaced it: people will use the desktop more
+than the site, so `desktop/` is now a real app. It bundles the client, keeps
+its session across restarts, has a tray, native notifications, an unread
+badge, a taskbar flash for calls, one instance, start-with-computer and
+signed auto-updates announced by a banner in the app, and the client gained
+the platform adapter all of that goes through. It compiles and builds on
+Windows; the workflow has not run yet and needs one secret first. What is
+left is parked on purpose rather than forgotten: the account endpoints
+behind settings and the backup cron on the box.
 
 This file is the "get up to speed without reading everything" document. It says
 what works, what does not, and which decisions are load-bearing. Keep it
@@ -93,7 +101,22 @@ account-work axis (`backend-plan.md`).
 | DM conversations, message history, cursor paging | `server/src/modules/conversations/` |
 | Live delivery, presence, typing, over Socket.io | `server/src/realtime/index.ts` |
 | Unread counts and read receipts, over the socket or HTTP | `server/src/modules/conversations/service.ts`, `client/src/state/chatStore.ts` |
-| Settings, seven sections, opened from the gear or Ctrl+, | `client/src/screens/settings/` |
+| Settings, nine sections, opened from the gear or Ctrl+, | `client/src/screens/settings/` |
+| Five palettes, each in light and dark, and a dockable activity bar | `client/src/styles/theme.css`, `client/src/styles/app.css` |
+| A palette you write yourself, from two colours | `client/src/styles/theme.css`, `client/src/screens/settings/AppearanceSection.tsx` |
+| A wallpaper behind the app, dimmed and blurred to taste | `client/src/styles/app.css`, `client/src/screens/settings/AppearanceSection.tsx` |
+| A profile banner, and a description with room to write one | `client/src/screens/settings/ProfileSection.tsx` |
+| Pinning people to the top of the conversation list | `client/src/lib/settings/pinned.ts`, `client/src/components/ConversationList.tsx` |
+| An OS notification when a message lands and the window is not in front | `client/src/components/DesktopNotifier.tsx`, `client/src/lib/settings/desktopNotifications.ts` |
+| The vault: notes to yourself, sealed under a passkey, on this device | `client/src/lib/vault/`, `client/src/screens/VaultScreen.tsx` |
+| Two languages, English and Dutch, with dates, times and numbers to match | `client/src/lib/i18n/`, `client/src/state/I18nProvider.tsx` |
+| Alert sounds, synthesised rather than shipped, eight for a message and seven for a ring | `client/src/lib/media/sounds.ts` |
+| A different sound per person, so you know who it is without looking | `client/src/lib/settings/notificationSounds.ts`, `client/src/screens/settings/NotificationsSection.tsx` |
+| A ringtone on an incoming call, a chime on an arriving message | `client/src/components/CallRinger.tsx`, `client/src/components/MessageChime.tsx`, `client/src/state/useArrivingMessages.ts` |
+| Positioning an avatar, a banner or a wallpaper instead of taking a centre crop | `client/src/lib/settings/avatarImage.ts`, `client/src/components/ImageCropper.tsx` |
+| Profiles kept under a name and switched between | `client/src/lib/settings/savedProfiles.ts`, `client/src/screens/settings/ProfileSection.tsx` |
+| A loading screen whose bar counts real boot steps, and a curtain over a lost connection | `client/src/components/LoadingScreen.tsx`, `client/src/components/ConnectionCurtain.tsx` |
+| Sealing a document under a key you already hold, for the vault to build on | `packages/crypto/src/secret.ts` |
 | A 404 for any address outside a known set | `client/src/screens/NotFoundScreen.tsx` |
 | Password reset by email: keep the identity, or discard it | `server/src/modules/auth/service.ts`, `client/src/screens/ResetPasswordScreen.tsx` |
 | Change password, rotate the recovery code | `server/src/modules/account/credentials.ts` |
@@ -115,9 +138,16 @@ account-work axis (`backend-plan.md`).
 | Desktop installers for three OSes from one workflow, Windows build done locally | `.github/workflows/desktop.yml` |
 | Live registration + verification email landing in an inbox | verified by hand 2026-09-07 |
 
-479 tests pass: 34 crypto, 222 client, 223 server. `npm run typecheck` and
-`npm run build` are clean across all workspaces, and `cargo check` in
-`desktop/src-tauri/` is clean.
+595 tests pass: 41 crypto, 331 client, 223 server. `npm run
+typecheck` and `npm run build` are clean across all workspaces, and `cargo
+check` in `desktop/src-tauri/` is clean. That is the committed tree; on the
+other maintainer's machine, as of the 2026-09-08 client pass, **`packages/crypto`
+is mid-rewrite and does not currently compile**: `kdf.ts`, `messages.ts`,
+`recovery.ts`, `wrap.ts` and their tests are untracked working-tree files that
+import names `sodium.ts`, `keys.ts` and `encoding.ts` do not export yet, so
+`npm run typecheck` fails at the root and 28 of its 78 tests fail. That is
+work in progress rather than a regression, and nothing in `client/` or
+`server/` depends on the half-written half of it.
 
 **The UI has been driven by hand in a browser, and it works.** That is worth
 stating separately from the tests. Adding a friend and exchanging messages were
@@ -125,11 +155,15 @@ walked through on 2026-09-06, and everything the 2026-09-07 passes added was
 walked through the same day: the right-click menu, nicknames, the profile
 panel, the five Friends tabs, unread badges clearing across two tabs and a
 reset link followed out of the mailbox. The suites and the smoke scripts still
-only cover the protocol, and the only component tests are for the two pieces
-most likely to break silently (`components/ContextMenu.test.tsx`,
-`components/PasswordField.test.tsx`), so anything you change in
-`client/src/state/ChatProvider.tsx` or the screens wants a human to look at it
-again.
+only cover the protocol. Nine of the 29 client suites render under jsdom now
+(`ContextMenu`, `PasswordField`, `CallPanel`, `UserProfile`, `NotFoundScreen`,
+`ResetPasswordScreen`, `VerifyEmailScreen`, `VaultScreen` and
+`SettingsProvider`), which is a good deal more than the two this file used to
+list. Five of them mount through the shared harness in `src/test/providers.tsx`
+rather than standing a provider tree up each time. The gap that is left
+is the chat surface itself: `client/src/state/ChatProvider.tsx`, `App.tsx`,
+`MessageList` and the Friends screen have no test that renders them, so
+anything you change there still wants a human to look at it again.
 
 **Voice calls have been placed for real.** The signalling has 42 server tests
 over a real socket and the engine has 36 over a fake RTCPeerConnection, and on
@@ -141,6 +175,226 @@ earpiece except Chrome on Android, so the earpiece toggle in the call bar
 appears only where that works. The profile button also did nothing on a phone,
 because the profile column was simply hidden below 1100px; it opens as a sheet
 there now.
+
+**Alert sounds and two smaller screens are built but not walked through.**
+Added 2026-09-07, after the call work: every alert is synthesised from a short
+score in `client/src/lib/media/sounds.ts` rather than shipped as an audio file,
+eight for a message and seven for a ring, and Settings, Notifications picks
+between them. A sound can also be set per person, which is the point of the
+feature: a flatmate on Knock and a partner on Bell tells you whether to get up
+without looking. `CallRinger` and `MessageChime` are watchers that read the
+call phase and the message history rather than changes to the call engine, so
+signalling knows nothing about audio it does not carry. The same pass added a
+cropper that lets you position an avatar instead of accepting a centre crop
+(`avatarImage.test.ts` covers the crop maths, the only part that can be wrong
+without looking wrong) and a loading screen whose bar counts the two real boot
+steps, with a curtain that covers the app after a connection has been bad for
+1.8 seconds and fills to full when it comes back. Typecheck, the 216 tests and
+`vite build` are clean. None of it has been driven by hand in a browser, and
+the sounds in particular want a phone: see the iPhone gotcha below.
+
+**Appearance grew a palette and a dockable bar, also not walked through.**
+Added 2026-09-08. Light or dark and the colour set are now two separate
+choices, so "Tide" plus "System" is a blue app that follows the OS between day
+and night: `styles/theme.css` holds five palettes (Ember, Tide, Orchid, Rose,
+Slate) written for both modes, and `SettingsProvider` writes `data-theme` and
+`data-palette` onto `<html>` for the stylesheet to pick a block from. There is
+no green palette on purpose, because `--sage` means encryption here and an
+accent of the same green would blur the one signal the app cannot afford to
+lose. The palette blocks are keyed on the attributes rather than on `:root`, so
+the swatches in Settings paint themselves in the palette they are offering
+instead of restating its colours in TypeScript. The activity bar (the old top
+bar) docks to any edge from the same section: top and bottom are the bar
+turned over, left and right make it a 132px rail, and under 821px a side rail
+falls back to the bottom rather than eating a third of a phone screen. The
+profile sheet and the call panel step around whichever edge it took. Two
+things a settings blob can now carry that no stylesheet knows about, the
+palette and the edge, go through `resolvePalette` and `resolveActivityBar`
+first (`lib/settings/types.test.ts`). The other half of the pass is one line
+of CSS worth knowing about: the close button in Settings is sticky, so it
+follows you down a long section.
+
+**The vault is built, stage 1, and not walked through either.** Added
+2026-09-08, and it is the odd one out in this codebase: its contents are
+*really* encrypted today. Phase 1 makes `encryptMessage` a no-op, but the
+credential half of `packages/crypto` (Argon2id, `crypto_secretbox`) has always
+been real, and the vault is built on that half rather than on the message path.
+A random vault key is wrapped twice, under the passkey and under the account
+password, which is the same trick already played on the private key with the
+password and the recovery code: forgetting the passkey is survivable, and
+changing it re-seals one 32 byte key rather than rewriting a single note.
+`sealWithKey`/`openWithKey` in `packages/crypto/src/secret.ts` are the only
+addition to the crypto surface, and they are `crypto_secretbox`, not a new
+primitive. Everything lives in the existing `SecureStore`, namespaced by
+account, so a shared browser profile keeps two people apart and signing out
+does not take the vault with it. Stage 2, which makes it a real conversation of
+one participant so it follows you to another device, needs `openDm` to stop
+refusing a self pair, which is server work. Pictures are stage 3 and need blob
+storage that does not exist anywhere yet.
+
+**Profiles can be kept under a name and switched between.** Added 2026-09-08.
+`settings.profile` is still the live one that the whole app renders, so nothing
+downstream changed; `settings.profiles` is the shelf it came off. Editing the
+live profile mirrors straight into the saved slot it belongs to, which is why
+the screen has no save button and no unsaved-changes state: the only thing you
+name is the profile itself. Having nothing saved stays a real state rather than
+a first row, so the section behaves exactly as before until you use it.
+Switching writes the old one back before loading the new one, deleting the
+loaded profile leaves you looking exactly as you did, and the reducers doing
+all of that are pure functions in `lib/settings/savedProfiles.ts`. The settings
+store learned two things on the way: `patchSections`, so the live profile and
+the shelf move in one commit rather than through a state where they disagree,
+and an `Array.isArray` branch in `merge`, because `typeof []` is `'object'` and
+a hand-edited settings file could otherwise put a plain object where the list
+belongs. What is inside the list is checked by `resolveSavedProfiles`, on the
+same principle as `resolvePalette`: fall back quietly, because a settings file
+is the last thing that should stop the app from starting.
+
+**The app speaks Dutch.** Added 2026-09-08, and it is the largest change this
+client has had: every screen now reads its words from a catalogue. `lib/i18n`
+is about 150 lines of our own rather than a dependency, because
+`Intl.PluralRules`, `Intl.NumberFormat` and `Intl.DateTimeFormat` are already
+in the browser and what was left is a lookup and a `{name}` substitution.
+English lives in `lib/i18n/en.ts` as the source of truth, `Key` is derived from
+it, and `t()` is typed against `Key`, so `tsc` refuses a key that does not
+exist and refuses a translation that invents one. Three tests cover what the
+type system cannot see: a missing translation (named, not counted), one that
+dropped a placeholder, and a key nothing asks for any more, which found four
+dead entries on its first run. Language is its own settings section, chosen
+from names written in their own language, device-local like every other
+preference, and it writes `lang` and `dir` onto `<html>` beside the theme
+attributes. `dir` is always `ltr` today and is written anyway so that adding a
+right to left language is a CSS problem rather than a plumbing one. Dates,
+times and numbers go through the chosen locale, so picking Dutch does not leave
+you reading `Sep 8` and `1,234`. Modules under `lib/` that produce prose (the
+password rules, the passkey rules, the avatar errors, the sound names) return a
+`Phrase` for the screen to translate rather than holding a `t` of their own,
+and errors the app names itself carry one beside their English `message`, which
+stays English so a stack trace stays readable. Two things stay English on
+purpose: palette names, which are names the way a paint chart has names, and
+sentences the server wrote, because the API answers with prose rather than
+codes and there is nothing to look up. Where it does answer with a code, as the
+friend-request endpoints do, the app decides what that means in words and
+translates it.
+
+**Making the app yours: a banner, a description, pinned people and a theme you
+write.** Added 2026-09-08, on top of the appearance pass, and it is one pass
+over three unrelated-looking screens that turn out to share their plumbing.
+
+The profile grew the half a card was missing. A banner sits across the top,
+cropped at 640 by 200 and stored the way the avatar always was, and the line
+about yourself became a paragraph: 190 characters in a textarea that keeps the
+line breaks you typed, in its own group under the identity fields rather than
+squeezed in as a third one-line input. The preview card shows both immediately,
+which was already the whole idea of that screen.
+
+What made that cheap is that the crop maths stopped assuming a square.
+`coverSize`, `clampCrop` and `centredCrop` in `lib/settings/avatarImage.ts` now
+take the frame's aspect and measure each axis against its own side, which is
+exactly what the square case already did (`aspect = 1` reproduces the old
+numbers, and the existing tests were left alone to prove it). `AvatarCropper`
+became `ImageCropper`, takes the frame it will bake at and drops the squircle
+mask for anything that is not an avatar. `components/settings/PictureField.tsx`
+is the row all three pictures are picked through, because decoding a file can
+fail four ways and the decoded bitmap outlives the render that made it, and
+three copies of that would have been three chances to leak one.
+
+Pinning is by **person**, not by conversation
+([`lib/settings/pinned.ts`](client/src/lib/settings/pinned.ts)). The same
+right-click menu is on a conversation row, a friends row, a message author and
+the profile card, and only one of those four knows a conversation id. The
+pinned section is ordered by when you pinned somebody rather than by who spoke
+last, which is the entire point: the ordinary list reshuffles constantly, and a
+shortcut that reshuffled with it would be the same list twice. It caps at
+fifteen and refuses the sixteenth rather than evicting the oldest, and a pin
+that no longer matches a conversation (you unfriended them) is simply not a
+row. `ConversationList` already took sections, so it only learned to draw one
+of them as a shelf.
+
+The custom palette is two colours and no more: an accent and a tint.
+`theme.css` mixes the other twenty tokens out of them with `color-mix`, so the
+rule the whole look rests on (panels lighter than the ground in the dark,
+darker than it in daylight) survives whatever anyone picks, and `--sage`,
+`--red` and the presence colours are deliberately left out of the mixing
+because they are meanings rather than decoration. The one token CSS cannot
+work out is the text drawn *on* the accent, which has to flip between black
+and white rather than being nudged, so `readableInk` does it in TypeScript
+until `contrast-color()` ships. The wallpaper is two layers behind everything
+at `z-index: -1` (the picture, then a scrim of the palette's own backdrop at
+whatever dim was asked for) with the panels going slightly translucent, which
+is the only reason it is visible at all: nothing in this layout is background,
+every pixel belongs to a panel floating on the ground.
+
+Three settings now reach a stylesheet rather than a React prop, and that is a
+different kind of input from the rest of the blob: `resolveHex` accepts six hex
+digits and nothing else, and `resolvePicture` accepts a base64 `data:` URL of a
+kind a canvas produces and nothing else, because both end up inside a CSS
+declaration and a settings file is the one input a user can hand-edit. There is
+a real edge here that has not been hit yet: the whole settings blob is one
+localStorage key, and a wallpaper is a couple of hundred kilobytes of base64,
+so an origin already near its quota would fail to write *all* of settings, not
+just the picture. `SettingsStore` swallows that and keeps going in memory, so
+it would show as preferences that stop surviving a reload rather than as an
+error.
+
+Typecheck, the 313 client tests and `vite build` are clean. None of it has been
+driven by hand in a browser: the wallpaper layering and the custom palette in
+particular are CSS whose failure mode is "looks wrong", which no test here
+catches.
+
+**Desktop notifications, the half that does not need the server.** Added
+2026-09-08. `Notification.requestPermission()` had been wired to a button for
+a while and nothing ever constructed a `Notification`, so a message with the
+app in the background was silent unless the tab could play audio. It is not any
+more: `components/DesktopNotifier.tsx` raises one when a message lands while
+the window is not in front.
+
+The decision of whether an arrival is allowed out is
+[`lib/settings/desktopNotifications.ts`](client/src/lib/settings/desktopNotifications.ts),
+a pure function with a test per gate, because this is the boundary between
+somebody's decrypted words and an operating system's notification centre and
+"it looked right when I tried it" is not how you find out that a gate leaks.
+Permission granted, the toggle on, you not already looking, not paused, not
+your own message: five, and `preview` is a sixth over the body alone. The
+person's name is not behind `preview`, which is deliberate and matches what
+that setting says it does: a notification that cannot say who it is from is
+one you have to open the app to act on.
+
+Noticing the message is now shared. `state/useArrivingMessages.ts` came out of
+`MessageChime`, because the chime and the notifier agree exactly about what an
+arriving message is and disagree about everything after: a chime for a
+conversation you are not reading is useful while you sit at the keyboard, and a
+notification for the same message is not. Pulling it out fixed a bug in the
+chime on the way. It used to prime once, on the first pass, and histories do
+not all land at once (the conversation list arrives before any messages, and a
+backlog is pulled when you first open one), so every one of those counted as an
+arrival. Priming is per conversation now: the first time a conversation is seen
+with anything in it is never an arrival. The cost is stated in that file, and
+it is real: the very first message in a conversation this device has never seen
+is silent, because from the outside it is indistinguishable from a backlog.
+`chatStore` already tells `backlog` apart from live delivery, and that is where
+this eventually belongs.
+
+Three browser facts are handled in `lib/media/notifications.ts`, which is the
+only thing that touches the Notification API. Chrome on Android throws
+`Illegal constructor` on `new Notification` outright, because there they may
+only come from a service worker, so this is a no-op on that browser rather than
+an error. Every notification is raised `silent`, because the app plays its own
+sound chosen per person and the OS would otherwise play a second one on top.
+And they are tagged by conversation and taken back when the window comes
+forward, because a notification sits in the Action Centre until it is
+dismissed, so without that, coming back and reading everything leaves a pile of
+toasts about messages you have already answered. A burst is capped at three:
+the unread counts in the list were always going to tell you the real number.
+
+Settings, Notifications grew a **Show one now** button, for the same reason:
+this is the one alert in the app you cannot check by switching it on and
+waiting, because it only appears when the window is in the background, which
+the settings screen never is. Focus Assist, Do Not Disturb and a per-browser
+notification setting are three separate places it can be silently off.
+
+Typecheck, the 324 client tests and `vite build` are clean. Not walked through
+by hand.
 
 **Settings is a screen in front of endpoints that do not exist.** Seven
 sections render and three of them work end to end (Appearance, Voice & video,
@@ -176,9 +430,11 @@ Two end-to-end proofs, both against a running server over real HTTP:
   enough for groups (a `Conversation` with N participants), but the key model
   is not chosen, see `packages/crypto/AGENTS.md`. The UI's server rail is
   gone; there is a Direct view and a Friends view.
-- **A profile for yourself.** `UserProfile` renders other people. Your own
-  account has no card, no avatar upload and no status line; the account strip
-  is still the whole of it.
+- **Sharing your profile with anyone else.** You have one now, under
+  Settings, with a picture, a banner, an accent, a display name, a paragraph
+  about yourself and any number of saved variants to switch between. All of it is
+  device-local: `PATCH /account/me` does not exist, so nobody else sees a word
+  of it. `UserProfile` still renders other people from what the server knows.
 - **Blocking somebody you have never met.** The API takes any user id, but the
   only way into the UI is a right-click on a person already on screen, and a
   stranger is not on screen. In practice you unfriend or decline instead.
@@ -230,6 +486,31 @@ Two end-to-end proofs, both against a running server over real HTTP:
   yet in `deploy/.env`, so the deployed server hands out STUN only and a call
   between two home networks will not connect. `DEPLOY.md` → *Voice calls* has
   the two steps.
+- **Notifications with the app closed.** The half that works while the app is
+  open in a background tab or behind another window is built (see above). The
+  half that survives quitting the browser, or a phone with the site not open,
+  is not, and it is the one piece of client work here that cannot be finished
+  alone: it needs a service worker and `PushManager.subscribe()` on this side,
+  and on the server a VAPID keypair, a `PushSubscription` table, endpoints to
+  register and drop one, and a call to `web-push` in the message path when the
+  recipient has no live socket. **The payload must not carry message content**:
+  it travels through Google's or Apple's push service, so the push is a
+  contentless wake-up and the client fetches and decrypts, which is also what
+  the `preview` setting already promises. On iOS this needs the site added to
+  the home screen (16.4+).
+- **Screen sharing.** Deliberately out of scope for now
+  ([`voice-plan.md`](voice-plan.md), *Explicitly out of scope*): it needs
+  `getDisplayMedia` and a second track lifecycle on a peer connection that is
+  audio only today. A picker for whole screen against one window was built
+  against a throwaway call UI on 2026-09-07 and then dropped rather than
+  bolted onto the real engine; the browser cannot list windows itself, so
+  what such a picker steers is `displaySurface` and `monitorTypeSurfaces` on
+  the `getDisplayMedia` call.
+- **Per person sounds beyond this device.** The map lives in the settings
+  blob in `localStorage`, so the ringtone you gave someone does not follow
+  you to another browser. It is a preference and the server deliberately
+  holds none, which is decision 11; a device that has never been told simply
+  uses the defaults.
 - **Phase 2 encryption.** See `packages/crypto/AGENTS.md`.
 - **The desktop app has never been through its own pipeline.** The Tauri
   app in `desktop/` compiles, and `npm run build` there produced a signed
@@ -255,10 +536,6 @@ Two end-to-end proofs, both against a running server over real HTTP:
   open the conversation (no desktop platform reports the click to the
   plugin), and the verification and reset emails still open the website,
   so registering from the desktop means one trip through a browser.
-- **Notification sounds.** The three sound toggles in settings are stored
-  and nothing plays. Notifications themselves now work, on the web and the
-  desktop, under the rules in `client/src/lib/platform/notifications.ts`.
-
 ---
 
 ## Decisions that are load-bearing
@@ -538,6 +815,17 @@ other side, then **Message** them. A second browser profile (or a private
 window) is the easiest way to hold both sessions at once: the identity key
 lives in IndexedDB per origin, so two normal tabs share one account.
 
+The server suite runs against `TEST_DATABASE_URL`, which is a **separate
+database** from the one `npm run dev:server` uses. Create it once and give it
+the schema, or every server test fails with `relation "AuditLog" does not
+exist`, which names a missing table rather than the missing migration that
+caused it:
+
+```bash
+cd server
+DATABASE_URL="$TEST_DATABASE_URL" npx prisma migrate deploy
+```
+
 ```bash
 npm test               # all workspaces
 npm run typecheck
@@ -565,6 +853,18 @@ UI change twice.
 ---
 
 ## Gotchas that have already cost time
+
+### Web Audio is silent on an iPhone with the side switch on
+
+An `AudioContext` plays through the ringer channel on iOS, which the hardware
+silent switch mutes, and no amount of `resume()` changes that. An `<audio>`
+element plays through the media channel and is not affected. So the sounds are
+rendered offline into a WAV and handed to an element rather than played live:
+see `previewRing` and the note at the top of `client/src/lib/media/sounds.ts`.
+The same rewrite fixes a second bug, that `resume()` is asynchronous and notes
+scheduled immediately after it can be dropped while the context is still
+suspended.
+
 
 - **libsodium must be the `-sumo` build.** The base build of
   `libsodium-wrappers` 0.8.x has no `crypto_pwhash`, which the key wrapping
@@ -777,15 +1077,15 @@ they are known, planned and not being done yet.
    decision and are not needed for this step. After that, releasing is the
    normal way a client change reaches desktop users (decision 29), so it
    should become routine rather than an event.
-7. **A `cipher://` deep link for the email flows.** Today the verification
-   and reset links open the website. A custom scheme registered by the
-   desktop app (Tauri's deep-link plugin) plus a second link in the emails
-   would keep someone who registered from the desktop inside it.
 6. **Fold the four credential audit actions into `lib/audit.ts`.** Small and
    nagging: `recordCredentialAudit` in `modules/auth/service.ts` names
    `auth.reset_requested`, `auth.reset_completed`, `auth.password_changed` and
    `auth.recovery_code_rotated` locally and widens the type at one call site,
    because `audit.ts` was being edited by somebody else at the time. Add them
    to the `AuditAction` union and delete the helper.
+7. **A `cipher://` deep link for the email flows.** Today the verification
+   and reset links open the website. A custom scheme registered by the
+   desktop app (Tauri's deep-link plugin) plus a second link in the emails
+   would keep someone who registered from the desktop inside it.
 
 Do not start with group encryption, see `packages/crypto/AGENTS.md`.

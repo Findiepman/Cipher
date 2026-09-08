@@ -115,7 +115,7 @@ fn unread_dot() -> tauri::image::Image<'static> {
 }
 
 /// A native notification. The page has already decided whether one is
-/// wanted and what it may say (lib/platform/notifications.ts); this only
+/// wanted and what it may say (lib/settings/desktopNotifications.ts); this only
 /// hands the text to the operating system. Nothing is logged.
 #[tauri::command]
 pub fn notify(app: AppHandle, title: String, body: Option<String>) -> Result<(), String> {

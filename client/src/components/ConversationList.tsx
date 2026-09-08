@@ -1,14 +1,30 @@
+import { clockTime } from '../lib/i18n/format';
+import type { Locale } from '../lib/i18n/locales';
+import { useI18n, type Translate } from '../state/I18nProvider';
 import type { Channel, User } from '../types';
 import { Avatar } from './Avatar';
 import { usePersonMenu } from './PersonMenu';
-import { SettingsIcon, SpeakerIcon } from './Icons';
+import { PinIcon, SettingsIcon, SpeakerIcon } from './Icons';
 import '../styles/conversation-list.css';
 
 export type Preview = { text: string; at: string };
 
+export type Section = {
+  label: string;
+  channels: Channel[];
+  /**
+   * Draws the section as the pinned one: a pin beside the heading, and rows
+   * that sit on their own strip so the shortcut reads as a shelf above the
+   * list rather than as the first few of it.
+   */
+  pinned?: boolean;
+};
+
 type Props = {
-  /** Rendered in order; a section with no channels is skipped. */
-  sections: { label: string; channels: Channel[] }[];
+  /** Rendered in order; a section with no channels is skipped. Already
+      translated by the caller, which is the only place that knows what the
+      sections are. */
+  sections: Section[];
   activeChannelId: string;
   onSelect: (conversationId: string) => void;
   usersById: Map<string, User>;
@@ -38,14 +54,25 @@ export function ConversationList({
   currentUser,
   onOpenSettings,
 }: Props) {
+  const { locale, t } = useI18n();
   return (
     <>
       <div className="conversations scroller">
         {sections
           .filter((section) => section.channels.length > 0)
           .map((section) => (
-            <section key={section.label} className="conversations__section">
+            <section
+              key={section.label}
+              className={
+                section.pinned
+                  ? 'conversations__section conversations__section--pinned'
+                  : 'conversations__section'
+              }
+            >
               <div className="conversations__heading">
+                {section.pinned && (
+                  <PinIcon size={11} className="conversations__pin" />
+                )}
                 <span className="eyebrow">{section.label}</span>
                 <span className="conversations__count mono">
                   {section.channels.length}
@@ -62,6 +89,8 @@ export function ConversationList({
                   }
                   preview={previews.get(channel.id)}
                   unread={unread[channel.id] ?? 0}
+                  locale={locale}
+                  t={t}
                   onSelect={() => onSelect(channel.id)}
                 />
               ))}
@@ -71,11 +100,11 @@ export function ConversationList({
 
       <div className="list-foot">
         {currentUser && <Avatar user={currentUser} size={26} showPresence />}
-        <span className="list-foot__name">{currentUser?.name ?? 'loading…'}</span>
+        <span className="list-foot__name">{currentUser?.name ?? t('chat.loading')}</span>
         <button
           type="button"
           className="icon-button"
-          aria-label="Settings"
+          aria-label={t('settings.back')}
           onClick={onOpenSettings}
         >
           <SettingsIcon size={16} />
@@ -91,6 +120,8 @@ function ConversationRow({
   recipient,
   preview,
   unread,
+  locale,
+  t,
   onSelect,
 }: {
   channel: Channel;
@@ -98,6 +129,8 @@ function ConversationRow({
   recipient?: User;
   preview?: Preview;
   unread: number;
+  locale: Locale;
+  t: Translate;
   onSelect: () => void;
 }) {
   const menu = usePersonMenu();
@@ -136,11 +169,16 @@ function ConversationRow({
             {channel.name}
           </span>
           {waiting ? (
-            <span className="conversation__badge mono" aria-label={`${waiting} unread`}>
+            <span
+              className="conversation__badge mono"
+              aria-label={t('chat.unread', { count: waiting })}
+            >
               {waiting > 99 ? '99+' : waiting}
             </span>
           ) : preview ? (
-            <span className="conversation__time mono">{shortTime(preview.at)}</span>
+            <span className="conversation__time mono">
+              {shortTime(preview.at, locale, t)}
+            </span>
           ) : null}
         </span>
 
@@ -159,18 +197,12 @@ function ConversationRow({
 }
 
 /** Clock time for today, then day counts: the resolution people actually use. */
-function shortTime(iso: string): string {
+function shortTime(iso: string, locale: Locale, t: Translate): string {
   const then = new Date(iso);
   const now = new Date();
 
-  if (then.toDateString() === now.toDateString()) {
-    return then.toLocaleTimeString(undefined, {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-  }
+  if (then.toDateString() === now.toDateString()) return clockTime(then, locale);
 
   const days = Math.round((now.getTime() - then.getTime()) / 86_400_000);
-  return days < 1 ? '1d' : `${days}d`;
+  return t('chat.daysAgo', { count: days < 1 ? 1 : days });
 }

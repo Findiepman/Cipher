@@ -4,6 +4,7 @@
  * leaving the input as `type="password"` after the toggle, and letting the
  * button steal the tab order between the password box and the submit button.
  */
+import { Providers } from '../test/providers';
 import { StrictMode } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -15,12 +16,14 @@ function renderField(value = 'hunter2') {
   const onChange = vi.fn();
   render(
     <StrictMode>
-      <PasswordField
+      <Providers>
+        <PasswordField
         label="Password"
         value={value}
         onChange={onChange}
-        autoComplete="current-password"
-      />
+          autoComplete="current-password"
+        />
+      </Providers>
     </StrictMode>,
   );
   return { onChange, input: screen.getByLabelText('Password') as HTMLInputElement };

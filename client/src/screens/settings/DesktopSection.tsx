@@ -15,12 +15,13 @@ import { useEffect, useState } from 'react';
 import { Actions, Group, Note, Row, Toggle } from '../../components/settings/controls';
 import type { OperatingSystem, UpdateCheck, UpdateInfo, UpdateProgress } from '../../lib/platform';
 import { describeProgress } from '../../lib/platform/progress';
+import { describeError, useT } from '../../state/I18nProvider';
 import { usePlatform } from '../../state/PlatformProvider';
 import { useSettings } from '../../state/SettingsProvider';
-import { describe } from './AccountSection';
 
 export function DesktopSection() {
   const platform = usePlatform();
+  const t = useT();
   const [version, setVersion] = useState<string | null>(null);
   const [os, setOs] = useState<OperatingSystem | null>(null);
 
@@ -37,24 +38,19 @@ export function DesktopSection() {
   }, [platform]);
 
   if (!platform.updates || !platform.prefs) {
-    return (
-      <Note tone="warn">
-        This build is not running inside the desktop app, so there is nothing
-        here to set.
-      </Note>
-    );
+    return <Note tone="warn">{t('desktop.notDesktop')}</Note>;
   }
 
   return (
     <>
-      <Group title="this app">
-        <Row label="Version" hint="The installed desktop app. The chat itself ships inside it.">
+      <Group title={t('desktop.group.app')}>
+        <Row label={t('desktop.version')} hint={t('desktop.versionHint')}>
           <span className="set-value mono">{version ?? '…'}</span>
         </Row>
         <UpdateRow />
       </Group>
 
-      <Group title="window">
+      <Group title={t('desktop.group.window')}>
         {/* macOS keeps an app alive with no windows as a matter of course, and
             the dock icon is how you get it back, so the choice is not offered
             there: closing the window always leaves the app running. */}
@@ -69,6 +65,7 @@ export function DesktopSection() {
 
 function UpdateRow() {
   const platform = usePlatform();
+  const t = useT();
   const updates = platform.updates!;
   const [state, setState] = useState<
     | { kind: 'idle' }
@@ -107,7 +104,7 @@ function UpdateRow() {
     try {
       setState({ kind: 'result', check: await updates.check() });
     } catch (caught) {
-      setState({ kind: 'failed', message: describe(caught) });
+      setState({ kind: 'failed', message: describeError(caught, t) });
     }
   }
 
@@ -116,9 +113,9 @@ function UpdateRow() {
     try {
       // Resolving at all means the restart did not happen.
       await updates.install();
-      setState({ kind: 'failed', message: 'The update was installed but the app did not restart. Start it again by hand.' });
+      setState({ kind: 'failed', message: t('desktop.noRestart') });
     } catch (caught) {
-      setState({ kind: 'failed', message: describe(caught) });
+      setState({ kind: 'failed', message: describeError(caught, t) });
     }
   }
 
@@ -127,15 +124,11 @@ function UpdateRow() {
 
   return (
     <>
-      <Row
-        label="Updates"
-        hint="Checked when the app starts and every few hours after that. An
-              update is only ever installed when you say so."
-      >
+      <Row label={t('desktop.updates')} hint={t('desktop.updatesHint')}>
         <Actions>
           {available ? (
             <button type="button" className="set-btn" onClick={() => void install(available)}>
-              Install {available.version} and restart
+              {t('desktop.installVersion', { version: available.version })}
             </button>
           ) : (
             <button
@@ -144,30 +137,28 @@ function UpdateRow() {
               onClick={() => void check()}
               disabled={state.kind === 'checking' || state.kind === 'installing'}
             >
-              {state.kind === 'checking' ? 'Checking…' : 'Check now'}
+              {state.kind === 'checking' ? t('desktop.checking') : t('desktop.checkNow')}
             </button>
           )}
         </Actions>
       </Row>
 
       {state.kind === 'result' && state.check.status === 'none' && (
-        <Note tone="sealed">You have the latest version.</Note>
+        <Note tone="sealed">{t('desktop.upToDate')}</Note>
       )}
       {state.kind === 'result' && state.check.status === 'disabled' && (
-        <Note>This is a development build. It never checks for updates.</Note>
+        <Note>{t('desktop.devBuild')}</Note>
       )}
       {state.kind === 'result' && state.check.status === 'error' && (
-        <Note tone="warn">Could not check: {state.check.message}</Note>
+        <Note tone="warn">{t('desktop.checkFailed', { message: state.check.message })}</Note>
       )}
       {available && (
         <Note tone="sealed">
-          Cipher {available.version} is ready.
+          {t('desktop.ready', { version: available.version })}
           {available.notes ? ` ${available.notes}` : ''}
         </Note>
       )}
-      {state.kind === 'installing' && (
-        <Note>{describeProgress(state.progress)}</Note>
-      )}
+      {state.kind === 'installing' && <Note>{describeProgress(state.progress, t)}</Note>}
       {state.kind === 'failed' && <Note tone="danger">{state.message}</Note>}
     </>
   );
@@ -177,14 +168,11 @@ function UpdateRow() {
 
 function CloseToTrayRow() {
   const { settings, update } = useSettings();
+  const t = useT();
   return (
-    <Row
-      label="Keep running when the window is closed"
-      hint="The app stays in the tray, so messages and calls still reach you.
-            Off, closing the window quits. Quit from the tray menu either way."
-    >
+    <Row label={t('desktop.closeToTray')} hint={t('desktop.closeToTrayHint')}>
       <Toggle
-        label="Keep running when the window is closed"
+        label={t('desktop.closeToTray')}
         checked={settings.desktop.closeToTray}
         onChange={(closeToTray) => update('desktop', { closeToTray })}
       />
@@ -194,6 +182,7 @@ function CloseToTrayRow() {
 
 function AutostartRow() {
   const platform = usePlatform();
+  const t = useT();
   const prefs = platform.prefs!;
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -206,12 +195,13 @@ function AutostartRow() {
         if (live) setEnabled(value);
       })
       .catch((caught: unknown) => {
-        if (live) setError(describe(caught));
+        if (live) setError(describeError(caught, t));
       });
     return () => {
       live = false;
     };
-  }, [prefs]);
+    // `t` changes with the language and is only used for an error message.
+  }, [prefs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function toggle(next: boolean) {
     setError(null);
@@ -219,19 +209,15 @@ function AutostartRow() {
       await prefs.setAutostart(next);
       setEnabled(next);
     } catch (caught) {
-      setError(describe(caught));
+      setError(describeError(caught, t));
     }
   }
 
   return (
     <>
-      <Row
-        label="Start when you sign in to your computer"
-        hint="Opens in the tray without showing the window, so you are reachable
-              before you have thought about it."
-      >
+      <Row label={t('desktop.autostart')} hint={t('desktop.autostartHint')}>
         <Toggle
-          label="Start when you sign in to your computer"
+          label={t('desktop.autostart')}
           checked={enabled === true}
           disabled={enabled === null}
           onChange={(next) => void toggle(next)}

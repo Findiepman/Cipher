@@ -11,6 +11,7 @@
  * "did something break?" is a scarier question in an app where the server
  * cannot recover anything for you.
  */
+import { useT } from '../state/I18nProvider';
 import '../styles/not-found.css';
 
 type Props = {
@@ -26,6 +27,7 @@ function currentPath(): string {
 }
 
 export function NotFoundScreen({ path, onHome }: Props) {
+  const t = useT();
   const missed = path ?? currentPath();
   const goHome = onHome ?? (() => window.location.assign('/'));
   const canGoBack = typeof window !== 'undefined' && window.history.length > 1;
@@ -40,17 +42,14 @@ export function NotFoundScreen({ path, onHome }: Props) {
 
         <p className="not-found-code mono">404</p>
 
-        <h1 className="not-found-title">This page doesn’t exist</h1>
-        <p className="not-found-lede">
-          Cipher has nothing at this address. It was probably mistyped, or it
-          pointed at something that has since moved.
-        </p>
+        <h1 className="not-found-title">{t('notFound.title')}</h1>
+        <p className="not-found-lede">{t('notFound.lede')}</p>
 
         {missed && <p className="not-found-path">{missed}</p>}
 
         <div className="not-found-actions">
           <button className="not-found-primary" type="button" onClick={goHome}>
-            Back to your messages
+            {t('notFound.home')}
           </button>
           {canGoBack && (
             <button
@@ -58,7 +57,7 @@ export function NotFoundScreen({ path, onHome }: Props) {
               type="button"
               onClick={() => window.history.back()}
             >
-              Go back
+              {t('notFound.back')}
             </button>
           )}
         </div>
@@ -67,9 +66,7 @@ export function NotFoundScreen({ path, onHome }: Props) {
             is that a bad address is not a lost account. The UI does not
             advertise encryption anywhere else (STATUS.md, decision 21) and a
             404 is a poor place to start. */}
-        <p className="not-found-foot">
-          Nothing was lost. Your conversations are still where you left them.
-        </p>
+        <p className="not-found-foot">{t('notFound.foot')}</p>
       </div>
     </div>
   );

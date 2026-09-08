@@ -2,19 +2,16 @@
  * The browser as a platform.
  *
  * Most of what the desktop shell does natively has a browser equivalent that
- * is smaller and asks permission: a `Notification`, a count in the tab title
- * (and on the installed-app icon, where `setAppBadge` exists). Attention is
- * the one thing a page cannot ask for at all, so it does nothing here rather
- * than pretending.
+ * is smaller and asks permission: a `Notification` (through
+ * lib/media/notifications.ts, the one file that touches that API), a count
+ * in the tab title (and on the installed-app icon, where `setAppBadge`
+ * exists). Attention is the one thing a page cannot ask for at all, so it
+ * does nothing here rather than pretending.
  */
-import type { NotificationPermission, NotificationRequest, Platform } from './types';
+import { askPermission, dismissAll, permissionNow, show } from '../media/notifications';
+import type { NotificationRequest, Platform } from './types';
 
 const BASE_TITLE = 'Cipher';
-
-function readPermission(): NotificationPermission {
-  if (typeof Notification === 'undefined') return 'unsupported';
-  return Notification.permission;
-}
 
 /** The Badging API, present on an installed web app and absent in a tab. */
 interface BadgingNavigator {
@@ -34,26 +31,20 @@ export function createWebPlatform(): Platform {
       return null;
     },
 
-    async notificationPermission() {
-      return readPermission();
+    notificationPermission() {
+      return permissionNow();
     },
 
-    async requestNotificationPermission() {
-      if (typeof Notification === 'undefined') return 'unsupported';
-      return Notification.requestPermission();
+    requestNotificationPermission() {
+      return askPermission();
     },
 
     async notify(request: NotificationRequest) {
-      if (readPermission() !== 'granted') return;
-      const notification = new Notification(request.title, {
-        body: request.body,
-        tag: request.tag,
-      });
-      notification.onclick = () => {
-        window.focus();
-        request.onClick?.();
-        notification.close();
-      };
+      show(request);
+    },
+
+    dismissNotifications() {
+      dismissAll();
     },
 
     async setBadge(count: number) {

@@ -35,16 +35,19 @@ import {
   stopStream,
   type DeviceList,
 } from '../../lib/media/devices';
+import type { Key } from '../../lib/i18n/en';
 import type { InputMode } from '../../lib/settings/types';
+import { useT } from '../../state/I18nProvider';
 import { useSettings } from '../../state/SettingsProvider';
 
-const INPUT_MODES: { value: InputMode; label: string }[] = [
-  { value: 'voice-activity', label: 'Voice activity' },
-  { value: 'push-to-talk', label: 'Push to talk' },
+const INPUT_MODES: { value: InputMode; label: Key }[] = [
+  { value: 'voice-activity', label: 'voice.mode.activity' },
+  { value: 'push-to-talk', label: 'voice.mode.push' },
 ];
 
 export function VoiceVideoSection() {
   const { settings, update } = useSettings();
+  const t = useT();
   const voice = settings.voice;
   const [devices, setDevices] = useState<DeviceList>(EMPTY_DEVICES);
   const supported = isSupported();
@@ -64,35 +67,29 @@ export function VoiceVideoSection() {
   }
 
   if (!supported) {
-    return (
-      <Note tone="warn">
-        This build has no access to media devices, so there is nothing to
-        configure here.
-      </Note>
-    );
+    return <Note tone="warn">{t('voice.unsupported')}</Note>;
   }
 
   return (
     <>
       {!devices.labelled && (
         <Note tone="warn">
-          Your browser hides device names until you allow access once. Until then
-          the lists below are unnamed.{' '}
+          {t('voice.unnamed')}{' '}
           <button type="button" className="set-link" onClick={() => void grant('audio')}>
-            Allow microphone
+            {t('voice.allowMic')}
           </button>{' '}
           <button type="button" className="set-link" onClick={() => void grant('video')}>
-            Allow camera
+            {t('voice.allowCamera')}
           </button>
         </Note>
       )}
 
-      <Group title="voice">
-        <Row label="Input device" hint="Which microphone calls use.">
+      <Group title={t('voice.group.voice')}>
+        <Row label={t('voice.input')} hint={t('voice.inputHint')}>
           <Select
-            label="Input device"
+            label={t('voice.input')}
             value={voice.inputDeviceId ?? ''}
-            placeholder="System default"
+            placeholder={t('voice.systemDefault')}
             options={devices.microphones.map((device) => ({
               value: device.id,
               label: device.label,
@@ -101,9 +98,9 @@ export function VoiceVideoSection() {
           />
         </Row>
 
-        <Row label="Input volume">
+        <Row label={t('voice.inputVolume')}>
           <Slider
-            label="Input volume"
+            label={t('voice.inputVolume')}
             value={voice.inputVolume}
             min={0}
             max={100}
@@ -113,17 +110,13 @@ export function VoiceVideoSection() {
         </Row>
 
         <Row
-          label="Output device"
-          hint={
-            canChooseOutput()
-              ? 'Where call audio is played.'
-              : 'This browser always plays through the system default, so there is nothing to pick.'
-          }
+          label={t('voice.output')}
+          hint={t(canChooseOutput() ? 'voice.outputHint' : 'voice.outputFixed')}
         >
           <Select
-            label="Output device"
+            label={t('voice.output')}
             value={voice.outputDeviceId ?? ''}
-            placeholder="System default"
+            placeholder={t('voice.systemDefault')}
             disabled={!canChooseOutput()}
             options={devices.speakers.map((device) => ({
               value: device.id,
@@ -133,9 +126,9 @@ export function VoiceVideoSection() {
           />
         </Row>
 
-        <Row label="Output volume">
+        <Row label={t('voice.outputVolume')}>
           <Slider
-            label="Output volume"
+            label={t('voice.outputVolume')}
             value={voice.outputVolume}
             min={0}
             max={100}
@@ -145,24 +138,20 @@ export function VoiceVideoSection() {
         </Row>
       </Group>
 
-      <Group title="input mode">
-        <Row label="When your mic is open">
+      <Group title={t('voice.group.mode')}>
+        <Row label={t('voice.whenOpen')}>
           <Segmented
-            label="Input mode"
+            label={t('voice.group.mode')}
             value={voice.inputMode}
-            options={INPUT_MODES}
+            options={INPUT_MODES.map((one) => ({ ...one, label: t(one.label) }))}
             onChange={(inputMode) => update('voice', { inputMode })}
           />
         </Row>
 
         {voice.inputMode === 'voice-activity' && (
-          <Row
-            label="Sensitivity"
-            hint="How loud you have to be before you are transmitted. Watch the
-                  meter below and set it just above your room."
-          >
+          <Row label={t('voice.sensitivity')} hint={t('voice.sensitivityHint')}>
             <Slider
-              label="Sensitivity"
+              label={t('voice.sensitivity')}
               value={voice.sensitivity}
               min={0}
               max={100}
@@ -175,40 +164,36 @@ export function VoiceVideoSection() {
         <MicTest />
       </Group>
 
-      <Group
-        title="processing"
-        hint="Handled by the browser's audio stack. Turn them off if you are
-              using an interface that already does its own."
-      >
-        <Row label="Echo cancellation">
+      <Group title={t('voice.group.processing')} hint={t('voice.processingHint')}>
+        <Row label={t('voice.echo')}>
           <Toggle
-            label="Echo cancellation"
+            label={t('voice.echo')}
             checked={voice.echoCancellation}
             onChange={(echoCancellation) => update('voice', { echoCancellation })}
           />
         </Row>
-        <Row label="Noise suppression">
+        <Row label={t('voice.noise')}>
           <Toggle
-            label="Noise suppression"
+            label={t('voice.noise')}
             checked={voice.noiseSuppression}
             onChange={(noiseSuppression) => update('voice', { noiseSuppression })}
           />
         </Row>
-        <Row label="Automatic gain control">
+        <Row label={t('voice.gain')}>
           <Toggle
-            label="Automatic gain control"
+            label={t('voice.gain')}
             checked={voice.autoGainControl}
             onChange={(autoGainControl) => update('voice', { autoGainControl })}
           />
         </Row>
       </Group>
 
-      <Group title="video">
-        <Row label="Camera">
+      <Group title={t('voice.group.video')}>
+        <Row label={t('voice.camera')}>
           <Select
-            label="Camera"
+            label={t('voice.camera')}
             value={voice.cameraDeviceId ?? ''}
-            placeholder="System default"
+            placeholder={t('voice.systemDefault')}
             options={devices.cameras.map((device) => ({
               value: device.id,
               label: device.label,
@@ -216,9 +201,9 @@ export function VoiceVideoSection() {
             onChange={(id) => update('voice', { cameraDeviceId: id || null })}
           />
         </Row>
-        <Row label="Mirror my camera" hint="Only changes your own preview, not what others see.">
+        <Row label={t('voice.mirror')} hint={t('voice.mirrorHint')}>
           <Toggle
-            label="Mirror my camera"
+            label={t('voice.mirror')}
             checked={voice.mirrorCamera}
             onChange={(mirrorCamera) => update('voice', { mirrorCamera })}
           />
@@ -226,12 +211,7 @@ export function VoiceVideoSection() {
         <CameraPreview />
       </Group>
 
-      <Note tone="plain">
-        Voice calls use the microphone, the speaker and the input mode chosen
-        here. Volume, mode and sensitivity change a call that is already under
-        way; a different microphone or speaker takes effect on the next one.
-        The camera is stored for later: calls are voice only for now.
-      </Note>
+      <Note tone="plain">{t('voice.note')}</Note>
     </>
   );
 }
@@ -240,6 +220,7 @@ export function VoiceVideoSection() {
 
 function MicTest() {
   const { settings } = useSettings();
+  const t = useT();
   const voice = settings.voice;
   const [running, setRunning] = useState(false);
   const [level, setLevel] = useState(0);
@@ -303,25 +284,27 @@ function MicTest() {
       <Actions>
         {running ? (
           <button type="button" className="set-btn set-btn--quiet" onClick={stop}>
-            Stop test
+            {t('voice.stopTest')}
           </button>
         ) : (
           <button type="button" className="set-btn" onClick={() => void start()}>
-            Test microphone
+            {t('voice.testMic')}
           </button>
         )}
         {running && (
           <span className="set-mic__hint">
-            {gate === null
-              ? 'Say something, the bar should move.'
-              : open
-                ? 'You would be heard.'
-                : 'Below the threshold, nothing would be sent.'}
+            {t(
+              gate === null
+                ? 'voice.saySomething'
+                : open
+                  ? 'voice.wouldBeHeard'
+                  : 'voice.belowThreshold',
+            )}
           </span>
         )}
       </Actions>
 
-      {failed && <Note tone="warn">That microphone could not be opened.</Note>}
+      {failed && <Note tone="warn">{t('voice.micFailed')}</Note>}
     </div>
   );
 }
@@ -330,6 +313,7 @@ function MicTest() {
 
 function CameraPreview() {
   const { settings } = useSettings();
+  const t = useT();
   const voice = settings.voice;
   const video = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -370,22 +354,24 @@ function CameraPreview() {
           playsInline
           hidden={!running}
         />
-        {!running && <span className="set-camera__placeholder">Camera off</span>}
+        {!running && (
+          <span className="set-camera__placeholder">{t('voice.cameraOff')}</span>
+        )}
       </div>
 
       <Actions>
         {running ? (
           <button type="button" className="set-btn set-btn--quiet" onClick={stop}>
-            Stop preview
+            {t('voice.stopPreview')}
           </button>
         ) : (
           <button type="button" className="set-btn" onClick={() => void start()}>
-            Preview camera
+            {t('voice.previewCamera')}
           </button>
         )}
       </Actions>
 
-      {failed && <Note tone="warn">That camera could not be opened.</Note>}
+      {failed && <Note tone="warn">{t('voice.cameraFailed')}</Note>}
     </div>
   );
 }

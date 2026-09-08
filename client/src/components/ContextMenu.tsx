@@ -102,18 +102,26 @@ export function MenuItem({
   label,
   onClick,
   danger = false,
+  disabled = false,
 }: {
   icon?: ReactNode;
   label: string;
   onClick: () => void;
   /** Destructive actions are red and sit at the bottom, behind a divider. */
   danger?: boolean;
+  /**
+   * Still drawn, still says what it is, does nothing. For an action that has
+   * run out of room rather than one that does not apply: an item that
+   * disappeared instead would look like the menu had lost it.
+   */
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       role="menuitem"
       className={`context-menu__item${danger ? ' context-menu__item--danger' : ''}`}
+      disabled={disabled}
       onClick={onClick}
     >
       {icon && <span className="context-menu__icon">{icon}</span>}

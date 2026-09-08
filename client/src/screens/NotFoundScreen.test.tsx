@@ -8,6 +8,7 @@
  * starts answering 404 to a link that arrived in somebody's email, which is a
  * failure nothing else in the suite would notice.
  */
+import { Providers } from '../test/providers';
 import { StrictMode } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -40,7 +41,9 @@ describe('the screen', () => {
   it('reports the address that missed', () => {
     render(
       <StrictMode>
-        <NotFoundScreen path="/nope?x=1" onHome={vi.fn()} />
+        <Providers>
+          <NotFoundScreen path="/nope?x=1" onHome={vi.fn()} />
+        </Providers>
       </StrictMode>,
     );
 
@@ -52,7 +55,9 @@ describe('the screen', () => {
     const onHome = vi.fn();
     render(
       <StrictMode>
-        <NotFoundScreen path="/nope" onHome={onHome} />
+        <Providers>
+          <NotFoundScreen path="/nope" onHome={onHome} />
+        </Providers>
       </StrictMode>,
     );
 
@@ -66,7 +71,9 @@ describe('the screen', () => {
   it('reassures without claiming anything about encryption', () => {
     render(
       <StrictMode>
-        <NotFoundScreen path="/nope" onHome={vi.fn()} />
+        <Providers>
+          <NotFoundScreen path="/nope" onHome={vi.fn()} />
+        </Providers>
       </StrictMode>,
     );
 

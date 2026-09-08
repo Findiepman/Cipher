@@ -24,12 +24,14 @@ tables that already have the columns.
 
 | Section | State | What it needs |
 |---|---|---|
-| Appearance | **Works.** Theme, density, motion, message scale, all local. | Nothing |
+| Language | **Works.** English and Nederlands, or follow the browser. Dates, times and numbers follow it too. Device-local, and the server is never told. See [i18n-plan.md](i18n-plan.md). | Nothing |
+| Appearance | **Works.** Theme, palette, activity bar placement, density, motion, message scale, all local. | Nothing |
 | Voice & video | **Works**, but only since the `Permissions-Policy` fix of 2026-09-07: the deployed header forbade the microphone outright, so the meter and the preview did nothing in production. | Nothing until there are calls to configure, which is [`voice-plan.md`](voice-plan.md) |
 | Notifications | **Works.** Permission prompt, previews off by default. | Nothing |
-| Profile | **Works, locally.** Display name, avatar, accent, presence, about. Stored in `localStorage`, folded into `User` by `lib/settings/profile.ts`. | `PATCH /account/me` before any of it is visible to anyone else |
+| Profile | **Works, locally.** Display name, avatar, accent, presence, about, and any number of them kept under names you choose and switched between (`lib/settings/savedProfiles.ts`, max 10). Stored in `localStorage`, folded into `User` by `lib/settings/profile.ts`. | `PATCH /account/me` before any of it is visible to anyone else |
 | My account | **One of four.** `change-password` works. | `PATCH /account/me`, `POST /account/change-email[/confirm]`, `DELETE /account` |
 | Devices & keys | **Two of four.** Security number and recovery-code rotation work; `verifyPassword` is local and correct. | `GET /account/sessions`, `DELETE /account/sessions/:id` |
+| Vault | **Works, on this device.** Change the passkey (costs the account password), or forget the vault. Stage 1 of [`vault-plan.md`](vault-plan.md). | `POST /conversations/vault` before it follows you anywhere else |
 | Privacy | **Renders, decides nothing.** The toggles are stored and read by nobody. | Enforcement, which is mostly server work and partly a decision about what these settings even mean |
 
 ## The work, in the order worth doing it

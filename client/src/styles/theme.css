@@ -2,37 +2,33 @@
  *
  * The rules that hold the look together:
  *   - panels FLOAT on a darker backdrop; nothing is flush against anything
- *   - the ground is warm brown-black, never neutral grey
+ *   - the ground is tinted, never neutral grey (Slate is the deliberate exception)
  *   - --ember is the only interactive colour, and your own messages
  *   - --sage is reserved for encryption and nothing else
  *   - --red is failure only: a message that would not decrypt
  *   - mono carries machine facts (key ids, timestamps), the sans carries
  *     anything a human wrote
+ *
+ * Palettes. Light or dark is one choice, the colour set is another, and every
+ * palette is written for both. The name --ember outlived the one palette it was
+ * named after: it means "the interactive colour", whatever hue the current
+ * palette makes that. There is no green palette because --sage owns green here,
+ * and an app whose accent was the same green as its encryption colour would have
+ * blurred the one signal it cannot afford to lose.
+ *
+ * How the blocks below fit together:
+ *   :root                              structure, and the tokens whose meaning
+ *                                      is fixed (sage, red, sand, presence)
+ *   :root, [data-palette="ember"]...   Ember, which is also the fallback for a
+ *                                      root that has no palette set yet
+ *   [data-palette="x"][data-theme="y"] every other palette, both modes
+ *
+ * The palette blocks are keyed on the attributes rather than on :root, so any
+ * element carrying data-palette and data-theme is painted in that palette. That
+ * is what lets the swatches in Appearance draw themselves in the palette they
+ * are offering instead of restating its colours in TypeScript.
  */
 :root {
-  --bg-app: #100d0c;         /* backdrop the panels sit on */
-  --bg-panel: #1a1614;       /* conversation list */
-  --bg-panel-alt: #171311;   /* the conversation itself */
-  --bg-raised: #241f1c;      /* composer, selected row, hover */
-  --bg-bubble-in: #221d1a;
-  --bg-bubble-out: #33201a;
-  --line-bubble-out: #4a2a20;
-
-  --line: #2b2422;           /* panel borders */
-  --line-soft: #241f1c;      /* dividers inside a panel */
-  --hover: rgba(255, 255, 255, 0.03);
-
-  --text-hi: #f2e9e2;
-  --text: #cfc3ba;
-  --text-mute: #8d8078;
-  --text-faint: #5f544e;
-  --text-on-bubble: #e6dcd4;
-  --text-on-bubble-out: #f7e3d9;
-  --text-link: #f2734e;
-
-  --ember: #f2734e;          /* interaction, and your own voice */
-  --ember-hover: #ff8f6d;
-  --ember-ink: #1a1210;      /* text drawn on top of ember */
   --sand: #d9b382;
 
   --sage: #7fb08a;           /* encryption, and only encryption */
@@ -59,11 +55,70 @@
      zoom to give, and this is the setting for reading what people wrote. */
   --font-scale: 1;
 
+  /* The custom palette's inputs, also written by SettingsProvider. Declared
+     here so the palette block below has something to mix even on the first
+     paint, before React has run. */
+  --custom-accent: #f2734e;
+  --custom-tint: #6b4a3a;
+  --custom-ink: #1a1210;
+
+  /* The wallpaper layers in app.css. Zero and none until one is chosen. */
+  --wallpaper-dim: 0;
+  --wallpaper-blur: 0px;
+
   color-scheme: dark;
 }
 
-/* Same system in daylight: the panels float on warm paper instead of soot. */
+/* The fixed meanings again for daylight. Sage is still the only green. */
 :root[data-theme="light"] {
+  --sand: #a8813f;
+
+  --sage: #3f7a53;
+  --sage-bg: #e9f1ea;
+  --sage-line: #bcd6c3;
+
+  --red: #b3261e;
+
+  --presence-online: #3f7a53;
+  --presence-idle: #a8813f;
+  --presence-dnd: #b3261e;
+  --presence-offline: #b8ada2;
+
+  color-scheme: light;
+}
+
+/* --- Ember: warm brown-black, the original ------------------------------- */
+
+:root,
+[data-palette="ember"][data-theme="dark"] {
+  --bg-app: #100d0c;         /* backdrop the panels sit on */
+  --bg-panel: #1a1614;       /* conversation list */
+  --bg-panel-alt: #171311;   /* the conversation itself */
+  --bg-raised: #241f1c;      /* composer, selected row, hover */
+  --bg-bubble-in: #221d1a;
+  --bg-bubble-out: #33201a;
+  --line-bubble-out: #4a2a20;
+
+  --line: #2b2422;           /* panel borders */
+  --line-soft: #241f1c;      /* dividers inside a panel */
+  --hover: rgba(255, 255, 255, 0.03);
+
+  --text-hi: #f2e9e2;
+  --text: #cfc3ba;
+  --text-mute: #8d8078;
+  --text-faint: #5f544e;
+  --text-on-bubble: #e6dcd4;
+  --text-on-bubble-out: #f7e3d9;
+  --text-link: #f2734e;
+
+  --ember: #f2734e;          /* interaction, and your own voice */
+  --ember-hover: #ff8f6d;
+  --ember-ink: #1a1210;      /* text drawn on top of ember */
+}
+
+/* Same system in daylight: the panels float on warm paper instead of soot. */
+:root[data-theme="light"],
+[data-palette="ember"][data-theme="light"] {
   --bg-app: #e8e1d8;
   --bg-panel: #f7f3ee;
   --bg-panel-alt: #fffcf8;
@@ -87,18 +142,310 @@
   --ember: #d1552e;
   --ember-hover: #b2431f;
   --ember-ink: #fffcf8;
-  --sand: #a8813f;
+}
 
-  --sage: #3f7a53;
-  --sage-bg: #e9f1ea;
-  --sage-line: #bcd6c3;
+/* --- Custom: whatever two colours you picked -----------------------------
+ *
+ * The palette you write yourself, from Appearance. Two variables come in from
+ * SettingsProvider (--custom-accent, --custom-tint, plus --custom-ink, which is
+ * black or white depending on which one can be read on the accent) and every
+ * token below is mixed out of them, so the rules the whole look rests on hold
+ * whatever anyone picks: panels stay lighter than the ground in the dark and
+ * darker than it in daylight, text keeps its four steps of emphasis and the
+ * accent is still the only interactive colour. Exposing all twenty tokens
+ * instead is how a custom theme ends up with unreadable text on the one screen
+ * nobody checked.
+ *
+ * --sage, --red and the presence colours are deliberately not mixed: they are
+ * meanings, not decoration, and a custom palette does not get to redefine what
+ * "encrypted" or "failed" looks like.
+ */
 
-  --red: #b3261e;
+[data-palette="custom"][data-theme="dark"] {
+  --bg-app: color-mix(in oklab, var(--custom-tint) 10%, #0c0b0b);
+  --bg-panel: color-mix(in oklab, var(--custom-tint) 13%, #161514);
+  --bg-panel-alt: color-mix(in oklab, var(--custom-tint) 11%, #131211);
+  --bg-raised: color-mix(in oklab, var(--custom-tint) 17%, #201e1d);
+  --bg-bubble-in: color-mix(in oklab, var(--custom-tint) 15%, #1e1c1b);
+  --bg-bubble-out: color-mix(in oklab, var(--custom-accent) 22%, #1a1615);
+  --line-bubble-out: color-mix(in oklab, var(--custom-accent) 36%, #241f1d);
 
-  --presence-online: #3f7a53;
-  --presence-idle: #a8813f;
-  --presence-dnd: #b3261e;
-  --presence-offline: #b8ada2;
+  --line: color-mix(in oklab, var(--custom-tint) 20%, #262322);
+  --line-soft: color-mix(in oklab, var(--custom-tint) 15%, #1f1d1c);
+  --hover: rgba(255, 255, 255, 0.03);
 
-  color-scheme: light;
+  --text-hi: color-mix(in oklab, var(--custom-tint) 7%, #f4efec);
+  --text: color-mix(in oklab, var(--custom-tint) 10%, #cec7c2);
+  --text-mute: color-mix(in oklab, var(--custom-tint) 13%, #8b837e);
+  --text-faint: color-mix(in oklab, var(--custom-tint) 16%, #5d5651);
+  --text-on-bubble: color-mix(in oklab, var(--custom-tint) 8%, #e6dfda);
+  --text-on-bubble-out: color-mix(in oklab, var(--custom-accent) 20%, #f5ece7);
+  --text-link: var(--custom-accent);
+
+  --ember: var(--custom-accent);
+  --ember-hover: color-mix(in oklab, var(--custom-accent) 78%, white);
+  --ember-ink: var(--custom-ink);
+}
+
+/* The same two colours in daylight. Only the greys they are mixed into flip;
+   the accent stays exactly the colour that was picked, because a palette that
+   quietly darkened your choice would make the picker a liar. */
+[data-palette="custom"][data-theme="light"] {
+  --bg-app: color-mix(in oklab, var(--custom-tint) 15%, #e9e5e1);
+  --bg-panel: color-mix(in oklab, var(--custom-tint) 7%, #f8f5f2);
+  --bg-panel-alt: color-mix(in oklab, var(--custom-tint) 4%, #fffdfb);
+  --bg-raised: color-mix(in oklab, var(--custom-tint) 12%, #efebe6);
+  --bg-bubble-in: color-mix(in oklab, var(--custom-tint) 10%, #f1ece7);
+  --bg-bubble-out: color-mix(in oklab, var(--custom-accent) 16%, #fdf5f1);
+  --line-bubble-out: color-mix(in oklab, var(--custom-accent) 40%, #f0e2da);
+
+  --line: color-mix(in oklab, var(--custom-tint) 22%, #ded7d0);
+  --line-soft: color-mix(in oklab, var(--custom-tint) 13%, #e9e3dc);
+  --hover: rgba(20, 16, 14, 0.035);
+
+  --text-hi: color-mix(in oklab, var(--custom-tint) 9%, #1c1815);
+  --text: color-mix(in oklab, var(--custom-tint) 12%, #433c37);
+  --text-mute: color-mix(in oklab, var(--custom-tint) 15%, #7a706a);
+  --text-faint: color-mix(in oklab, var(--custom-tint) 18%, #a2978f);
+  --text-on-bubble: color-mix(in oklab, var(--custom-tint) 10%, #2c2622);
+  --text-on-bubble-out: color-mix(in oklab, var(--custom-accent) 28%, #2a1c15);
+  /* Darkened, unlike the accent itself: a link is text on a pale panel, and a
+     pale accent as text is the one place the raw colour cannot be read. */
+  --text-link: color-mix(in oklab, var(--custom-accent) 76%, black);
+
+  --ember: var(--custom-accent);
+  --ember-hover: color-mix(in oklab, var(--custom-accent) 76%, black);
+  --ember-ink: var(--custom-ink);
+}
+
+/* --- Tide: deep water, an azure accent ----------------------------------- */
+
+[data-palette="tide"][data-theme="dark"] {
+  --bg-app: #0a0e14;
+  --bg-panel: #141b24;
+  --bg-panel-alt: #111823;
+  --bg-raised: #1e2733;
+  --bg-bubble-in: #1a232e;
+  --bg-bubble-out: #14293d;
+  --line-bubble-out: #21456a;
+
+  --line: #232e3b;
+  --line-soft: #1c2530;
+  --hover: rgba(255, 255, 255, 0.035);
+
+  --text-hi: #e8eff7;
+  --text: #c1cdda;
+  --text-mute: #808f9f;
+  --text-faint: #57646f;
+  --text-on-bubble: #dae4ee;
+  --text-on-bubble-out: #d5e9fc;
+  --text-link: #58a8f0;
+
+  --ember: #58a8f0;
+  --ember-hover: #7cc0ff;
+  --ember-ink: #071320;
+
+  --presence-offline: #414d59;
+}
+
+[data-palette="tide"][data-theme="light"] {
+  --bg-app: #dde5ee;
+  --bg-panel: #f4f8fc;
+  --bg-panel-alt: #fbfdff;
+  --bg-raised: #e7eef6;
+  --bg-bubble-in: #eaf0f7;
+  --bg-bubble-out: #dbeafb;
+  --line-bubble-out: #b4d3ef;
+
+  --line: #ccd8e4;
+  --line-soft: #dde5ee;
+  --hover: rgba(12, 22, 34, 0.04);
+
+  --text-hi: #101a24;
+  --text: #384654;
+  --text-mute: #6b7a89;
+  --text-faint: #96a3b0;
+  --text-on-bubble: #22303c;
+  --text-on-bubble-out: #12384f;
+  --text-link: #1567b8;
+
+  --ember: #1f6fbd;
+  --ember-hover: #14568f;
+  --ember-ink: #fbfdff;
+
+  --presence-offline: #a9b6c2;
+}
+
+/* --- Orchid: violet on a plum-black ground ------------------------------- */
+
+[data-palette="orchid"][data-theme="dark"] {
+  --bg-app: #0e0b13;
+  --bg-panel: #181322;
+  --bg-panel-alt: #14101c;
+  --bg-raised: #241d33;
+  --bg-bubble-in: #201a2c;
+  --bg-bubble-out: #2a1c3f;
+  --line-bubble-out: #46306a;
+
+  --line: #2a2338;
+  --line-soft: #211b2d;
+  --hover: rgba(255, 255, 255, 0.04);
+
+  --text-hi: #ece6f5;
+  --text: #c7bcd8;
+  --text-mute: #8b7fa0;
+  --text-faint: #5e5570;
+  --text-on-bubble: #ded5ec;
+  --text-on-bubble-out: #e6d7fb;
+  --text-link: #a67ff0;
+
+  --ember: #a67ff0;
+  --ember-hover: #bf9dff;
+  --ember-ink: #130d1d;
+
+  --presence-offline: #493f58;
+}
+
+[data-palette="orchid"][data-theme="light"] {
+  --bg-app: #e6e0ee;
+  --bg-panel: #f8f4fd;
+  --bg-panel-alt: #fdfbff;
+  --bg-raised: #efe8f8;
+  --bg-bubble-in: #f1ebf8;
+  --bg-bubble-out: #eadff9;
+  --line-bubble-out: #cdb6e8;
+
+  --line: #d9cfe6;
+  --line-soft: #e7dff1;
+  --hover: rgba(24, 14, 34, 0.04);
+
+  --text-hi: #1d1526;
+  --text: #443a52;
+  --text-mute: #766a86;
+  --text-faint: #a196ae;
+  --text-on-bubble: #2b2336;
+  --text-on-bubble-out: #3a2154;
+  --text-link: #7b3fd0;
+
+  --ember: #7742c9;
+  --ember-hover: #5f2fab;
+  --ember-ink: #fdfbff;
+
+  --presence-offline: #b4a9c0;
+}
+
+/* --- Rose: the warmest one, a magenta accent ----------------------------- */
+
+[data-palette="rose"][data-theme="dark"] {
+  --bg-app: #120b0e;
+  --bg-panel: #1d1419;
+  --bg-panel-alt: #191114;
+  --bg-raised: #2a1e24;
+  --bg-bubble-in: #261a20;
+  --bg-bubble-out: #3a1d2b;
+  --line-bubble-out: #5c2c42;
+
+  --line: #322430;
+  --line-soft: #271c22;
+  --hover: rgba(255, 255, 255, 0.035);
+
+  --text-hi: #f6e7ee;
+  --text: #d6c2cc;
+  --text-mute: #9c8390;
+  --text-faint: #6b5761;
+  --text-on-bubble: #e9d8e0;
+  --text-on-bubble-out: #fbd9e7;
+  --text-link: #f0699a;
+
+  --ember: #f0699a;
+  --ember-hover: #ff8bb2;
+  --ember-ink: #1c0d13;
+
+  --presence-offline: #55444c;
+}
+
+[data-palette="rose"][data-theme="light"] {
+  --bg-app: #efe1e7;
+  --bg-panel: #fdf4f7;
+  --bg-panel-alt: #fffbfc;
+  --bg-raised: #f6e8ee;
+  --bg-bubble-in: #f8ecf1;
+  --bg-bubble-out: #fce0eb;
+  --line-bubble-out: #f0bed2;
+
+  --line: #e5d2da;
+  --line-soft: #f0e2e8;
+  --hover: rgba(34, 14, 22, 0.04);
+
+  --text-hi: #241318;
+  --text: #4d3a41;
+  --text-mute: #856b76;
+  --text-faint: #ae95a0;
+  --text-on-bubble: #33232a;
+  --text-on-bubble-out: #5a1f36;
+  --text-link: #c02063;
+
+  --ember: #c62c6a;
+  --ember-hover: #a01a52;
+  --ember-ink: #fffbfc;
+
+  --presence-offline: #c1acb5;
+}
+
+/* --- Slate: the quiet one, steel on cool grey ---------------------------- */
+
+[data-palette="slate"][data-theme="dark"] {
+  --bg-app: #0d0f11;
+  --bg-panel: #16191c;
+  --bg-panel-alt: #131619;
+  --bg-raised: #212528;
+  --bg-bubble-in: #1d2124;
+  --bg-bubble-out: #21292e;
+  --line-bubble-out: #35434b;
+
+  --line: #262b2f;
+  --line-soft: #1e2226;
+  --hover: rgba(255, 255, 255, 0.035);
+
+  --text-hi: #e9edf0;
+  --text: #c2c8cd;
+  --text-mute: #848c93;
+  --text-faint: #5a6268;
+  --text-on-bubble: #dbe1e6;
+  --text-on-bubble-out: #dfe9ef;
+  --text-link: #6fa3bd;
+
+  --ember: #6fa3bd;
+  --ember-hover: #8dbdd4;
+  --ember-ink: #0d1418;
+
+  --presence-offline: #464c51;
+}
+
+[data-palette="slate"][data-theme="light"] {
+  --bg-app: #e2e5e8;
+  --bg-panel: #f6f8f9;
+  --bg-panel-alt: #fcfdfe;
+  --bg-raised: #eaeef1;
+  --bg-bubble-in: #eef1f3;
+  --bg-bubble-out: #e2edf3;
+  --line-bubble-out: #bcd2de;
+
+  --line: #d3d9dd;
+  --line-soft: #e3e8eb;
+  --hover: rgba(10, 16, 20, 0.04);
+
+  --text-hi: #14181b;
+  --text: #3c4348;
+  --text-mute: #6d757b;
+  --text-faint: #9aa2a8;
+  --text-on-bubble: #262c30;
+  --text-on-bubble-out: #1e3d4d;
+  --text-link: #2b6f91;
+
+  --ember: #2f7391;
+  --ember-hover: #235a74;
+  --ember-ink: #fcfdfe;
+
+  --presence-offline: #aeb5ba;
 }

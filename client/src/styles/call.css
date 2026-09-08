@@ -22,6 +22,27 @@
   animation: call-in 180ms ease-out;
 }
 
+/* Clear of the activity bar when it is docked somewhere this panel already
+   floats. A left rail needs nothing: the panel is nowhere near it. The ringing
+   toast is excluded from the lift because it is anchored to the top instead,
+   and giving it a bottom as well would stretch it down the window. */
+.app[data-bar='bottom'] .call:not(.call--ringing) {
+  bottom: 84px;
+}
+
+@media (min-width: 821px) {
+  .app[data-bar='right'] .call {
+    right: 150px;
+  }
+}
+
+@media (max-width: 820px) {
+  .app[data-bar='left'] .call:not(.call--ringing),
+  .app[data-bar='right'] .call:not(.call--ringing) {
+    bottom: 84px;
+  }
+}
+
 @keyframes call-in {
   from {
     opacity: 0;

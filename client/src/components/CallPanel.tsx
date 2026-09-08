@@ -17,7 +17,10 @@
  */
 import { useEffect, useState } from 'react';
 import type { CallEndReason, CallSnapshot } from '../lib/call/types';
+import type { Key } from '../lib/i18n/en';
+import type { Phrase } from '../lib/i18n/translate';
 import { useCall } from '../state/CallProvider';
+import { useT } from '../state/I18nProvider';
 import { useChat } from '../state/ChatProvider';
 import { useSettings } from '../state/SettingsProvider';
 import type { User } from '../types';
@@ -41,25 +44,30 @@ export function CallPanel() {
 
 function IncomingCall({ peer }: { peer: User | undefined }) {
   const { accept, decline } = useCall();
-  const name = peer?.name ?? 'Someone';
+  const t = useT();
+  const name = peer?.name ?? t('call.someone');
 
   return (
-    <div className="call call--ringing" role="alertdialog" aria-label={`${name} is calling`}>
+    <div
+      className="call call--ringing"
+      role="alertdialog"
+      aria-label={t('call.isCallingYou', { name })}
+    >
       <div className="call__who">
         {peer && <Avatar user={peer} size={52} />}
         <div className="call__names">
           <span className="call__name">{name}</span>
-          <span className="call__status">is calling</span>
+          <span className="call__status">{t('call.isCalling')}</span>
         </div>
       </div>
 
       <div className="call__actions">
         <button type="button" className="call__btn call__btn--quiet" onClick={decline}>
-          Decline
+          {t('friends.decline')}
         </button>
         <button type="button" className="call__btn call__btn--accept" onClick={accept} autoFocus>
           <PhoneIcon size={15} />
-          Accept
+          {t('friends.accept')}
         </button>
       </div>
     </div>
@@ -71,7 +79,8 @@ function IncomingCall({ peer }: { peer: User | undefined }) {
 function InCall({ call, peer }: { call: CallSnapshot; peer: User | undefined }) {
   const { hangUp, toggleMuted, setTalking, dismiss, outputRoute, toggleOutputRoute } = useCall();
   const { settings } = useSettings();
-  const name = peer?.name ?? 'Unknown';
+  const t = useT();
+  const name = peer?.name ?? t('call.unknown');
   const ended = call.phase === 'ended';
   const pushToTalk = settings.voice.inputMode === 'push-to-talk';
 
@@ -82,7 +91,7 @@ function InCall({ call, peer }: { call: CallSnapshot; peer: User | undefined }) 
         <div className="call__names">
           <span className="call__name">{name}</span>
           <span className="call__status">
-            {ended ? endedLabel(call, name) : <Status call={call} />}
+            {ended ? t(endedLabel(call, name)) : <Status call={call} />}
           </span>
         </div>
       </div>
@@ -93,8 +102,8 @@ function InCall({ call, peer }: { call: CallSnapshot; peer: User | undefined }) 
             type="button"
             className="icon-button"
             onClick={dismiss}
-            aria-label="Dismiss"
-            title="Dismiss"
+            aria-label={t('call.dismiss')}
+            title={t('call.dismiss')}
           >
             <CloseIcon size={16} />
           </button>
@@ -113,10 +122,10 @@ function InCall({ call, peer }: { call: CallSnapshot; peer: User | undefined }) 
               onPointerLeave={() => setTalking(false)}
               onPointerCancel={() => setTalking(false)}
               onContextMenu={(event) => event.preventDefault()}
-              title="Hold to talk, or hold Ctrl+Space"
+              title={t('call.holdHint')}
               aria-pressed={call.talking}
             >
-              {call.talking ? 'Talking' : 'Hold to talk'}
+              {t(call.talking ? 'call.talking' : 'call.holdToTalk')}
             </button>
           )}
 
@@ -128,8 +137,10 @@ function InCall({ call, peer }: { call: CallSnapshot; peer: User | undefined }) 
               className={`call__round${outputRoute === 'speaker' ? ' call__round--active' : ''}`}
               onClick={toggleOutputRoute}
               aria-pressed={outputRoute === 'speaker'}
-              aria-label={outputRoute === 'speaker' ? 'Switch to earpiece' : 'Switch to speaker'}
-              title={outputRoute === 'speaker' ? 'Switch to earpiece' : 'Switch to speaker'}
+              aria-label={t(
+                outputRoute === 'speaker' ? 'call.toEarpiece' : 'call.toSpeaker',
+              )}
+              title={t(outputRoute === 'speaker' ? 'call.toEarpiece' : 'call.toSpeaker')}
             >
               <SpeakerIcon size={17} />
             </button>
@@ -140,8 +151,8 @@ function InCall({ call, peer }: { call: CallSnapshot; peer: User | undefined }) 
             className={`call__round${call.muted ? ' call__round--active' : ''}`}
             onClick={toggleMuted}
             aria-pressed={call.muted}
-            aria-label={call.muted ? 'Unmute' : 'Mute'}
-            title={call.muted ? 'Unmute' : 'Mute'}
+            aria-label={t(call.muted ? 'call.unmute' : 'call.mute')}
+            title={t(call.muted ? 'call.unmute' : 'call.mute')}
           >
             {call.muted ? <MicOffIcon size={18} /> : <MicIcon size={18} />}
             <span
@@ -154,8 +165,8 @@ function InCall({ call, peer }: { call: CallSnapshot; peer: User | undefined }) 
             type="button"
             className="call__round call__round--hangup"
             onClick={hangUp}
-            aria-label={call.phase === 'calling' ? 'Cancel call' : 'Hang up'}
-            title={call.phase === 'calling' ? 'Cancel call' : 'Hang up'}
+            aria-label={t(call.phase === 'calling' ? 'call.cancel' : 'call.hangUp')}
+            title={t(call.phase === 'calling' ? 'call.cancel' : 'call.hangUp')}
           >
             <PhoneOffIcon size={18} />
           </button>
@@ -166,11 +177,12 @@ function InCall({ call, peer }: { call: CallSnapshot; peer: User | undefined }) 
 }
 
 function Status({ call }: { call: CallSnapshot }) {
+  const t = useT();
   switch (call.phase) {
     case 'calling':
-      return <>calling…</>;
+      return <>{t('call.calling')}</>;
     case 'connecting':
-      return <>connecting…</>;
+      return <>{t('chat.connecting')}</>;
     case 'connected':
       return <Elapsed since={call.connectedAt ?? Date.now()} />;
     default:
@@ -202,34 +214,39 @@ export function formatElapsed(ms: number): string {
 
 /// Why the call ended, in words. Nothing here claims anything the code does
 /// not do; "connection lost" is a fact about a socket, not a promise.
-export function endedLabel(call: Pick<CallSnapshot, 'endReason' | 'endMessage' | 'relay'>, name: string): string {
+export function endedLabel(
+  call: Pick<CallSnapshot, 'endReason' | 'endMessage' | 'relay'>,
+  name: string,
+): Phrase<Key> {
   const reason: CallEndReason | null = call.endReason;
   switch (reason) {
     case 'hangup':
-      return 'Call ended';
+      return { key: 'call.end.hangup' };
     case 'rejected':
-      return `${name} declined`;
+      return { key: 'call.end.rejected', vars: { name } };
     case 'no_answer':
-      return 'No answer';
+      return { key: 'call.end.noAnswer' };
     case 'missed':
-      return `Missed call from ${name}`;
+      return { key: 'call.end.missed', vars: { name } };
     case 'disconnected':
-      return 'Connection lost';
+      return { key: 'call.end.disconnected' };
     case 'busy':
-      return `${name} is in another call`;
+      return { key: 'call.end.busy', vars: { name } };
     case 'in_call':
-      return 'You are already in a call in another tab';
+      return { key: 'call.end.inCall' };
     case 'no_microphone':
-      return 'Your microphone could not be opened. Check the browser permission and the input device in settings.';
+      return { key: 'call.end.noMicrophone' };
     case 'unreadable':
-      return 'The call could not be set up with this person.';
+      return { key: 'call.end.unreadable' };
     case 'failed':
-      return call.relay === false
-        ? 'Could not connect. This server has no relay, so calls only work when both sides can reach each other directly.'
-        : 'The connection failed.';
+      return { key: call.relay === false ? 'call.end.noRelay' : 'call.end.failed' };
     case 'refused':
-      return call.endMessage ?? 'The call could not be placed.';
+      // The one that can carry a sentence from the server, which stays in the
+      // server's English for the same reason every other one does.
+      return call.endMessage
+        ? { key: 'call.end.passthrough', vars: { message: call.endMessage } }
+        : { key: 'call.end.refused' };
     default:
-      return 'Call ended';
+      return { key: 'call.end.hangup' };
   }
 }

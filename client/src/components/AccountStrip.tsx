@@ -6,25 +6,28 @@
  * signing out also throws away the wrapped blob, so the next sign-in has to
  * fetch it from the server again.
  */
+import { useT } from '../state/I18nProvider';
 import { useSession } from '../state/SessionProvider';
 import '../styles/auth.css';
 
 export function AccountStrip() {
   const { account, lock, logout, busy } = useSession();
+  const t = useT();
 
   return (
     <div className="account-strip">
       <span className="account-strip-who">
-        Signed in as <strong>{account?.username ?? account?.email ?? 'this account'}</strong>
+        {t('strip.signedInAs')}{' '}
+        <strong>{account?.username ?? account?.email ?? t('strip.thisAccount')}</strong>
       </span>
 
       <span className="account-strip-spacer" />
 
       <button type="button" onClick={lock} disabled={busy}>
-        Lock
+        {t('settings.lock')}
       </button>
       <button type="button" onClick={() => void logout()} disabled={busy}>
-        Sign out
+        {t('settings.signOut')}
       </button>
     </div>
   );

@@ -27,6 +27,9 @@ export function MessageChime() {
   useArrivingMessages((arrivals) => {
     const notifications = settings.notifications;
     if (isMuted(notifications.mutedUntil)) return;
+    // Do not disturb means exactly that: no sound for anyone, your own sends
+    // included. It is the presence you chose, so it lives on the profile.
+    if (settings.profile.presence === 'dnd') return;
     const focused = typeof document === 'undefined' || document.visibilityState === 'visible';
 
     for (const arrival of arrivals) {

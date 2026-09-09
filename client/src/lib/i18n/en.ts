@@ -90,20 +90,19 @@ export const en = {
   'privacy.group.reveal': 'what you reveal',
   'privacy.readReceipts': 'Read receipts',
   'privacy.readReceiptsHint':
-    'Lets the other person see when you have opened their message. Turning this off also stops you seeing theirs.',
+    'Lets the other person see when you have opened their message. Off, the server stops telling them; your own devices still keep the count in step.',
   'privacy.typing': 'Typing indicators',
   'privacy.typingHint':
-    'Shows the other person that you are writing something, including the drafts you delete.',
-  'privacy.linkPreviews': 'Link previews',
-  'privacy.linkPreviewsHint':
-    'Fetching a preview tells the linked site that someone opened the link, from your address, at that moment. The message stays encrypted; the visit is not.',
+    'Shows the other person that you are writing something, including the drafts you delete. Off, this device simply never says so.',
   'privacy.group.reach': 'who can reach you',
-  'privacy.dmFrom': 'Direct messages from',
-  'privacy.dm.everyone': 'Anyone',
-  'privacy.dm.known': 'People I know',
-  'privacy.dm.nobody': 'No one',
+  'privacy.requestsFrom': 'Friend requests from',
+  'privacy.requestsHint':
+    'Messages already only come from friends. This is about who gets to ask. Anyone outside the choice is told you do not exist.',
+  'privacy.requests.everyone': 'Anyone',
+  'privacy.requests.friendsOfFriends': 'Friends of friends',
+  'privacy.requests.nobody': 'No one',
   'privacy.note':
-    'None of this changes what the server can read, which is nothing. It changes what your contacts and the sites you link to can work out.',
+    'None of this changes what the server can read of your messages, which is nothing. Two of these choices are kept on the server, because it is the server that would otherwise pass on a read or let a request through.',
 
   /* --- the vault -------------------------------------------------------- */
 
@@ -277,6 +276,7 @@ export const en = {
   'profile.replace': 'Replace',
   'profile.badImage': 'That image could not be used.',
   'profile.accent': 'Accent',
+  'profile.accentAuto': 'Auto, a colour picked from your account',
   'profile.accentHint': 'Used behind your name and wherever your picture does not fit.',
   'profile.accentHintNoPic': 'The tile you get until you upload a picture.',
 
@@ -293,7 +293,7 @@ export const en = {
   'profile.aboutPlaceholder':
     'What you are into, where you are, when you are usually around. Anything you would want somebody to know before they message you.',
   'profile.note':
-    'Your profile is stored on this device, not on the server. Sharing it with your contacts needs an endpoint that does not exist yet, and when it does, it will be sent encrypted, the same way your messages are.',
+    'Your name, picture, banner, accent, presence and about text are kept on the server in the clear and shown to your friends only. Everything else in settings, the saved profiles included, stays on this device.',
   'profile.reset': 'Reset profile',
 
   'profile.group.profiles': 'profiles',
@@ -754,6 +754,10 @@ export const en = {
   'chat.profile': 'Profile',
   'chat.showProfile': 'Show profile',
   'chat.hideProfile': 'Hide profile',
+  'chat.code': 'code',
+  'chat.copyCode': 'Copy code',
+  'chat.copied': 'Copied',
+  'chat.copyFailed': 'Could not copy',
   'call.call': 'Call',
   'call.callName': 'Call {name}',
   'call.inACall': 'In a call',
@@ -915,6 +919,22 @@ export const en = {
   'verify.doneLede': 'Your address is confirmed. You can sign in now.',
   'verify.failedLede':
     'Most likely it has already been used. Verification links work once and then expire, so if you have opened this one before, your address is verified and you can just sign in. Otherwise ask for a new link from the sign-in screen; links also expire after 24 hours.',
+
+  /* --- the email change link --------------------------------------------- */
+
+  'changeEmail.title': 'Confirm your new email',
+  'changeEmail.lede':
+    'This link moves your account to {email}. Your sign-in key is derived from your address, so it is re-derived now, on this device. Your messages are unaffected.',
+  'changeEmail.checking': 'Checking your link…',
+  'changeEmail.confirm': 'Move to the new address',
+  'changeEmail.confirming': 'Moving…',
+  'changeEmail.done': 'Email changed',
+  'changeEmail.doneLede': 'Sign in with {email} from now on.',
+  'changeEmail.signedOut':
+    'Sign in first, then open this link again. It only works for the account that asked for it.',
+  'changeEmail.badLinkLede':
+    'Either it has already been used, it expired (links last an hour) or it belongs to another account.',
+  'changeEmail.back': 'Back to the app',
 
   'notFound.title': 'This page doesn\u2019t exist',
   'notFound.lede':

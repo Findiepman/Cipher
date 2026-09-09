@@ -19,6 +19,24 @@
   opacity: 0.75;
 }
 
+/* A picture they chose is shown as they chose it: full strength, filling the
+   band, cropped from the middle. It was already cut to this shape on their
+   device (PICTURE_FRAMES.banner), so little is lost either way. */
+.profile__banner--picture {
+  opacity: 1;
+  background-size: cover;
+  background-position: center;
+}
+
+.profile__about {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .profile__close {
   position: absolute;
   top: 8px;

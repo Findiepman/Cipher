@@ -211,3 +211,19 @@ export function MicOffIcon({ size = 24, className }: Props) {
     </svg>
   );
 }
+
+export function CopyIcon({ size = 24, className }: Props) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M9 3a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H9Zm0 2h9v10H9V5ZM5 7a1 1 0 0 0-1 1v11a2 2 0 0 0 2 2h9a1 1 0 1 0 0-2H6V8a1 1 0 0 0-1-1Z" />
+    </svg>
+  );
+}
+
+export function CheckIcon({ size = 24, className }: Props) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M20.707 6.293a1 1 0 0 1 0 1.414l-10 10a1 1 0 0 1-1.414 0l-5-5a1 1 0 1 1 1.414-1.414L10 15.586l9.293-9.293a1 1 0 0 1 1.414 0Z" />
+    </svg>
+  );
+}

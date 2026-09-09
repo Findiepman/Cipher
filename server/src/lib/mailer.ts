@@ -322,6 +322,28 @@ export const passwordResetEmail = (token: string): Omit<OutboundMail, 'to'> =>
     ],
   });
 
+/// Sent to the NEW address when someone asks to move their account to it.
+/// Nothing changes until the link is opened, which is the proof that the
+/// address is theirs; the old address is not told, because the person asking
+/// has already proved they hold the password.
+export const emailChangeEmail = (token: string): Omit<OutboundMail, 'to'> =>
+  render({
+    subject: 'Confirm your new email address',
+    preheader: 'Confirm this address to move your account to it.',
+    heading: 'Confirm your new email address',
+    paragraphs: [
+      'Someone asked to move their account to this email address. If that was you, confirm it below and the account will use this address from now on:',
+    ],
+    action: {
+      label: 'Use this address',
+      url: `${env.APP_URL}/change-email?token=${token}`,
+    },
+    footnotes: [
+      'This link works once and expires in one hour. You will be asked for your password, because your sign-in is derived from your address and has to be re-derived for the new one.',
+      "If you didn't ask for this, you can ignore this email. Nothing has changed.",
+    ],
+  });
+
 /// Sent when someone tries to register with an address that already has an
 /// account. Registration can't say "that email is taken" without becoming an
 /// account-enumeration oracle, so the person who owns the address is told

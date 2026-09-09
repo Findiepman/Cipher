@@ -198,3 +198,153 @@
 :root[data-density='compact'] .messages__divider {
   margin: 12px 0 8px;
 }
+
+/* --- code and links inside a bubble -------------------------------------- *
+ * A body is parsed on the reading device (lib/chat/format.ts) into prose,
+ * inline code, links and blocks, and components/MessageBody.tsx draws them.
+ * A block sits on the app's ground colour, which is darker than any bubble
+ * in the dark and lighter than one in daylight, so it reads as a well cut
+ * into the bubble either way. Its text is --text rather than the bubble's
+ * ink for the same reason: it is on the ground, not on the bubble.
+ */
+.bubble__body {
+  display: block;
+}
+
+.bubble__text {
+  white-space: pre-wrap;
+}
+
+.bubble__link {
+  color: var(--text-link);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--text-link) 45%, transparent);
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+.bubble__link:hover {
+  text-decoration-color: currentColor;
+}
+
+.bubble__inline-code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--bg-app);
+  color: var(--text-hi);
+  font-size: 0.9em;
+}
+
+.code-block {
+  display: block;
+  margin: 3px 0;
+  min-width: 200px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg-app);
+  overflow: hidden;
+  text-align: left;
+}
+.bubble__text + .code-block,
+.code-block + .bubble__text {
+  margin-top: 6px;
+}
+
+.code-block__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 4px 3px 11px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.code-block__lang {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.code-block__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  color: var(--text-mute);
+  transition:
+    color 140ms ease,
+    background-color 140ms ease;
+}
+.code-block__copy:hover {
+  color: var(--text-hi);
+  background: var(--hover);
+}
+.code-block__copy--done {
+  color: var(--ember);
+}
+
+/* Wrapped rather than scrolled: a snippet in a 62% column is read, not
+   edited, and a horizontal scrollbar hides the end of every long line. */
+.code-block__pre {
+  margin: 0;
+  padding: 9px 11px 10px;
+  font-size: calc(12.5px * var(--font-scale));
+  line-height: 1.55;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 4;
+}
+
+/* highlight.js scopes, mapped onto the four code tokens in theme.css.
+   Comments and metadata take the muted text colour instead of a token. */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-doctag,
+.hljs-type,
+.hljs-name {
+  color: var(--code-keyword);
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-quote {
+  color: var(--code-string);
+}
+.hljs-number,
+.hljs-literal,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-deletion {
+  color: var(--code-number);
+}
+.hljs-title,
+.hljs-built_in,
+.hljs-attr,
+.hljs-attribute,
+.hljs-selector-class,
+.hljs-selector-id,
+.hljs-section,
+.hljs-variable,
+.hljs-template-variable {
+  color: var(--code-name);
+}
+.hljs-comment,
+.hljs-meta {
+  color: var(--text-mute);
+  font-style: italic;
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
+}
+
+:root[data-density='compact'] .code-block__pre {
+  padding: 6px 9px 7px;
+}

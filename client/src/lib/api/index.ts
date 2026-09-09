@@ -13,7 +13,9 @@ export {
   createConversationsApi,
   createFriendsApi,
   createKeysApi,
+  createUsersApi,
   friendsApi,
   keysApi,
+  usersApi,
 } from './endpoints';
 export * from './types';

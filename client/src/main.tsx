@@ -15,6 +15,19 @@ import { SettingsProvider } from './state/SettingsProvider';
 // anywhere, is what lets them make a sound later.
 unlockOnFirstGesture();
 
+// Registering buys exactly one thing today: a phone can show a notification at
+// all. Chrome on Android will not raise one any other way. It is deliberately
+// not a caching worker (public/sw.js says why), so this changes nothing about
+// how the app loads. Insecure origins have no `serviceWorker` at all, which is
+// why a plain LAN address cannot be used to test this.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('/sw.js').catch(() => {
+      /* Unsupported, blocked, or an insecure origin. Desktop still notifies. */
+    });
+  });
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {/* I18n sits directly under Settings, which holds the choice, and above

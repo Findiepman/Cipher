@@ -30,6 +30,7 @@ import { CallRinger } from './components/CallRinger';
 import { DesktopNotifier } from './components/DesktopNotifier';
 import { MessageChime } from './components/MessageChime';
 import { MessageToasts } from './components/MessageToasts';
+import { plainText } from './lib/chat/format';
 import { splitPinned } from './lib/settings/pinned';
 import { withProfile } from './lib/settings/profile';
 import { resolveActivityBar } from './lib/settings/types';
@@ -178,7 +179,8 @@ function Shell({
   );
 
   // Every row carries the last thing said in it, rendered from this device's
-  // own history rather than from anything the server summarised.
+  // own history rather than from anything the server summarised. Flattened
+  // to one line: a fence or a backtick says nothing in a twelve pixel preview.
   const previews = new Map<string, Preview>();
   for (const channel of channels) {
     const last = messagesFor(channel.id).at(-1);
@@ -186,7 +188,7 @@ function Shell({
     previews.set(channel.id, {
       text:
         last.state === 'decrypted' || last.state === 'sending'
-          ? (last.body ?? '')
+          ? plainText(last.body ?? '')
           : t('chat.newMessage'),
       at: last.sentAt,
     });

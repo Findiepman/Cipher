@@ -13,13 +13,26 @@
 import { prisma } from '../../db.js';
 import { badRequest, forbidden, notFound } from '../../lib/errors.js';
 import { areFriends, requireFriendship } from '../friends/service.js';
+import {
+  publicProfileSelect,
+  toPublicProfile,
+  type PublicProfileDto,
+  type PublicProfileRow,
+} from '../profile/dto.js';
 import type { BacklogQuery, SendMessageInput } from './schemas.js';
 
 export interface ConversationDto {
   id: string;
   kind: 'dm';
-  /// Everyone in it, the caller included.
-  participants: { id: string; username: string; publicKey: string | null }[];
+  /// Everyone in it, the caller included. The profile rides along so a
+  /// participant who is no longer a friend still renders under the name and
+  /// picture they chose, not as a bare handle.
+  participants: {
+    id: string;
+    username: string;
+    publicKey: string | null;
+    profile: PublicProfileDto;
+  }[];
   /// The id and time of the newest message, so a client can tell whether it is
   /// behind. Not a preview - the server has no readable text to preview.
   lastMessage: { id: string; authorId: string; sentAt: string } | null;
@@ -425,6 +438,7 @@ const conversationInclude = {
             take: 1,
             select: { publicKey: true },
           },
+          profile: { select: publicProfileSelect },
         },
       },
     },
@@ -442,7 +456,12 @@ type ConversationRow = {
   participants: {
     userId: string;
     lastReadMessageId: string | null;
-    user: { id: string; username: string; devices: { publicKey: string }[] };
+    user: {
+      id: string;
+      username: string;
+      devices: { publicKey: string }[];
+      profile: PublicProfileRow | null;
+    };
   }[];
   messages: { id: string; authorId: string; sentAt: Date }[];
 };
@@ -464,6 +483,7 @@ function toConversationDto(
       id: user.id,
       username: user.username,
       publicKey: user.devices[0]?.publicKey ?? null,
+      profile: toPublicProfile(user.profile),
     })),
     lastMessage: last
       ? { id: last.id, authorId: last.authorId, sentAt: last.sentAt.toISOString() }

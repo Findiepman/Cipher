@@ -1,7 +1,10 @@
 # settings-plan.md
 
-The settings screen exists. This is the plan for the half of it that does not
-work yet.
+The settings screen exists. This was the plan for the half of it that did not
+work yet. As of 2026-09-09 the server half is built: profile sharing, the
+sessions list and its revocation, the email change, and account deletion. The
+section-by-section notes below are kept as the record of what was decided and
+what the traps were; the table says what is now real.
 
 Read [`STATUS.md`](STATUS.md) first for where the project is; this file is only
 about settings. It follows the same convention as
@@ -28,11 +31,11 @@ tables that already have the columns.
 | Appearance | **Works.** Theme, palette, activity bar placement, density, motion, message scale, all local. | Nothing |
 | Voice & video | **Works**, but only since the `Permissions-Policy` fix of 2026-09-07: the deployed header forbade the microphone outright, so the meter and the preview did nothing in production. | Nothing until there are calls to configure, which is [`voice-plan.md`](voice-plan.md) |
 | Notifications | **Works.** Permission prompt, previews off by default. | Nothing |
-| Profile | **Works, locally.** Display name, avatar, accent, presence, about, and any number of them kept under names you choose and switched between (`lib/settings/savedProfiles.ts`, max 10). Stored in `localStorage`, folded into `User` by `lib/settings/profile.ts`. | `PATCH /account/me` before any of it is visible to anyone else |
-| My account | **One of four.** `change-password` works. | `PATCH /account/me`, `POST /account/change-email[/confirm]`, `DELETE /account` |
-| Devices & keys | **Two of four.** Security number and recovery-code rotation work; `verifyPassword` is local and correct. | `GET /account/sessions`, `DELETE /account/sessions/:id` |
+| Profile | **Works, and now shared.** Display name, avatar, banner, accent, presence, about, saved under names you choose (`lib/settings/savedProfiles.ts`, max 10). The shared half goes to the account through `PATCH /account/me`, debounced, and friends read it off the friend list and `GET /users/:id/profile`. | Nothing; the card could preload the banner |
+| My account | **Done.** `change-password`, `change-email[/context/confirm]` and `DELETE /account` all work. | Nothing |
+| Devices & keys | **Done.** Security number and recovery-code rotation work locally; `GET|DELETE /account/sessions[/:id]` list and revoke, by family, dropping the socket. | Nothing |
 | Vault | **Works, on this device.** Change the passkey (costs the account password), or forget the vault. Stage 1 of [`vault-plan.md`](vault-plan.md). | `POST /conversations/vault` before it follows you anywhere else |
-| Privacy | **Renders, decides nothing.** The toggles are stored and read by nobody. | Enforcement, which is mostly server work and partly a decision about what these settings even mean |
+| Privacy | **Two of the toggles now bite.** Read receipts is enforced on the server, typing indicators by the sender simply not emitting, and the reach control is now "who can send a friend request" with three policies the server checks. The link-previews row is gone: no feature fetched one, so a toggle for it was a promise about nothing. | Nothing |
 
 ## The work, in the order worth doing it
 

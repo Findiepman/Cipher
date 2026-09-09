@@ -65,6 +65,31 @@ export interface Toast {
  * by the time this is called (`notifiable`), so the only failures left are the
  * browser's own, and none of them is worth taking down a chat client for.
  */
+/**
+ * The same notification, asked of the service worker instead.
+ *
+ * Silent on every failure, like everything else here: no registration yet, no
+ * worker on this browser, a page that has not finished registering. A missing
+ * popup is not worth an error in a chat client.
+ */
+function viaWorker(toast: Toast): void {
+  const container = typeof navigator === 'undefined' ? null : navigator.serviceWorker;
+  if (!container) return;
+  void container.ready
+    .then((registration) => {
+      registration.active?.postMessage({
+        type: 'notify',
+        title: toast.title,
+        body: toast.body ?? null,
+        tag: toast.tag,
+        icon: toast.icon,
+      });
+    })
+    .catch(() => {
+      /* No worker, and nothing to be done about it from here. */
+    });
+}
+
 export function show(toast: Toast): void {
   if (permissionNow() !== 'granted') return;
 
@@ -73,17 +98,24 @@ export function show(toast: Toast): void {
     notification = new Notification(toast.title, {
       body: toast.body ?? undefined,
       tag: toast.tag,
-      icon: toast.icon,
+      // The sender's picture when there is one, the app's mark otherwise. An
+      // empty icon slot gets filled by the browser with its own logo, which is
+      // why a notification for someone with no avatar looks like it came from
+      // Chrome rather than from this app.
+      icon: toast.icon ?? '/logo.png',
       // The app plays its own sound, chosen per person in Settings. Without
       // this the OS plays one too and you hear both.
       silent: true,
     });
   } catch {
     // Chrome on Android refuses `new Notification` outright, with an Illegal
-    // constructor: there, notifications may only be raised from a service
-    // worker. We do not have one yet (that is the same piece of work as push,
-    // and push needs a server half that does not exist), so on that browser
-    // this is simply a no-op rather than an error in the console.
+    // constructor: there, a notification may only be raised through a service
+    // worker registration. That is `public/sw.js`, and asking it is the whole
+    // fallback. Note this is not push and does not need one: push is
+    // notifications while the app is *closed*, and it needs a server half that
+    // does not exist. A registration will show one on request whenever the
+    // page is running, which is the case that matters on a phone.
+    viaWorker(toast);
     return;
   }
 

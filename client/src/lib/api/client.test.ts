@@ -272,3 +272,16 @@ describe('outgoing secret guard', () => {
     expect(calls).toHaveLength(1);
   });
 });
+
+describe('put', () => {
+  it('sends a PUT with a JSON body and returns the parsed reply', async () => {
+    const { impl, calls } = fakeFetch(() => json({ updatedAt: '2026-09-09T00:00:00.000Z' }));
+    const client = new ApiClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+    const reply = await client.put<{ updatedAt: string }>('/account/settings', { blob: '{}' });
+
+    expect(calls[0].method).toBe('PUT');
+    expect(calls[0].body).toBe(JSON.stringify({ blob: '{}' }));
+    expect(reply.updatedAt).toBe('2026-09-09T00:00:00.000Z');
+  });
+});

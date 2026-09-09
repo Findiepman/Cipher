@@ -115,7 +115,7 @@ export class SettingsStore {
     } catch {
       return clone(DEFAULT_SETTINGS);
     }
-    return merge(parsed);
+    return mergeStoredSettings(parsed);
   }
 
   private write(settings: Settings): void {
@@ -140,8 +140,11 @@ export class SettingsStore {
  * Type-checking each field rather than trusting the blob matters more here than
  * it looks: this is the one input to the app that a user can hand-edit, and a
  * string where a number belongs would otherwise reach a `calc()` or a slider.
+ * The synced settings blob (lib/settings/settingsSync.ts) is another such
+ * input, arriving from the account rather than from disk, so it runs through
+ * exactly this before it reaches the store.
  */
-function merge(stored: unknown): Settings {
+export function mergeStoredSettings(stored: unknown): Settings {
   if (!isRecord(stored)) return clone(DEFAULT_SETTINGS);
 
   const next = clone(DEFAULT_SETTINGS);

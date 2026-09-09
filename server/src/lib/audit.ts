@@ -24,7 +24,15 @@ export type AuditAction =
   | 'friend.unblocked'
   | 'friend.request_cancelled'
   | 'friend.nickname_set'
-  | 'friend.nickname_cleared';
+  | 'friend.nickname_cleared'
+  /// account.username_changed is also the counter the daily rename budget
+  /// reads - see modules/profile/service.ts.
+  | 'account.username_changed'
+  | 'account.email_change_requested'
+  | 'account.email_changed'
+  | 'account.session_revoked'
+  | 'account.sessions_revoked'
+  | 'account.deleted';
 
 export interface AuditEntry {
   action: AuditAction;

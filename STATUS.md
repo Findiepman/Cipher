@@ -1,6 +1,6 @@
 # STATUS: where this project actually is
 
-Last updated **2026-09-08**, after three passes over the chat UI and one over
+Last updated **2026-09-09**, after three passes over the chat UI and one over
 the account layer. The first UI pass brought nicknames, right-click actions on
 a person, a password reveal on the auth screens and the removal of every
 encryption badge. The second added the profile panel, rebuilt the Friends
@@ -29,9 +29,12 @@ its session across restarts, has a tray, native notifications, an unread
 badge, a taskbar flash for calls, one instance, start-with-computer and
 signed auto-updates announced by a banner in the app, and the client gained
 the platform adapter all of that goes through. It compiles and builds on
-Windows; the workflow has not run yet and needs one secret first. What is
-left is parked on purpose rather than forgotten: the account endpoints
-behind settings and the backup cron on the box.
+Windows; the workflow has run once on a push, with the signing secret in
+place, and its Windows job passed while the macOS and Linux jobs failed on
+a missing `DATABASE_URL`, which is fixed and awaits the next push. What is
+left is parked on purpose rather than forgotten: the backup cron on the box.
+The account endpoints behind settings are done as of 2026-09-09, and with
+them a profile your friends can see.
 
 This file is the "get up to speed without reading everything" document. It says
 what works, what does not, and which decisions are load-bearing. Keep it
@@ -112,6 +115,7 @@ account-work axis (`backend-plan.md`).
 | The sender's avatar on a desktop notification, beside the app's own name and logo (installed builds only, uncompiled) | `client/src/lib/platform/notificationIcon.ts`, `desktop/src-tauri/src/commands.rs` |
 | The vault: notes to yourself, sealed under a passkey, on this device | `client/src/lib/vault/`, `client/src/screens/VaultScreen.tsx` |
 | Two languages, English and Dutch, with dates, times and numbers to match | `client/src/lib/i18n/`, `client/src/state/I18nProvider.tsx` |
+| Links you can click, inline code and code blocks with a copy button and colouring, in a message or a vault note | `client/src/lib/chat/format.ts`, `client/src/components/MessageBody.tsx` |
 | Alert sounds, synthesised rather than shipped, eight for a message and seven for a ring | `client/src/lib/media/sounds.ts` |
 | A different sound per person, so you know who it is without looking | `client/src/lib/settings/notificationSounds.ts`, `client/src/screens/settings/NotificationsSection.tsx` |
 | A ringtone on an incoming call, a chime on an arriving message | `client/src/components/CallRinger.tsx`, `client/src/components/MessageChime.tsx`, `client/src/state/useArrivingMessages.ts` |
@@ -573,6 +577,45 @@ notification setting are three separate places it can be silently off.
 Typecheck, the 324 client tests and `vite build` are clean. Not walked through
 by hand.
 
+**Links, inline code and code blocks in a message.** Added 2026-09-09, the two
+cards on the roadmap called *link formatting* and *code blocks*, and it is the
+first thing a bubble draws beyond the words as typed. Nothing changed on the
+wire: a body is still the text somebody wrote, and
+[`lib/chat/format.ts`](client/src/lib/chat/format.ts) decides on the reading
+device what it contains. Three backticks on a line of their own fence a block,
+with an optional language tag after the opening fence, and a closing fence may
+be missing, as on Discord. Single backticks are inline code. An address
+starting with http://, https:// or www. becomes a link, trimmed of the sentence
+punctuation after it, and it opens through the platform adapter rather than
+through the anchor, because in the desktop shell the anchor would open inside
+the WebView. A block has a language label and a copy button, and is coloured by
+highlight.js with nineteen grammars, loaded as a separate chunk by the first
+block that renders, so a conversation with no code in it never pays for them.
+The colours are four new tokens in `theme.css`, the same in every palette, and
+none of them is sage or red. The library's markup is the one place in the app
+where a typed string becomes HTML: highlight.js escapes the source before it
+emits a span, and nothing else is spliced into that string, which the note at
+the top of `lib/chat/highlight.ts` says in so many words.
+
+The other half of the card is a detector: a message with no fence that
+nonetheless reads as code is drawn as one block of it. It is a heuristic, and
+it is biased towards prose on purpose, because a snippet it misses can be
+fenced by hand and a sentence it wrongly claims cannot be unclaimed. One line
+has to prove it alone (a shell command, a dotted call, `const x = 5;`) and
+several lines are judged together: at least two have to look like code and be
+the majority, and lines that read as sentences must be outnumbered.
+`format.test.ts` keeps a list of messages that must stay prose ("let me know
+(tomorrow)", "see you at 5 ;)") beside the snippets that must not, and the
+prose list is the one to add to when something slips through. Two smaller
+things came with it: Enter inside an open fence in the composer inserts a line
+break instead of sending, and the conversation list flattens a body to one line
+for its preview rather than showing backticks. The vault draws its notes
+through the same component, so a note can hold a snippet too.
+
+Typecheck, the 407 client tests and `vite build` are clean. The bubbles were
+looked at in a browser through the vault in mock mode, not in a real
+conversation between two accounts.
+
 **Settings is a screen in front of endpoints that do not exist.** Seven
 sections render and three of them work end to end (Appearance, Voice & video,
 Notifications, all of which are local). Of the rest, `change-password` and
@@ -645,18 +688,17 @@ Two end-to-end proofs, both against a running server over real HTTP:
   verification and the rate limits are the only friction. `DEPLOY.md`
   → *Restricting who can register* has the Cloudflare Access recipe if that
   should change.
-- **The account endpoints the settings screen is already written against.**
-  That screen now exists, which inverts the old problem: the UI is ahead of
-  the server rather than behind it. `POST /account/change-password` and
-  `POST /account/recovery-code` work and are wired. Still 404 today:
-  `PATCH /account/me`, `/account/change-email[/confirm]`,
-  `GET|DELETE /account/sessions[/:id]`, `DELETE /account`, all of `/admin/*`.
-  (`POST /keys/device` and `DELETE /keys/device/:id` do not exist either.) The
-  client half of each already exists in `authService.ts` and is bound to a
-  button, so four controls in settings call an endpoint that is not there. The
-  sessions pair matters most: it is the only per-session revocation there will
-  ever be short of rotating `JWT_SECRET` and signing out every account on the
-  box.
+- **The account endpoints behind settings are in, all but admin.** As of
+  2026-09-09 the settings screen's server half exists: `PATCH /account/me`
+  (profile fields plus username, the latter through `newUsernameSchema` and
+  capped at three changes a day), `GET|DELETE /account/sessions[/:id]`
+  (revoking by refresh-token family and pushing the socket closed, not waiting
+  the sweep out), `POST /account/change-email[/context|/confirm]` (the confirm
+  swaps address and verifier together, since the address is the auth salt),
+  and `DELETE /account` (a soft delete: the handle and address freed, sessions
+  killed, the other side's sealed history left alone). Still absent: all of
+  `/admin/*`, and `POST /keys/device` / `DELETE /keys/device/:id`, which
+  multi-device needs and one-device-per-account does not.
 - **Call records, video, and binding the call to the identity key.** Voice
   calls work but leave no trace: a missed call is a four-second notice and then
   nothing, because nothing about a call touches the schema yet
@@ -706,11 +748,13 @@ Two end-to-end proofs, both against a running server over real HTTP:
   bolted onto the real engine; the browser cannot list windows itself, so
   what such a picker steers is `displaySurface` and `monitorTypeSurfaces` on
   the `getDisplayMedia` call.
-- **Per person sounds beyond this device.** The map lives in the settings
-  blob in `localStorage`, so the ringtone you gave someone does not follow
-  you to another browser. It is a preference and the server deliberately
-  holds none, which is decision 11; a device that has never been told simply
-  uses the defaults.
+- **Per person sounds, and every other preference, now follow the account.**
+  The whole settings object syncs through `AccountSettings` as of 2026-09-09
+  (decision 32), so the ringtone you gave someone, your theme, your muted
+  conversations and your pinned people arrive on the next device you sign in
+  on. `localStorage` is still where a device keeps its own copy between loads;
+  the blob is what carries it between devices. A device that has never synced
+  uses the defaults until it does.
 - **Phase 2 encryption.** See `packages/crypto/AGENTS.md`.
 - **The desktop app has never been through its own pipeline.** The Tauri
   app in `desktop/` compiles, and `npm run build` there produced a signed
@@ -719,12 +763,16 @@ Two end-to-end proofs, both against a running server over real HTTP:
   Signing in from the desktop against the deployed server, the tray, the
   notifications, the badge and the update banner have not been walked
   through by hand yet; their logic is tested, their wiring is not.
-  Everything past that is unrun: the
-  GitHub Actions workflow has not been dispatched, the
-  `TAURI_SIGNING_PRIVATE_KEY` secret is not added (the private key is in
-  `~/.tauri/cipher.key` on the machine that generated it and nowhere else),
-  no macOS or Linux build exists, no release exists and so the updater has
-  never had a `latest.json` to read. **There are no code-signing
+  The GitHub Actions workflow ran once, on the push of 2026-09-08, with
+  the `TAURI_SIGNING_PRIVATE_KEY` secret added (the private key is in
+  `~/.tauri/cipher.key` on the machine that generated it and nowhere else,
+  and in that secret). Its Windows job passed and produced a signed
+  installer as an artifact; the macOS and Linux jobs failed at the step
+  that adds the native rollup and esbuild binaries, because a root
+  `npm install` re-runs `server/`'s `prisma generate` and that step had
+  no `DATABASE_URL`. Fixed on 2026-09-09, unproven until the next push.
+  The workflow has never been dispatched, so no release exists and the
+  updater has never had a `latest.json` to read. **There are no code-signing
   certificates** either, so the installers trip Gatekeeper and SmartScreen;
   `desktop/README.md` says what that means on each OS.
 - **No OS keychain on desktop.** The device key sits in the WebView's
@@ -941,6 +989,25 @@ worse for this specific app.
     of the same decision is `lib/origins.ts`: the desktop origins on the
     CORS allowlist, HTTP and socket alike, which grants them nothing a
     cookie-less bearer caller did not already have.
+32. **Every setting syncs to the account, in two channels.** The friend-facing
+    half of a profile, a display name, an about line, an accent, an avatar and a
+    banner, lives in `Profile` as typed columns, in the clear like a nickname
+    (decision 14) and served to friends only, gated the way the key registry is.
+    The two settings the server has to act on, presence and read receipts, plus
+    who may send a friend request, live there too: the server broadcasts your
+    chosen presence and relays your read marker, so it cannot enforce
+    "invisible" or "receipts off" without holding them. Presence is stored as
+    itself and only ever leaves as "offline". Everything else, theme, wallpaper,
+    sounds, language, muted conversations, pinned people, saved profiles, even
+    the chosen microphone, is one opaque JSON blob in `AccountSettings`, written
+    whole and read whole, last write wins on `updatedAt`. That blob reverses the
+    old device-local stance on 2026-09-09: syncing settings across devices was
+    wanted more than settings being unreadable to a server that already holds
+    your nickname and now holds your profile. It is not sealed, and it is not
+    message content, so the hard rule in `server/AGENTS.md` is untouched. The
+    pictures in any of it are base64 data URLs, capped in bytes and checked for
+    a real PNG, JPEG or WebP header, never SVG, which is a document with scripts
+    in it.
 24. **The reset context endpoint is a POST, and it does not spend the token.**
     A GET would put a live credential in a query string, which is the part of
     a request that reliably reaches access logs and browser history. Not
@@ -1240,35 +1307,86 @@ suspended.
 
 ## Reasonable next steps
 
+**Phone notifications work, walked through on 2026-09-09.** A message sent
+from the desktop raised a real Android notification with the sender and the
+body, with the app open behind another tab, and the message text obeyed the
+preview setting both ways. That is the first time the app has notified a phone
+at all.
+
+Two things it looks like rather than is. Android shows Chrome's mark and the
+tunnel's hostname, because the page is a website in a browser: attribution
+comes from the origin. Installing it to the home screen (the manifest is
+already there and `display: standalone`) makes Android say "Cipher" instead.
+And with the browser **fully** backgrounded nothing arrives, which is correct
+and not fixable from the client: Android freezes the page, so no code is
+running to notify. That case is web push, which needs the server half nobody
+has built.
+
+**Settings cannot be reached on a phone.** Found the same day: the only way in
+was to switch on the desktop layout by hand. The gear lives somewhere the
+narrow layout does not render, which makes every per-device preference
+unreachable on the device most likely to need different ones, notifications
+above all. Not yet fixed.
+
+**A phone can now be a real test device.** Added 2026-09-09. Three pieces,
+and the reason for each is worth keeping.
+
+A service worker (`client/public/sw.js`), because Chrome on Android refuses
+`new Notification()` outright with an Illegal constructor and will only raise
+one through a registration. The app was not failing to notify on a phone, it
+was structurally unable to. `lib/media/notifications.ts` falls back to it.
+Note what this is not: push is notifications while the app is *closed* and
+needs a server half that does not exist, while a registration will show one
+whenever the page is running. The old comment called those the same piece of
+work and they are not. The worker has no fetch handler on purpose, so it never
+starts serving a stale app.
+
+A dev proxy in `client/vite.config.ts` mirroring the Caddyfile's `@api`
+matcher, plus `.env.phone` with an empty `VITE_API_URL`. That makes the API
+same-origin in development exactly as it is in production, so one tunnel
+covers the whole app: a phone pointed at `http://localhost:3000` would resolve
+that as itself and reach nothing, and a second tunnel would drag in CORS and
+third-party cookies for no reason. Keep the proxy list and the Caddyfile in
+step.
+
+`allowedHosts: ['.trycloudflare.com']`, because Vite refuses unrecognised Host
+headers and a quick tunnel gets a fresh name every run.
+
+Serve it with `cloudflared tunnel --url http://localhost:5173` against
+`npx vite --mode phone --host`. HTTPS is not optional here: an insecure origin
+has no `serviceWorker` and no Notification API at all, which is why a plain LAN
+address can never test this.
+
 **Where 2026-09-08 stopped, pick this up first.** The desktop test build
 (`npm run build:desktop-test`, installs as "Cipher Test" beside the real app)
 was rebuilding with the third unlock fix and had not been installed. So:
 install it, sign in as a local account, minimise it and have a message sent
-from `localhost:5173`. If the chime sounds, the audio work is done and the
-commit can say so. If it does not, the console now says why in plain sight:
-`[sounds] could not play` or `[sounds] unlock refused`, at warning level, and
-devtools are compiled into that build (F12). Run `npm run dev:server` first or
-the app cannot sign in at all.
+from `localhost:5173`. If the chime sounds, the audio work is done. If it does
+not, the console now says why in plain sight: `[sounds] could not play` or
+`[sounds] unlock refused`, at warning level, and devtools are compiled into
+that build (F12). Run `npm run dev:server` first or the app cannot sign in at
+all.
 
-Two things known to be unfinished and deliberately left: a desktop
-notification arrives with no avatar, because the picture it wants belongs to
-the sender and profiles are device-local (see *Sharing your profile*), and
-friend requests do not arrive live.
+The other thing left open that night was a desktop notification arriving with
+no picture, because the avatar it wants belongs to the sender and nothing
+carried it. **The 2026-09-09 profile work removes that cause**, so the icon
+path built for it (`lib/platform/notificationIcon.ts`, `commands.rs`) should
+now have a real picture to draw for the first time. Worth checking in the same
+pass, since it has only ever been proven with your own avatar through the
+"Show one now" button.
 
-Pick one; they are roughly independent. The first two are deliberately parked:
-they are known, planned and not being done yet.
+Pick one; they are roughly independent.
 
-1. **Finish the account endpoints behind settings.** [`settings-plan.md`](settings-plan.md)
-   is the plan for this, section by section, with the traps written down.
-   The short version: in this order, because
-   each is worth something on its own: `GET|DELETE /account/sessions[/:id]`
-   (Devices & keys already lists them and the `Session` table already has
-   `deviceLabel`, `ip`, `userAgent` and `lastUsedAt`), then `PATCH /account/me`
-   (username changes have to run the word filter, so reuse
-   `newUsernameSchema`), then `POST /account/change-email[/confirm]` (the
-   `EmailToken` model already has `EMAIL_CHANGE` and a `newEmail` column for
-   exactly this), then `DELETE /account`. Until they land, four controls in
-   settings call endpoints that 404.
+1. **Profile sharing landed on 2026-09-09; what is left is the edges.** The
+   settings screen's server half is done (see the capability note above), and
+   with it a `Profile` table friends can read: a display name, an avatar, a
+   banner, an about line and a chosen presence, plus the two settings the
+   server has to act on, read receipts and who may send a friend request. It
+   is stored in the clear, like a nickname, and served to friends only, gated
+   the way the key registry is. The rule is decision 32 below. The edges not
+   done: the profile card fetches the banner on open but does not yet
+   preload it, presence is still per-process (decision 22's caveat), and
+   `/admin/*` is untouched.
 2. **Run `deploy/setup-backups.sh` on the box.** One command, and it is the
    last unfinished piece of the deployment: it checks the target disk, takes a
    dump, rehearses restoring it, and installs the cron entry only if all three

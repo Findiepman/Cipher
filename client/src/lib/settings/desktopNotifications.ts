@@ -20,9 +20,12 @@
  *      staring at is noise, and worse, it is a copy of a message handed to the
  *      OS for no reason at all.
  *   4. Notifications are not paused.
- *   5. It was not you who sent it.
+ *   5. You are not on do not disturb. Distinct from paused: a pause is a
+ *      timer you set here, do not disturb is the presence you chose and are
+ *      showing your friends, and either alone has to be enough.
+ *   6. It was not you who sent it.
  *
- * `preview` is a sixth gate over the body only, and it defaults off. The name
+ * `preview` is a seventh gate over the body only, and it defaults off. The name
  * of the person is not behind it: the setting says "show message text", the
  * screen explains it in those words, and a notification that cannot say who it
  * is from is one you have to open the app to act on, which defeats it.
@@ -58,6 +61,11 @@ export interface Attention {
    * a notification should never disagree about whether you saw it.
    */
   watching: boolean;
+  /**
+   * True while your chosen presence is do not disturb. Optional so the
+   * callers that predate presence keep meaning what they meant.
+   */
+  quiet?: boolean;
 }
 
 /**
@@ -78,6 +86,7 @@ export function notifiable(
   if (!notifications.desktop) return [];
   if (attention.watching) return [];
   if (isMuted(notifications.mutedUntil, now)) return [];
+  if (attention.quiet) return [];
   return arrivals.filter((arrival) => !arrival.own);
 }
 

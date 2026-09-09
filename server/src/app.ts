@@ -18,6 +18,8 @@ import { keysRoutes } from './modules/keys/routes.js';
 import { callsRoutes } from './modules/calls/routes.js';
 import { createIceProvider, type IceProvider } from './modules/calls/ice.js';
 import type { PostedMessage } from './modules/conversations/service.js';
+import { usersRoutes } from './modules/profile/routes.js';
+import type { RealtimeHooks } from './realtime/hooks.js';
 
 export interface BuildOptions {
   /// Swapped for an in-memory implementation in tests.
@@ -32,6 +34,11 @@ export interface BuildOptions {
   /// in index.ts; absent here so the HTTP API can be built and tested with no
   /// socket at all.
   deliver?: (message: PostedMessage) => void;
+
+  /// The other two things the HTTP routes ask of the socket layer, bound the
+  /// same late way as `deliver`. See realtime/hooks.ts.
+  presenceChanged?: RealtimeHooks['presenceChanged'];
+  disconnectSessions?: RealtimeHooks['disconnectSessions'];
 
   /// Mints STUN and TURN credentials for calls. Defaults to Cloudflare, or
   /// STUN only when no TURN key is configured; tests hand in a fake.
@@ -76,7 +83,7 @@ export async function buildApp(
     // desktop needs an entry of its own and what it does not get from it.
     origin: allowedOrigins(),
     credentials: true,
-    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   });
 
   if (rateLimits) {
@@ -167,7 +174,15 @@ export async function buildApp(
 
   await app.register(healthRoutes);
   await app.register(authRoutes, { prefix: '/auth', mailer });
-  await app.register(accountRoutes, { prefix: '/account' });
+  await app.register(accountRoutes, {
+    prefix: '/account',
+    mailer,
+    realtime: {
+      presenceChanged: options.presenceChanged,
+      disconnectSessions: options.disconnectSessions,
+    },
+  });
+  await app.register(usersRoutes, { prefix: '/users' });
   await app.register(friendRoutes, { prefix: '/friends' });
   await app.register(keysRoutes, { prefix: '/keys' });
   await app.register(conversationRoutes, {

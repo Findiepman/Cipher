@@ -17,6 +17,7 @@
   "dependencies": {
     "@cipher/crypto": "*",
     "@tauri-apps/api": "^2.11.1",
+    "highlight.js": "^11.12.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "socket.io-client": "^4.8.3"

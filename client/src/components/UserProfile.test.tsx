@@ -10,12 +10,17 @@
  */
 import { Providers } from '../test/providers';
 import { StrictMode } from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { FullProfileDto } from '../lib/api/types';
 import { UserProfile } from './UserProfile';
+import { forgetProfiles } from './useFullProfile';
 import type { User } from '../types';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  forgetProfiles();
+});
 
 const teto: User = {
   id: 'u-teto',
@@ -25,9 +30,34 @@ const teto: User = {
   presence: 'online',
 };
 
-function renderProfile(user: User, options: { isFriend?: boolean; friendsSince?: string } = {}) {
+const BANNER = 'data:image/jpeg;base64,/9j/4AAQSkZJRg==';
+
+function fullProfile(overrides: Partial<FullProfileDto> = {}): FullProfileDto {
+  return {
+    id: 'u-teto',
+    username: 'teto',
+    displayName: '',
+    about: '',
+    accent: null,
+    avatar: null,
+    banner: null,
+    updatedAt: '2026-09-09T10:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function renderProfile(
+  user: User,
+  options: {
+    isFriend?: boolean;
+    friendsSince?: string;
+    loadProfile?: (userId: string) => Promise<FullProfileDto>;
+  } = {},
+) {
   const onAction = vi.fn();
   const onClose = vi.fn();
+  // The card fetches its banner; a test that does not care hands it nothing.
+  const loadProfile = options.loadProfile ?? (() => Promise.resolve(fullProfile()));
   render(
     <StrictMode>
       <Providers>
@@ -37,6 +67,7 @@ function renderProfile(user: User, options: { isFriend?: boolean; friendsSince?:
         friendsSince={options.friendsSince}
         onAction={onAction}
         onClose={onClose}
+        loadProfile={loadProfile}
       />
       </Providers>
     </StrictMode>,
@@ -50,6 +81,26 @@ describe('what it shows', () => {
 
     expect(screen.getByRole('heading', { name: 'teto' })).toBeTruthy();
     expect(screen.getByText('Online')).toBeTruthy();
+  });
+
+  it('shows their about text, line breaks and all', () => {
+    renderProfile({ ...teto, activity: 'bread\nand more bread' });
+
+    // The matcher collapses whitespace; the element keeps the line break.
+    const about = screen.getByText('bread and more bread');
+    expect(about.textContent).toBe('bread\nand more bread');
+  });
+
+  it('fetches the banner once and paints it over the colour band', async () => {
+    const loadProfile = vi.fn(() => Promise.resolve(fullProfile({ banner: BANNER })));
+    renderProfile({ ...teto, profileUpdatedAt: '2026-09-09T10:00:00.000Z' }, { loadProfile });
+
+    await waitFor(() => {
+      expect(document.querySelector('.profile__banner--picture')).toBeTruthy();
+    });
+    // StrictMode mounts twice; the cache is what keeps it to one request.
+    expect(loadProfile).toHaveBeenCalledTimes(1);
+    expect(loadProfile).toHaveBeenCalledWith('u-teto');
   });
 
   it('keeps the real username visible under a nickname', () => {

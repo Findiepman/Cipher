@@ -287,22 +287,22 @@ describe('presence and typing', () => {
     const { alice, bob } = await friends();
     const his = await open(bob.accessToken);
 
-    const cameOnline = next<{ userId: string; online: boolean }>(his, 'presence');
+    const cameOnline = next<Presence>(his, 'presence');
     const hers = await open(alice.accessToken);
-    expect(await cameOnline).toEqual({ userId: alice.id, online: true });
+    expect(await cameOnline).toEqual({ userId: alice.id, presence: 'online' });
 
-    const wentOffline = next<{ userId: string; online: boolean }>(his, 'presence');
+    const wentOffline = next<Presence>(his, 'presence');
     hers.disconnect();
-    expect(await wentOffline).toEqual({ userId: alice.id, online: false });
+    expect(await wentOffline).toEqual({ userId: alice.id, presence: 'offline' });
   });
 
   it('does not announce a second tab as a presence change', async () => {
     const { alice, bob } = await friends();
     const his = await open(bob.accessToken);
 
-    const first = next<{ online: boolean }>(his, 'presence');
+    const first = next<Presence>(his, 'presence');
     const tabOne = await open(alice.accessToken);
-    expect((await first).online).toBe(true);
+    expect((await first).presence).toBe('online');
 
     // Opening a second tab is not going online again, and closing it is not
     // going offline.
@@ -327,4 +327,134 @@ describe('presence and typing', () => {
 
     expect(await typing).toEqual({ conversationId, userId: alice.id });
   });
+
+  it('tells a fresh socket which friends are already around', async () => {
+    const { alice, bob } = await friends();
+    await open(alice.accessToken);
+    await alice.request({ method: 'PATCH', url: '/account/me', payload: { presence: 'dnd' } });
+
+    // Bob arrives after Alice: no transition of hers is going to happen, so
+    // the only way he learns she is there is the snapshot on connect.
+    const his = connect(ctx.url, {
+      auth: { token: bob.accessToken },
+      transports: ['websocket'],
+      reconnection: false,
+    });
+    sockets.push(his);
+    const told = next<Presence>(his, 'presence');
+
+    expect(await told).toEqual({ userId: alice.id, presence: 'dnd' });
+  });
+
+  it('broadcasts the presence someone chose, and hides invisible as offline', async () => {
+    const { alice, bob } = await friends();
+    const his = await open(bob.accessToken);
+
+    const arrived = next<Presence>(his, 'presence');
+    await open(alice.accessToken);
+    expect((await arrived).presence).toBe('online');
+
+    const idle = next<Presence>(his, 'presence');
+    await alice.request({ method: 'PATCH', url: '/account/me', payload: { presence: 'idle' } });
+    expect(await idle).toEqual({ userId: alice.id, presence: 'idle' });
+
+    // She is still connected. Bob is told she left; what she chose stays hers.
+    const hidden = next<Presence>(his, 'presence');
+    await alice.request({
+      method: 'PATCH',
+      url: '/account/me',
+      payload: { presence: 'invisible' },
+    });
+    expect(await hidden).toEqual({ userId: alice.id, presence: 'offline' });
+
+    const me = await alice.request({ method: 'GET', url: '/account/me' });
+    expect(me.json().profile.presence).toBe('invisible');
+  });
+
+  it('says nothing when somebody who is not connected changes their presence', async () => {
+    const { alice, bob } = await friends();
+    const his = await open(bob.accessToken);
+
+    const spurious: unknown[] = [];
+    his.on('presence', (payload) => spurious.push(payload));
+
+    await alice.request({ method: 'PATCH', url: '/account/me', payload: { presence: 'dnd' } });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    expect(spurious).toEqual([]);
+  });
 });
+
+describe('read receipts', () => {
+  async function readBy(reader: Actor, other: Actor, conversationId: string) {
+    const hers = await open(reader.accessToken);
+    const his = await open(other.accessToken);
+
+    const sent = await send(hers, {
+      conversationId,
+      clientId: 'm1',
+      envelopes: envelopesFor('hello', reader, other),
+    });
+
+    const ownEcho = next<{ userId: string }>(hers, 'read');
+    const theirs: unknown[] = [];
+    his.on('read', (payload) => theirs.push(payload));
+
+    hers.emit('read', { conversationId, messageId: sent.id });
+    expect((await ownEcho).userId).toBe(reader.id);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    return theirs;
+  }
+
+  it('tells the other participant where you read up to, by default', async () => {
+    const { alice, bob, conversationId } = await friends();
+    const theirs = await readBy(alice, bob, conversationId);
+    expect(theirs).toHaveLength(1);
+    expect(theirs[0]).toMatchObject({ conversationId, userId: alice.id });
+  });
+
+  it('keeps it to your own tabs once read receipts are off', async () => {
+    const { alice, bob, conversationId } = await friends();
+    await alice.request({
+      method: 'PATCH',
+      url: '/account/me',
+      payload: { readReceipts: false },
+    });
+
+    const theirs = await readBy(alice, bob, conversationId);
+    expect(theirs).toEqual([]);
+  });
+});
+
+describe('revoking a session', () => {
+  it('drops the socket of a session signed out from the account screen', async () => {
+    const alice = await createActor(ctx);
+    // A second sign-in, the "device I do not recognise".
+    const other = await alice.request({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { email: alice.user.email, authHash: alice.user.authHash },
+    });
+    const otherToken = other.json().tokens.accessToken as string;
+    const theirs = await open(otherToken);
+
+    const sessions = await alice.request({ method: 'GET', url: '/account/sessions' });
+    const stranger = sessions.json().find((s: { current: boolean }) => !s.current);
+
+    const dropped = next<string>(theirs, 'disconnect');
+    const revoked = await alice.request({
+      method: 'DELETE',
+      url: `/account/sessions/${stranger.id}`,
+    });
+    expect(revoked.statusCode).toBe(200);
+
+    await dropped;
+    expect(theirs.connected).toBe(false);
+  });
+});
+
+interface Presence {
+  userId: string;
+  presence: 'online' | 'idle' | 'dnd' | 'offline';
+}

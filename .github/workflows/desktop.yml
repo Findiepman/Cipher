@@ -112,9 +112,18 @@ jobs:
       # dies with "Cannot find module @rollup/rollup-<platform>" (npm/cli#4828).
       # Same fix as client/Dockerfile: ask the tree what versions it holds,
       # and add the binary for the machine doing the building.
+      #
+      # This install runs at the workspace root, so it re-runs every
+      # workspace's postinstall, including server/'s `prisma generate`, which
+      # needs the same placeholder DATABASE_URL as `npm ci` above. Without it
+      # the step dies with "Cannot resolve environment variable: DATABASE_URL"
+      # on every platform that reaches it. The Dockerfile sets it with ENV,
+      # which persists; here each step has to be told again.
       - name: Install the native binaries the lockfile does not list
         if: runner.os != 'Windows'
         shell: bash
+        env:
+          DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build
         run: |
           set -eux
           case "$(uname -s)-$(uname -m)" in

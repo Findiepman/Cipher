@@ -94,20 +94,19 @@ export const nl: Catalogue<Key> = {
   'privacy.group.reveal': 'wat je prijsgeeft',
   'privacy.readReceipts': 'Leesbevestigingen',
   'privacy.readReceiptsHint':
-    'Laat de ander zien wanneer je zijn bericht hebt geopend. Zet je dit uit, dan zie jij die van hem ook niet meer.',
+    'Laat de ander zien wanneer je zijn bericht hebt geopend. Uit betekent dat de server het niet meer doorgeeft; je eigen apparaten houden de telling wel bij.',
   'privacy.typing': 'Typmelding',
   'privacy.typingHint':
-    'Laat de ander zien dat je iets aan het schrijven bent, ook de concepten die je weer weghaalt.',
-  'privacy.linkPreviews': 'Linkvoorbeelden',
-  'privacy.linkPreviewsHint':
-    'Een voorbeeld ophalen vertelt de gelinkte site dat iemand de link opende, vanaf jouw adres, op dat moment. Het bericht blijft versleuteld; het bezoek niet.',
+    'Laat de ander zien dat je iets aan het schrijven bent, ook de concepten die je weer weghaalt. Uit betekent dat dit apparaat het gewoon nooit zegt.',
   'privacy.group.reach': 'wie je kan bereiken',
-  'privacy.dmFrom': 'Privéberichten van',
-  'privacy.dm.everyone': 'Iedereen',
-  'privacy.dm.known': 'Mensen die ik ken',
-  'privacy.dm.nobody': 'Niemand',
+  'privacy.requestsFrom': 'Vriendschapsverzoeken van',
+  'privacy.requestsHint':
+    'Berichten komen al alleen van vrienden. Dit gaat over wie het mag vragen. Wie buiten de keuze valt krijgt te horen dat je niet bestaat.',
+  'privacy.requests.everyone': 'Iedereen',
+  'privacy.requests.friendsOfFriends': 'Vrienden van vrienden',
+  'privacy.requests.nobody': 'Niemand',
   'privacy.note':
-    'Hier verandert niets aan wat de server kan lezen, en dat is niets. Het verandert wat je contacten en de sites waarnaar je linkt kunnen afleiden.',
+    'Hier verandert niets aan wat de server van je berichten kan lezen, en dat is niets. Twee van deze keuzes staan op de server, omdat het de server is die anders een leesbevestiging doorgeeft of een verzoek doorlaat.',
 
   /* --- de kluis --------------------------------------------------------- */
 
@@ -288,6 +287,7 @@ export const nl: Catalogue<Key> = {
   'profile.replace': 'Vervangen',
   'profile.badImage': 'Die afbeelding kon niet worden gebruikt.',
   'profile.accent': 'Accentkleur',
+  'profile.accentAuto': 'Automatisch, een kleur gekozen uit je account',
   'profile.accentHint':
     'Wordt gebruikt achter je naam en overal waar je foto niet past.',
   'profile.accentHintNoPic': 'Het vlak dat je krijgt tot je een foto uploadt.',
@@ -306,7 +306,7 @@ export const nl: Catalogue<Key> = {
   'profile.aboutPlaceholder':
     'Waar je van houdt, waar je zit, wanneer je meestal wakker bent. Alles wat iemand mag weten voordat die je een bericht stuurt.',
   'profile.note':
-    'Je profiel staat op dit apparaat, niet op de server. Het delen met je contacten heeft een endpoint nodig dat nog niet bestaat, en zodra dat er is gaat het versleuteld, net als je berichten.',
+    'Je naam, foto, banner, accentkleur, aanwezigheid en tekst over jou staan onversleuteld op de server en zijn alleen voor je vrienden te zien. Al het andere in de instellingen, de opgeslagen profielen erbij, blijft op dit apparaat.',
   'profile.reset': 'Profiel herstellen',
 
   'profile.group.profiles': 'profielen',
@@ -775,6 +775,10 @@ export const nl: Catalogue<Key> = {
   'chat.profile': 'Profiel',
   'chat.showProfile': 'Profiel tonen',
   'chat.hideProfile': 'Profiel verbergen',
+  'chat.code': 'code',
+  'chat.copyCode': 'Code kopiëren',
+  'chat.copied': 'Gekopieerd',
+  'chat.copyFailed': 'Kopiëren mislukt',
   'call.call': 'Bellen',
   'call.callName': '{name} bellen',
   'call.inACall': 'In gesprek',
@@ -937,6 +941,22 @@ export const nl: Catalogue<Key> = {
   'verify.doneLede': 'Je adres is bevestigd. Je kunt nu inloggen.',
   'verify.failedLede':
     'Waarschijnlijk is hij al gebruikt. Bevestigingslinks werken één keer en vervallen daarna, dus als je deze eerder hebt geopend is je adres bevestigd en kun je gewoon inloggen. Vraag anders een nieuwe link aan op het inlogscherm; links vervallen ook na 24 uur.',
+
+  /* --- de link om je e-mailadres te wijzigen ------------------------------ */
+
+  'changeEmail.title': 'Bevestig je nieuwe e-mailadres',
+  'changeEmail.lede':
+    'Deze link verhuist je account naar {email}. Je inlogsleutel wordt afgeleid van je adres, dus die wordt nu opnieuw afgeleid, op dit apparaat. Je berichten blijven zoals ze zijn.',
+  'changeEmail.checking': 'Je link controleren…',
+  'changeEmail.confirm': 'Verhuizen naar het nieuwe adres',
+  'changeEmail.confirming': 'Verhuizen…',
+  'changeEmail.done': 'E-mailadres gewijzigd',
+  'changeEmail.doneLede': 'Log voortaan in met {email}.',
+  'changeEmail.signedOut':
+    'Log eerst in en open deze link dan opnieuw. Hij werkt alleen voor het account dat erom vroeg.',
+  'changeEmail.badLinkLede':
+    'Hij is al gebruikt, hij is verlopen (links gelden een uur) of hij hoort bij een ander account.',
+  'changeEmail.back': 'Terug naar de app',
 
   'notFound.title': 'Deze pagina bestaat niet',
   'notFound.lede':

@@ -6,6 +6,7 @@ import type { Channel, Message, User } from '../types';
 import { Avatar } from './Avatar';
 import { BrandMark } from './BrandMark';
 import { LockIcon } from './Icons';
+import { MessageBody } from './MessageBody';
 import { usePersonMenu } from './PersonMenu';
 import '../styles/messages.css';
 
@@ -131,7 +132,7 @@ function Bubble({
               .filter(Boolean)
               .join(' ')}
           >
-            <span className="bubble__body">{message.body}</span>
+            <MessageBody body={message.body ?? ''} />
             <span className="bubble__meta mono">
               {message.edited && `${t('chat.edited')} · `}
               {clockTime(message.sentAt, locale)}

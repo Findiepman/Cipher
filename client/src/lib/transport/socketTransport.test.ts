@@ -295,10 +295,10 @@ describe('receiving', () => {
     await connecting;
 
     socket.fire('typing', { conversationId: 'conv-1', userId: 'u-nova' });
-    socket.fire('presence', { userId: 'u-nova', online: true });
+    socket.fire('presence', { userId: 'u-nova', presence: 'dnd' });
 
     expect(typing).toHaveBeenCalledWith({ channelId: 'conv-1', userId: 'u-nova' });
-    expect(presence).toHaveBeenCalledWith({ userId: 'u-nova', online: true });
+    expect(presence).toHaveBeenCalledWith({ userId: 'u-nova', presence: 'dnd' });
   });
 });
 

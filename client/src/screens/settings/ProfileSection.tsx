@@ -19,8 +19,9 @@ import {
   TextField,
 } from '../../components/settings/controls';
 import { PictureField } from '../../components/settings/PictureField';
+import { colorFor } from '../../lib/presentation';
 import { PICTURE_FRAMES } from '../../lib/settings/avatarImage';
-import { avatarInitial, displayName } from '../../lib/settings/profile';
+import { accentOf, avatarInitial, displayName } from '../../lib/settings/profile';
 import {
   MAX_PROFILES,
   MAX_PROFILE_NAME,
@@ -56,7 +57,7 @@ export function ProfileSection({ user, fallbackName }: { user: User; fallbackNam
     <>
       <PreviewCard user={user} />
 
-      <ProfilePicker fallbackName={fallbackName} />
+      <ProfilePicker fallbackName={fallbackName} userId={user.id} />
 
       <Group title={t('profile.group.picture')}>
         <PictureField
@@ -90,6 +91,18 @@ export function ProfileSection({ user, fallbackName }: { user: User; fallbackNam
             role="radiogroup"
             aria-label={t('profile.accent')}
           >
+            {/* First, and painted with the colour your account derives on
+                its own: what you have until you choose, and what you get
+                back by choosing it. */}
+            <button
+              type="button"
+              role="radio"
+              aria-checked={profile.accent === ''}
+              aria-label={t('profile.accentAuto')}
+              className={profile.accent === '' ? 'set-swatch set-swatch--on' : 'set-swatch'}
+              style={{ background: colorFor(user.id) }}
+              onClick={() => update('profile', { accent: '' })}
+            />
             {ACCENTS.map((accent) => (
               <button
                 key={accent}
@@ -164,7 +177,7 @@ export function ProfileSection({ user, fallbackName }: { user: User; fallbackNam
  * change while a profile is loaded is already in it, which is why the only
  * thing this asks you to name is the profile itself.
  */
-function ProfilePicker({ fallbackName }: { fallbackName: string }) {
+function ProfilePicker({ fallbackName, userId }: { fallbackName: string; userId: string }) {
   const { settings, savedProfiles, applyProfiles } = useSettings();
   const t = useT();
   const { active } = settings.profiles;
@@ -197,7 +210,7 @@ function ProfilePicker({ fallbackName }: { fallbackName: string }) {
                 applyProfiles(switchTo(state, entry.id));
               }}
             >
-              <ProfileTile entry={entry} fallbackName={fallbackName} />
+              <ProfileTile entry={entry} fallbackName={fallbackName} userId={userId} />
               <span className="set-profile__name">{entry.name}</span>
             </button>
           ))}
@@ -319,15 +332,17 @@ function ProfilePicker({ fallbackName }: { fallbackName: string }) {
 function ProfileTile({
   entry,
   fallbackName,
+  userId,
 }: {
   entry: SavedProfile;
   fallbackName: string;
+  userId: string;
 }) {
   const name = displayName(entry.profile, fallbackName);
   return entry.profile.avatar ? (
     <img className="set-profile__face" src={entry.profile.avatar} alt="" />
   ) : (
-    <span className="set-profile__face" style={{ background: entry.profile.accent }}>
+    <span className="set-profile__face" style={{ background: accentOf(entry.profile, userId) }}>
       {avatarInitial(name)}
     </span>
   );
@@ -342,8 +357,10 @@ function PreviewCard({ user }: { user: User }) {
   // reaches CSS as url(...), and the settings blob is hand-editable.
   const banner = resolvePicture(profile.banner);
 
+  // `user` already went through withProfile, so its colour is the accent
+  // after "auto" has been resolved. The raw setting can be '' here.
   return (
-    <div className="set-preview" style={{ ['--accent' as string]: profile.accent }}>
+    <div className="set-preview" style={{ ['--accent' as string]: user.color }}>
       <div
         className={banner ? 'set-preview__banner set-preview__banner--picture' : 'set-preview__banner'}
         style={banner ? { backgroundImage: `url(${banner})` } : undefined}

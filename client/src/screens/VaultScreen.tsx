@@ -13,6 +13,7 @@
 import { useState, type FormEvent } from 'react';
 import { Composer } from '../components/Composer';
 import { CloseIcon, LockIcon } from '../components/Icons';
+import { MessageBody } from '../components/MessageBody';
 import { PasswordField } from '../components/PasswordField';
 import {
   PASSKEY_RULES,
@@ -229,7 +230,7 @@ function Open() {
             {entries.map((entry) => (
               <li key={entry.id} className="vault-note">
                 <div className="bubble bubble--out bubble--tail-out vault-note__bubble">
-                  <span className="bubble__body">{entry.body}</span>
+                  <MessageBody body={entry.body} />
                   <span className="bubble__meta mono">
                     {clockTime(entry.createdAt, locale)}
                   </span>

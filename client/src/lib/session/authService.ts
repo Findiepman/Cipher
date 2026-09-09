@@ -433,6 +433,20 @@ export class AuthService {
     return this.account.revokeSession(id);
   }
 
+  /**
+   * The synced settings blob: everything that is not the friend-facing profile,
+   * kept on the account so it follows you to every device. Opaque to the
+   * server, and to this class: what is in it, and how two devices reconcile, is
+   * lib/settings/settingsSync.ts.
+   */
+  settings() {
+    return this.account.settings();
+  }
+
+  putSettings(blob: string) {
+    return this.account.putSettings(blob);
+  }
+
   private async adoptDevice(
     user: AccountDto,
     device: DeviceDto,

@@ -60,6 +60,7 @@ model User {
   emailTokens EmailToken[]
   devices     Device[]
   profile     Profile?
+  settings    AccountSettings?
 
   auditActions AuditLog[] @relation("AuditActor")
   auditTargets AuditLog[] @relation("AuditTarget")
@@ -125,6 +126,34 @@ model Profile {
   readReceipts Boolean @default(true)
 
   friendRequestsFrom FriendRequestPolicy @default(EVERYONE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Every preference that is not part of the friend-facing profile, kept as one
+/// opaque JSON blob so it follows the account to every device.
+///
+/// The server does not read this. It is the client's whole settings object
+/// (theme, wallpaper, sounds, language, muted conversations, pinned people,
+/// saved profiles, even the chosen microphone), serialized and stored as
+/// written. Unlike a message body this is not sealed, which is a deliberate
+/// choice: settings syncing across devices was wanted more than settings being
+/// unreadable to a server that already stores your nickname in the clear. The
+/// hard rule in server/AGENTS.md is about message content, and this is not
+/// that. The friend-visible half of a profile stays in `Profile`, in typed
+/// columns, because other people read it; this half only ever goes back to
+/// its owner.
+///
+/// `updatedAt` is the whole of the conflict story: last write wins, and a
+/// device applies the server's copy only when it is newer than the last one
+/// this device pushed.
+model AccountSettings {
+  userId String @id @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// The client's serialized settings object. Opaque here, capped in bytes.
+  blob String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

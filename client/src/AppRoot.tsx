@@ -24,6 +24,7 @@ import { VerifyEmailScreen } from './screens/VerifyEmailScreen';
 import { CallProvider } from './state/CallProvider';
 import { ChatProvider } from './state/ChatProvider';
 import { ProfileSync } from './state/ProfileSync';
+import { SettingsSync } from './state/SettingsSync';
 import { VaultProvider } from './state/VaultProvider';
 import { BOOT_LABELS, BOOT_STEPS, useSession } from './state/SessionProvider';
 import './styles/auth.css';
@@ -141,10 +142,12 @@ export function AppRoot() {
   return (
     <div className="app-shell">
       <AccountStrip />
-      {/* Draws nothing: keeps the server's copy of the profile equal to this
-          device's. Here rather than higher up because it needs the account,
-          and there is no account to speak of until this branch. */}
+      {/* Draw nothing: they keep the account's copy of your settings equal to
+          this device's. ProfileSync owns the friend-facing profile; SettingsSync
+          owns everything else, the whole settings blob. Here rather than higher
+          up because they need the account, and there is none until this branch. */}
       <ProfileSync />
+      <SettingsSync />
       <ChatProvider>
         <CallProvider>
           {/* Inside `authenticated` like the rest: the vault is keyed to an

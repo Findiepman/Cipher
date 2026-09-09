@@ -548,12 +548,13 @@ Two end-to-end proofs, both against a running server over real HTTP:
   bolted onto the real engine; the browser cannot list windows itself, so
   what such a picker steers is `displaySurface` and `monitorTypeSurfaces` on
   the `getDisplayMedia` call.
-- **Per person sounds beyond this device.** The map lives in the settings
-  blob in `localStorage`, so the ringtone you gave someone does not follow
-  you to another browser. It is a preference the server deliberately holds
-  none of, which is decision 32; a device that has never been told simply
-  uses the defaults. The exceptions are the handful the server has to act on,
-  presence and read receipts, which do live on the account.
+- **Per person sounds, and every other preference, now follow the account.**
+  The whole settings object syncs through `AccountSettings` as of 2026-09-09
+  (decision 32), so the ringtone you gave someone, your theme, your muted
+  conversations and your pinned people arrive on the next device you sign in
+  on. `localStorage` is still where a device keeps its own copy between loads;
+  the blob is what carries it between devices. A device that has never synced
+  uses the defaults until it does.
 - **Phase 2 encryption.** See `packages/crypto/AGENTS.md`.
 - **The desktop app has never been through its own pipeline.** The Tauri
   app in `desktop/` compiles, and `npm run build` there produced a signed
@@ -788,22 +789,25 @@ worse for this specific app.
     of the same decision is `lib/origins.ts`: the desktop origins on the
     CORS allowlist, HTTP and socket alike, which grants them nothing a
     cookie-less bearer caller did not already have.
-32. **A setting stays on the device unless someone else has to see it, or the
-    server has to act on it.** That is the whole rule for what `Profile` holds.
-    A display name, an about line, an accent, an avatar and a banner are the
-    first kind: your friends see them, so the server keeps them, in the clear
-    like a nickname (decision 14) and served to friends only, gated the way
-    the key registry is. Presence and read receipts are the second kind: the
-    server broadcasts your chosen presence and relays your read marker, so it
-    cannot enforce "invisible" or "receipts off" without holding them. Who may
-    send you a friend request is the same, enforced in `friends/service.js`.
-    Everything else, theme and sounds and language and who you have muted and
-    the order of your list, never reaches the server, and
-    `client/src/lib/settings/types.ts` is where the line is drawn. The pictures
-    are the base64 data URLs the client already stored, capped in bytes and
-    checked for a real image header, PNG, JPEG or WebP but never SVG, which is
-    a document with scripts in it. "Invisible" is stored as itself and only
-    ever leaves as "offline": what you chose is yours to know.
+32. **Every setting syncs to the account, in two channels.** The friend-facing
+    half of a profile, a display name, an about line, an accent, an avatar and a
+    banner, lives in `Profile` as typed columns, in the clear like a nickname
+    (decision 14) and served to friends only, gated the way the key registry is.
+    The two settings the server has to act on, presence and read receipts, plus
+    who may send a friend request, live there too: the server broadcasts your
+    chosen presence and relays your read marker, so it cannot enforce
+    "invisible" or "receipts off" without holding them. Presence is stored as
+    itself and only ever leaves as "offline". Everything else, theme, wallpaper,
+    sounds, language, muted conversations, pinned people, saved profiles, even
+    the chosen microphone, is one opaque JSON blob in `AccountSettings`, written
+    whole and read whole, last write wins on `updatedAt`. That blob reverses the
+    old device-local stance on 2026-09-09: syncing settings across devices was
+    wanted more than settings being unreadable to a server that already holds
+    your nickname and now holds your profile. It is not sealed, and it is not
+    message content, so the hard rule in `server/AGENTS.md` is untouched. The
+    pictures in any of it are base64 data URLs, capped in bytes and checked for
+    a real PNG, JPEG or WebP header, never SVG, which is a document with scripts
+    in it.
 24. **The reset context endpoint is a POST, and it does not spend the token.**
     A GET would put a live credential in a query string, which is the part of
     a request that reliably reaches access logs and browser history. Not

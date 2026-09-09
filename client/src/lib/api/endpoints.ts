@@ -45,7 +45,9 @@ import type {
   SendFriendRequestRequest,
   SendFriendRequestResponse,
   SendMessageRequest,
+  PutSettingsResponse,
   SessionDto,
+  SettingsBlobDto,
   SetNicknameResponse,
   UpdateProfileRequest,
   VerifyEmailRequest,
@@ -104,6 +106,14 @@ export function createAccountApi(client: ApiClient) {
     },
     confirmEmailChange(body: ConfirmEmailChangeRequest) {
       return client.post<AccountDto>('/account/change-email/confirm', body);
+    },
+    /** The synced settings blob, or null before this account has ever synced. */
+    settings() {
+      return client.get<SettingsBlobDto>('/account/settings');
+    },
+    /** Replaces the whole blob. The newest write wins. */
+    putSettings(blob: string) {
+      return client.put<PutSettingsResponse>('/account/settings', { blob });
     },
     sessions() {
       return client.get<SessionDto[]>('/account/sessions');

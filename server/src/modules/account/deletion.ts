@@ -82,6 +82,7 @@ export const deletionRoutes: FastifyPluginAsync<DeletionRoutesOptions> = async (
           },
         }),
         prisma.profile.deleteMany({ where: { userId } }),
+        prisma.accountSettings.deleteMany({ where: { userId } }),
         prisma.device.updateMany({
           where: { userId, revokedAt: null },
           data: { revokedAt: now },

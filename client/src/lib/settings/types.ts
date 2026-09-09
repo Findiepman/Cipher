@@ -1,30 +1,32 @@
 /**
  * Everything the user can change about their own client.
  *
- * Almost all of it is preference, not account data, and stays on this device:
- * an app whose whole claim is "the server cannot read your messages" should
- * not be shipping the server a list of who you have muted. The rule for what
- * the server does get is a short one. A setting leaves the device only when
- * another person has to see the result, or when the server has to act on it
- * for you. That admits exactly these, and lib/settings/profileSync.ts keeps
- * them in step with the account:
+ * All of it follows the account to every device, because using the web app on
+ * a phone and the desktop app on a PC and finding two different apps is the
+ * thing people actually notice. It syncs by two channels that between them
+ * cover the whole of this file:
  *
- *   - `profile.displayName`, `about`, `accent`, `avatar`, `banner` and
- *     `presence`: your friends see them, stored in the clear, friends only.
- *   - `privacy.readReceipts`: the server is what tells the other person you
- *     read something, so it has to know not to.
- *   - `privacy.friendRequestsFrom`: the server is what a stranger's request
- *     arrives at.
+ *   - The friend-facing profile and the two settings the server enforces
+ *     (`profile.*`, `privacy.readReceipts`, `privacy.friendRequestsFrom`) go
+ *     through the account profile, in typed columns, because other people read
+ *     them or the server acts on them. lib/settings/profileSync.ts.
+ *   - Everything else, the saved profile slots and the chosen microphone
+ *     included, is serialized and stored on the account as one blob the server
+ *     holds and never reads. lib/settings/settingsSync.ts.
  *
- * Everything else, the saved profile slots included, is never sent anywhere.
- * The account itself (username, email, password) is not in this file at all.
+ * The blob is in the clear. That is a deliberate reversal of the app's earlier
+ * device-local stance: sync was wanted more than a server that cannot read your
+ * theme, and none of this is message content, so the one hard rule in
+ * server/AGENTS.md is untouched. The account itself (username, email, password)
+ * is not in this file at all.
  *
- * Adding a field is safe: `load()` merges what it finds over these defaults, so
- * a settings blob written by an older build is upgraded rather than rejected.
- * Removing or repurposing one is not: bump `SETTINGS_VERSION` if you do.
- * Version 2 renamed `privacy.directMessagesFrom` to `friendRequestsFrom`,
- * because messages already only come from friends and the old name promised a
- * gate that had nothing to gate; an old blob's value is simply dropped.
+ * Adding a field is safe: `load()` and the incoming blob both merge what they
+ * find over these defaults, so a settings blob written by an older build is
+ * upgraded rather than rejected. Removing or repurposing one is not: bump
+ * `SETTINGS_VERSION` if you do. Version 2 renamed `privacy.directMessagesFrom`
+ * to `friendRequestsFrom`, because messages already only come from friends and
+ * the old name promised a gate that had nothing to gate; an old blob's value is
+ * simply dropped.
  */
 import type { LanguageChoice } from '../i18n/locales';
 import type { MessageSound, RingSound } from '../media/sounds';

@@ -83,7 +83,7 @@ export async function buildApp(
     // desktop needs an entry of its own and what it does not get from it.
     origin: allowedOrigins(),
     credentials: true,
-    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   });
 
   if (rateLimits) {

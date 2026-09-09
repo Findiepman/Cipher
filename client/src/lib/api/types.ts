@@ -320,6 +320,22 @@ export interface DeleteAccountRequest {
   authHash: string;
 }
 
+/**
+ * The synced settings blob: every preference that is not part of the
+ * friend-facing profile, serialized and stored on the account so it follows
+ * you to every device. `blob` is the client's own JSON, opaque to the server,
+ * and null until this account has ever synced. `updatedAt` is the whole of the
+ * conflict story: the newest write wins.
+ */
+export interface SettingsBlobDto {
+  blob: string | null;
+  updatedAt: string | null;
+}
+
+export interface PutSettingsResponse {
+  updatedAt: string;
+}
+
 /* --------------------------------------------------------------- friends --- */
 
 /** An accepted friend. `publicKey` rides along so opening a DM is one call. */

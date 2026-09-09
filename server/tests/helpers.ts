@@ -73,7 +73,7 @@ export async function resetDatabase(): Promise<void> {
   // to User, so truncating User would not cascade to it and rows would leak
   // between test cases.
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "AuditLog", "EmailToken", "Session", "Device", "Profile", ' +
+    'TRUNCATE TABLE "AuditLog", "EmailToken", "Session", "Device", "Profile", "AccountSettings", ' +
       '"MessageEnvelope", "Message", "ConversationParticipant", "Conversation", ' +
       '"ContactNickname", "Friendship", "User" RESTART IDENTITY CASCADE',
   );
@@ -210,7 +210,7 @@ export interface Actor extends LoggedIn {
   user: RegisteredUser;
   /// Injects as this account.
   request(options: {
-    method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+    method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
     url: string;
     payload?: unknown;
   }): Promise<LightMyRequestResponse>;

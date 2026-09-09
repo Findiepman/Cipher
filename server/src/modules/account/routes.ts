@@ -10,6 +10,7 @@ import { deletionRoutes } from './deletion.js';
 import { emailRoutes } from './email.js';
 import { profileRoutes } from './profile.js';
 import { sessionRoutes } from './sessions.js';
+import { settingsRoutes } from './settings.js';
 
 export interface AccountRoutesOptions {
   mailer: Mailer;
@@ -24,6 +25,7 @@ export interface AccountRoutesOptions {
 export const accountRoutes: FastifyPluginAsync<AccountRoutesOptions> = async (fastify, opts) => {
   await fastify.register(credentialsRoutes);
   await fastify.register(profileRoutes, { realtime: opts.realtime });
+  await fastify.register(settingsRoutes);
   await fastify.register(sessionRoutes, { realtime: opts.realtime });
   await fastify.register(emailRoutes, { mailer: opts.mailer });
   await fastify.register(deletionRoutes, { realtime: opts.realtime });

@@ -33,6 +33,7 @@ import {
   rotateSession,
   type RequestContext,
 } from './sessions.js';
+import { profileOf } from '../profile/service.js';
 
 function contextOf(request: FastifyRequest): RequestContext {
   return {
@@ -148,7 +149,7 @@ export const authRoutes: FastifyPluginAsync<{ mailer: Mailer }> = async (
     // immediately. It is the caller's own blob and useless without their
     // password, but it is still the reason this response must never be cached.
     return reply.send({
-      user: toAccountDto(user),
+      user: toAccountDto(user, await profileOf(user.id)),
       tokens: tokenPair(accessToken, session.refreshToken),
       device: device ? toDeviceDto(device) : null,
     });
@@ -180,7 +181,7 @@ export const authRoutes: FastifyPluginAsync<{ mailer: Mailer }> = async (
     });
 
     return reply.send({
-      user: toAccountDto(user),
+      user: toAccountDto(user, await profileOf(user.id)),
       tokens: tokenPair(accessToken, session.refreshToken),
     });
   });

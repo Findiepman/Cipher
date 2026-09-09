@@ -15,6 +15,8 @@ import type {
   AuditLogEntry,
   BacklogResponse,
   BlockedUserDto,
+  ChangeEmailContextRequest,
+  ChangeEmailContextResponse,
   ChangeEmailRequest,
   ChangePasswordRequest,
   ConfirmEmailChangeRequest,
@@ -24,6 +26,7 @@ import type {
   DeviceRegistration,
   ForgotPasswordRequest,
   FriendDto,
+  FullProfileDto,
   FriendRequestsResponse,
   IceServersDto,
   LoginRequest,
@@ -95,8 +98,12 @@ export function createAccountApi(client: ApiClient) {
     changeEmail(body: ChangeEmailRequest) {
       return client.post<AcknowledgedResponse>('/account/change-email', body);
     },
+    /** What address a confirmation link would move you to. Spends nothing. */
+    changeEmailContext(body: ChangeEmailContextRequest) {
+      return client.post<ChangeEmailContextResponse>('/account/change-email/context', body);
+    },
     confirmEmailChange(body: ConfirmEmailChangeRequest) {
-      return client.post<AcknowledgedResponse>('/account/change-email/confirm', body);
+      return client.post<AccountDto>('/account/change-email/confirm', body);
     },
     sessions() {
       return client.get<SessionDto[]>('/account/sessions');
@@ -131,6 +138,18 @@ export function createKeysApi(client: ApiClient) {
     },
     revokeDevice(id: string) {
       return client.delete<void>(`/keys/device/${encodeURIComponent(id)}`);
+    },
+  };
+}
+
+export function createUsersApi(client: ApiClient) {
+  return {
+    /**
+     * The whole profile card, banner included. Yours, or a friend's: the
+     * server answers 404 for anyone else, the same gate the key registry has.
+     */
+    profile(userId: string) {
+      return client.get<FullProfileDto>(`/users/${encodeURIComponent(userId)}/profile`);
     },
   };
 }
@@ -277,6 +296,7 @@ export function createAdminApi(client: ApiClient) {
 export const authApi = createAuthApi(api);
 export const accountApi = createAccountApi(api);
 export const keysApi = createKeysApi(api);
+export const usersApi = createUsersApi(api);
 export const friendsApi = createFriendsApi(api);
 export const conversationsApi = createConversationsApi(api);
 export const callsApi = createCallsApi(api);

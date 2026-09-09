@@ -29,6 +29,61 @@ export interface AccountDto {
   emailVerifiedAt: string | null;
   createdAt: string;
   lastLoginAt: string | null;
+  /** The profile as the server holds it, which is what your friends see. */
+  profile: OwnProfileDto;
+}
+
+/* --------------------------------------------------------------- profile --- */
+
+/**
+ * What the server chooses to say about you, on the wire.
+ *
+ * The client's `Presence` type says 'offline' for the thing you choose to
+ * appear as; the server calls that 'invisible', because it also has to say
+ * 'offline' about somebody who is genuinely gone. lib/settings/profileSync.ts
+ * is the one place the two words meet.
+ */
+export type ServerPresence = 'online' | 'idle' | 'dnd' | 'invisible';
+
+/** Who may send you a friend request. Messages already only come from friends. */
+export type FriendRequestPolicy = 'everyone' | 'friends_of_friends' | 'nobody';
+
+/**
+ * The part of a profile friends see. Rides on every FriendDto and every
+ * conversation participant, so a list of forty people draws forty avatars
+ * from one request. The banner is not here: it is the one large field and
+ * only the profile card shows it, see FullProfileDto.
+ */
+export interface PublicProfileDto {
+  /** Empty means "use the username". */
+  displayName: string;
+  about: string;
+  /** `#rrggbb`, or null for a colour derived from the user id. */
+  accent: string | null;
+  /** A data: URL, or null for the lettered tile. */
+  avatar: string | null;
+  /** ISO-8601 of the last edit. The card caches its banner fetch by this. */
+  updatedAt: string;
+}
+
+/** The whole card, banner included. GET /users/:userId/profile, friends only. */
+export interface FullProfileDto extends PublicProfileDto {
+  id: string;
+  username: string;
+  banner: string | null;
+}
+
+/**
+ * Your own profile, with the fields nobody else is shown: the presence you
+ * chose (others only ever see the effective one) and the two privacy choices
+ * the server has to enforce on your behalf.
+ */
+export interface OwnProfileDto extends PublicProfileDto {
+  banner: string | null;
+  presence: ServerPresence;
+  /** Whether the server tells the other person when you read their message. */
+  readReceipts: boolean;
+  friendRequestsFrom: FriendRequestPolicy;
 }
 
 /**
@@ -79,6 +134,7 @@ export interface SessionDto {
   ip: string | null;
   userAgent: string | null;
   createdAt: string;
+  lastUsedAt: string;
   expiresAt: string;
   /** True for the session making the request, so the UI can say "this device". */
   current: boolean;
@@ -199,8 +255,21 @@ export interface ResetPasswordRequest {
 
 /* --------------------------------------------------------------- account --- */
 
+/**
+ * PATCH /account/me. Every field is optional and only the ones present are
+ * touched, so the profile sync can send exactly what changed. A null picture
+ * or accent clears it.
+ */
 export interface UpdateProfileRequest {
   username?: string;
+  displayName?: string;
+  about?: string;
+  accent?: string | null;
+  avatar?: string | null;
+  banner?: string | null;
+  presence?: ServerPresence;
+  readReceipts?: boolean;
+  friendRequestsFrom?: FriendRequestPolicy;
 }
 
 export interface ChangePasswordRequest {
@@ -224,6 +293,20 @@ export interface ChangeEmailRequest {
 export interface ConfirmEmailChangeRequest {
   token: string;
   newAuthHash: string;
+}
+
+/**
+ * What the link in the confirmation mail is worth before it is spent: the
+ * address it would move the account to. The client needs that to derive the
+ * new authHash, and a link opened on another device has no other way to learn
+ * it. The token is only spent by the confirm call itself.
+ */
+export interface ChangeEmailContextRequest {
+  token: string;
+}
+
+export interface ChangeEmailContextResponse {
+  newEmail: string;
 }
 
 export interface RegenerateRecoveryCodeRequest {
@@ -251,6 +334,8 @@ export interface FriendDto {
    */
   nickname: string | null;
   friendsSince: string;
+  /** What they chose to show you: name, picture, colour, a line about them. */
+  profile: PublicProfileDto;
 }
 
 export interface SetNicknameResponse {
@@ -307,6 +392,8 @@ export interface ConversationParticipantDto {
   id: string;
   username: string;
   publicKey: string | null;
+  /** Carried here too, so somebody who unfriended you still has a face. */
+  profile: PublicProfileDto;
 }
 
 export interface ConversationDto {

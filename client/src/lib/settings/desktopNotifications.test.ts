@@ -68,6 +68,11 @@ describe('notifiable', () => {
     expect(notifiable([arrival()], paused, away, after)).toHaveLength(1);
   });
 
+  it('says nothing while you are on do not disturb, whatever else is set', () => {
+    expect(notifiable([arrival()], on, { ...away, quiet: true })).toEqual([]);
+    expect(notifiable([arrival()], on, { ...away, quiet: false })).toHaveLength(1);
+  });
+
   it('never notifies you about your own message', () => {
     expect(notifiable([arrival({ own: true })], on, away)).toEqual([]);
   });

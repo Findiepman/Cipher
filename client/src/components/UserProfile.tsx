@@ -12,11 +12,14 @@
  * you are actually talking to, which matters when the label is one you chose
  * and they never agreed to.
  */
+import type { FullProfileDto } from '../lib/api/types';
 import { shortDay } from '../lib/i18n/format';
+import { resolvePicture } from '../lib/settings/types';
 import { useI18n } from '../state/I18nProvider';
 import type { User } from '../types';
 import { Avatar, presenceLabel } from './Avatar';
 import { BanIcon, MessageIcon, PencilIcon, UserMinusIcon } from './Icons';
+import { useFullProfile } from './useFullProfile';
 import '../styles/user-profile.css';
 
 export type ProfileAction = 'message' | 'nickname' | 'unfriend' | 'block';
@@ -30,15 +33,37 @@ type Props = {
   onAction: (action: ProfileAction) => void;
   /** Hidden when the card is already the whole panel. */
   onClose?: () => void;
+  /**
+   * Where the rest of the card comes from. The list already carried the
+   * name, picture and colour; this fetches the banner. Injectable so a test
+   * can hand one in without a server.
+   */
+  loadProfile?: (userId: string) => Promise<FullProfileDto>;
 };
 
-export function UserProfile({ user, isFriend, friendsSince, onAction, onClose }: Props) {
+export function UserProfile({
+  user,
+  isFriend,
+  friendsSince,
+  onAction,
+  onClose,
+  loadProfile,
+}: Props) {
   const { locale, t } = useI18n();
+  const full = useFullProfile(user.id, user.profileUpdatedAt, loadProfile);
+  // Through the resolver rather than straight into url(): the value came
+  // from the server, and only a data: URL of an image is let near CSS.
+  const banner = resolvePicture(full?.banner ?? null);
+
   return (
     <div className="profile">
-      {/* A band of the person's own colour, so two profiles never look alike
-          even before you read the name. */}
-      <div className="profile__banner" style={{ background: user.color }}>
+      {/* Their banner when they chose one; otherwise a band of the person's
+          own colour, so two profiles never look alike even before you read
+          the name. */}
+      <div
+        className={banner ? 'profile__banner profile__banner--picture' : 'profile__banner'}
+        style={banner ? { backgroundImage: `url(${banner})` } : { background: user.color }}
+      >
         {onClose && (
           <button
             type="button"
@@ -58,6 +83,10 @@ export function UserProfile({ user, isFriend, friendsSince, onAction, onClose }:
       <div className="profile__body">
         <h2 className="profile__name">{user.name}</h2>
         <p className="profile__handle mono">{user.username}</p>
+
+        {/* Their own words, kept exactly as typed: line breaks included,
+            which is why it is a pre-wrapped paragraph and not a line. */}
+        {user.activity && <p className="profile__about">{user.activity}</p>}
 
         <dl className="profile__facts">
           <div className="profile__fact">

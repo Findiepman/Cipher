@@ -37,7 +37,7 @@ import { ConnectionCurtain } from '../components/ConnectionCurtain';
 import type { ConnectionState } from '../lib/transport/types';
 import { createSecureStore } from '../lib/storage/secureStore';
 import { keyManager as defaultKeyManager, type KeyManager } from '../lib/session/keyManager';
-import type { Channel, Message, User } from '../types';
+import type { Channel, Message, Presence, User } from '../types';
 import { ChatController, type Recipient } from './chatController';
 import { initialChatState, messagesForChannel, type ChatState } from './chatStore';
 import { usePlatform } from './PlatformProvider';
@@ -113,7 +113,10 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
   const [incoming, setIncoming] = useState<FriendRequestDto[]>([]);
   const [outgoing, setOutgoing] = useState<FriendRequestDto[]>([]);
   const [blocked, setBlocked] = useState<BlockedUserDto[]>([]);
-  const [online, setOnline] = useState<Set<string>>(new Set());
+  /// What the server last said each friend is. Absent means offline, which is
+  /// also what the server would have said: it only announces people who are
+  /// connected and showing as something.
+  const [presences, setPresences] = useState<Map<string, Presence>>(new Map());
   const [typing, setTyping] = useState<{ channelId: string; userId: string; at: number }[]>([]);
   const [chatState, setChatState] = useState<ChatState>(initialChatState);
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
@@ -211,12 +214,12 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
       if (live) setConnection(next);
     });
 
-    const unsubscribePresence = transport.on('presence', ({ userId, online: isOnline }) => {
+    const unsubscribePresence = transport.on('presence', ({ userId, presence }) => {
       if (!live) return;
-      setOnline((previous) => {
-        const next = new Set(previous);
-        if (isOnline) next.add(userId);
-        else next.delete(userId);
+      setPresences((previous) => {
+        const next = new Map(previous);
+        if (presence === 'offline') next.delete(userId);
+        else next.set(userId, presence);
         return next;
       });
     });
@@ -305,6 +308,9 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
     // Yourself first. You are not in your own friend list, and you are only in
     // a conversation once you have started one, so without this the account
     // avatar and your own message bubbles have nobody to render until then.
+    // Drawn from the account's own profile, and as online: the presence you
+    // chose is overlaid by App.tsx from settings, which moves before the
+    // server has heard.
     if (account) {
       map.set(
         account.id,
@@ -315,14 +321,15 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
             publicKey: keys.current?.publicKey ?? null,
             nickname: null,
             friendsSince: account.createdAt,
+            profile: account.profile,
           },
-          true,
+          'online',
         ),
       );
     }
 
     for (const friend of friends) {
-      map.set(friend.id, friendToUser(friend, online.has(friend.id)));
+      map.set(friend.id, friendToUser(friend, presences.get(friend.id) ?? 'offline'));
     }
 
     // Anyone in a conversation who is no longer a friend still has to render,
@@ -338,14 +345,14 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
               nickname: nicknames.get(participant.id) ?? null,
               friendsSince: conversation.createdAt,
             },
-            online.has(participant.id),
+            presences.get(participant.id) ?? 'offline',
           ),
         );
       }
     }
 
     return map;
-  }, [account, keys, friends, conversations, nicknames, online]);
+  }, [account, keys, friends, conversations, nicknames, presences]);
 
   const self = account ? (usersById.get(account.id) ?? null) : null;
 
@@ -441,9 +448,14 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
     [activeChannelId, controller],
   );
 
+  /// Typing indicators off means this device never says so. There is nothing
+  /// for the server to enforce: a signal that is not sent cannot be relayed,
+  /// which is why this setting, alone among the privacy ones, stays local.
+  const typingAllowed = settings.privacy.typingIndicators;
   const notifyTyping = useCallback(() => {
+    if (!typingAllowed) return;
     if (activeChannelId) controller.transport.notifyTyping(activeChannelId);
-  }, [activeChannelId, controller]);
+  }, [activeChannelId, controller, typingAllowed]);
 
   const openDmWith = useCallback(
     async (userId: string) => {

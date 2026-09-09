@@ -16,12 +16,14 @@ import App from './App';
 import { AccountStrip } from './components/AccountStrip';
 import { LoadingScreen } from './components/LoadingScreen';
 import { AuthScreen } from './screens/AuthScreen';
+import { ChangeEmailScreen } from './screens/ChangeEmailScreen';
 import { NotFoundScreen } from './screens/NotFoundScreen';
 import { ResetPasswordScreen } from './screens/ResetPasswordScreen';
 import { UnlockScreen } from './screens/UnlockScreen';
 import { VerifyEmailScreen } from './screens/VerifyEmailScreen';
 import { CallProvider } from './state/CallProvider';
 import { ChatProvider } from './state/ChatProvider';
+import { ProfileSync } from './state/ProfileSync';
 import { VaultProvider } from './state/VaultProvider';
 import { BOOT_LABELS, BOOT_STEPS, useSession } from './state/SessionProvider';
 import './styles/auth.css';
@@ -31,11 +33,11 @@ import './styles/auth.css';
  * stating because without the list an unknown path silently renders the chat
  * app and looks like it worked.
  *
- * Both deep links stay in here even though they are also matched by hand
+ * The deep links stay in here even though they are also matched by hand
  * below: a link whose token has already been spent still lands on a real
  * screen that can explain itself, rather than on "no such address".
  */
-const KNOWN_PATHS = new Set(['/', '/verify-email', '/reset-password']);
+const KNOWN_PATHS = new Set(['/', '/verify-email', '/reset-password', '/change-email']);
 
 /**
  * Exported so the routing rule can be tested without mounting the app, which
@@ -60,10 +62,17 @@ function readResetToken(): string | null {
   return new URLSearchParams(window.location.search).get('token');
 }
 
+function readChangeEmailToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  if (window.location.pathname !== '/change-email') return null;
+  return new URLSearchParams(window.location.search).get('token');
+}
+
 export function AppRoot() {
   const { status, bootStage } = useSession();
   const [verifyToken, setVerifyToken] = useState(readVerifyToken);
   const [resetToken, setResetToken] = useState(readResetToken);
+  const [changeEmailToken, setChangeEmailToken] = useState(readChangeEmailToken);
 
   const leaveVerify = useCallback(() => {
     // Drop the single-use token from the address bar so a reload does not
@@ -77,8 +86,21 @@ export function AppRoot() {
     setResetToken(null);
   }, []);
 
+  const leaveChangeEmail = useCallback(() => {
+    window.history.replaceState(null, '', '/');
+    setChangeEmailToken(null);
+  }, []);
+
   if (verifyToken) {
     return <VerifyEmailScreen token={verifyToken} onContinue={leaveVerify} />;
+  }
+
+  // Also ahead of the status switch, but this one needs a session: the screen
+  // itself says so and waits, rather than this file bouncing to sign in and
+  // losing the link. The first paint is still the loading screen below, so
+  // a reload does not flash "sign in first" at somebody who is signed in.
+  if (changeEmailToken && status !== 'loading') {
+    return <ChangeEmailScreen token={changeEmailToken} onLeave={leaveChangeEmail} />;
   }
 
   // Ahead of the status switch, like verification, so the link works whatever
@@ -119,6 +141,10 @@ export function AppRoot() {
   return (
     <div className="app-shell">
       <AccountStrip />
+      {/* Draws nothing: keeps the server's copy of the profile equal to this
+          device's. Here rather than higher up because it needs the account,
+          and there is no account to speak of until this branch. */}
+      <ProfileSync />
       <ChatProvider>
         <CallProvider>
           {/* Inside `authenticated` like the rest: the vault is keyed to an

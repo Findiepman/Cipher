@@ -27,7 +27,12 @@ import {
 import { ApiClient, api } from '../api';
 import { createAccountApi, createAuthApi } from '../api/endpoints';
 import { isDesktop } from '../config';
-import type { AccountDto, DeviceDto, ResetContextResponse } from '../api/types';
+import type {
+  AccountDto,
+  DeviceDto,
+  ResetContextResponse,
+  UpdateProfileRequest,
+} from '../api/types';
 import { KeyManager, keyManager as defaultKeyManager } from './keyManager';
 
 export interface RegisterInput {
@@ -237,10 +242,31 @@ export class AuthService {
    * newly derived authHash. The wrapped key blobs carry their own random salts
    * and are unaffected: no re-wrapping, and the recovery code still works.
    */
-  async confirmEmailChange(token: string, newEmail: string, password: string): Promise<void> {
+  async confirmEmailChange(token: string, newEmail: string, password: string): Promise<AccountDto> {
     const newAuthHash = await deriveAuthHash(newEmail, password);
-    await this.account.confirmEmailChange({ token, newAuthHash });
+    const account = await this.account.confirmEmailChange({ token, newAuthHash });
     await this.keys.updateBlobs({ email: newEmail });
+    return account;
+  }
+
+  /**
+   * What the link in the confirmation mail would do, before it does it: the
+   * address the account would move to. The screen behind the link asks this
+   * first, because the new authHash has to be derived under that address and
+   * a link opened on another device has no other way to learn it. Also the
+   * cheapest way to find out the link is dead before asking for a password.
+   */
+  changeEmailContext(token: string): Promise<{ newEmail: string }> {
+    return this.account.changeEmailContext({ token });
+  }
+
+  /**
+   * The whole of step 2 from a bare link: learn the address, derive under it,
+   * confirm. What the change-email screen calls.
+   */
+  async confirmEmailChangeFromLink(token: string, password: string): Promise<AccountDto> {
+    const { newEmail } = await this.changeEmailContext(token);
+    return this.confirmEmailChange(token, newEmail, password);
   }
 
   /**
@@ -390,10 +416,12 @@ export class AuthService {
   }
 
   /**
-   * Profile fields the server owns. Nothing here is key material, so unlike
-   * every other account change it needs no password and no re-wrapping.
+   * Profile fields the server owns: the username, and everything your friends
+   * see or the server enforces for you (lib/settings/profileSync.ts says which).
+   * Nothing here is key material, so unlike every other account change it
+   * needs no password and no re-wrapping.
    */
-  updateProfile(input: { username?: string }): Promise<AccountDto> {
+  updateProfile(input: UpdateProfileRequest): Promise<AccountDto> {
     return this.account.updateProfile(input);
   }
 

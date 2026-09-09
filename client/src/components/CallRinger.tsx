@@ -24,9 +24,13 @@ export function CallRinger() {
   const ringing = call.phase === 'ringing' && call.direction === 'incoming';
   const peerId = call.peerId;
   const notifications = settings.notifications;
+  // Do not disturb silences the ring but not the call: the panel still shows
+  // it, and you can still answer. A ringtone is the one thing the presence
+  // promised to stop.
+  const quiet = settings.profile.presence === 'dnd';
 
   useEffect(() => {
-    const silent = isMuted(notifications.mutedUntil);
+    const silent = isMuted(notifications.mutedUntil) || quiet;
 
     if (!ringing || silent) {
       stop.current?.();
@@ -48,7 +52,7 @@ export function CallRinger() {
       stop.current?.();
       stop.current = null;
     };
-  }, [ringing, peerId, notifications]);
+  }, [ringing, peerId, notifications, quiet]);
 
   return null;
 }

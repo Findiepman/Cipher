@@ -1,23 +1,36 @@
 /**
  * Everything the user can change about their own client.
  *
- * These are preferences, not account data. The server has no settings
- * endpoint and deliberately does not get one for most of this: an app whose
- * whole claim is "the server cannot read your messages" should not be shipping
- * the server a list of who you have muted. Anything here that *does* belong to
- * the account (username, email, password) is not in this file. It goes
- * through the account API, which is why `profile.displayName` below is an
- * override for local display and not the account's username.
+ * Almost all of it is preference, not account data, and stays on this device:
+ * an app whose whole claim is "the server cannot read your messages" should
+ * not be shipping the server a list of who you have muted. The rule for what
+ * the server does get is a short one. A setting leaves the device only when
+ * another person has to see the result, or when the server has to act on it
+ * for you. That admits exactly these, and lib/settings/profileSync.ts keeps
+ * them in step with the account:
+ *
+ *   - `profile.displayName`, `about`, `accent`, `avatar`, `banner` and
+ *     `presence`: your friends see them, stored in the clear, friends only.
+ *   - `privacy.readReceipts`: the server is what tells the other person you
+ *     read something, so it has to know not to.
+ *   - `privacy.friendRequestsFrom`: the server is what a stranger's request
+ *     arrives at.
+ *
+ * Everything else, the saved profile slots included, is never sent anywhere.
+ * The account itself (username, email, password) is not in this file at all.
  *
  * Adding a field is safe: `load()` merges what it finds over these defaults, so
  * a settings blob written by an older build is upgraded rather than rejected.
  * Removing or repurposing one is not: bump `SETTINGS_VERSION` if you do.
+ * Version 2 renamed `privacy.directMessagesFrom` to `friendRequestsFrom`,
+ * because messages already only come from friends and the old name promised a
+ * gate that had nothing to gate; an old blob's value is simply dropped.
  */
 import type { LanguageChoice } from '../i18n/locales';
 import type { MessageSound, RingSound } from '../media/sounds';
 import type { Presence } from '../../types';
 
-export const SETTINGS_VERSION = 1;
+export const SETTINGS_VERSION = 2;
 
 /* The sections below are type aliases rather than interfaces on purpose: an
  * alias for an object type gets an implicit index signature, which is what lets
@@ -147,14 +160,27 @@ export function resolvePinned(value: readonly unknown[]): string[] {
 
 export type Density = 'cozy' | 'compact';
 export type InputMode = 'voice-activity' | 'push-to-talk';
-export type DirectMessagePolicy = 'everyone' | 'known' | 'nobody';
+/**
+ * Who may send you a friend request. The same three words the server uses,
+ * because the server is what enforces it: a request from somebody outside the
+ * policy is answered as if you did not exist.
+ */
+export type FriendRequestPolicy = 'everyone' | 'friends_of_friends' | 'nobody';
 
 export type ProfileSettings = {
   /** Shown instead of the account username. Empty means "use the username". */
   displayName: string;
-  /** One line under the name. Never leaves this device. */
+  /** A few lines under the name. Your friends see it. */
   about: string;
-  /** Avatar tint, and the accent on your own profile card. */
+  /**
+   * Avatar tint, and the accent on your own profile card.
+   *
+   * Empty means "auto": the colour derived from your user id, which is what
+   * everyone got before accents could be chosen and what people who never
+   * open this screen still get. It is the same colour on every device and in
+   * everyone's list, so a lettered tile stays recognisable without anyone
+   * having picked anything.
+   */
   accent: string;
   /**
    * The band across the top of your profile card, or null for the accent.
@@ -167,11 +193,18 @@ export type ProfileSettings = {
   /**
    * A downscaled data: URL, or null for the lettered tile.
    *
-   * Device-local on purpose. There is no avatar endpoint yet, and when there
-   * is one this becomes a cache of it rather than the only copy.
+   * This copy is the one the app draws you from; the server holds the same
+   * bytes and hands them to your friends. profileSync keeps the two equal.
    */
   avatar: string | null;
-  /** What other people are told, when the app is online to tell them. */
+  /**
+   * What other people are told, when the app is online to tell them.
+   *
+   * 'offline' here means invisible: the server shows you as gone while you
+   * are connected. The server's own word for it is 'invisible', mapped in
+   * profileSync, because on the wire it also has to say 'offline' about
+   * people who really are.
+   */
   presence: Presence;
 };
 
@@ -327,14 +360,25 @@ export type SidebarSettings = {
 };
 
 export type PrivacySettings = {
+  /**
+   * Synced to the server, which is the only party that can honour it: your
+   * read position is still recorded (it is what clears your own badges on
+   * another device) but the other participant is no longer told.
+   */
   readReceipts: boolean;
+  /** Local: off means this device simply never emits a typing signal. */
   typingIndicators: boolean;
   /**
    * Fetching a preview tells the linked site someone opened the link, which is
    * a metadata leak an encrypted messenger should not make silently.
+   *
+   * There is no preview feature yet, so nothing reads this and the settings
+   * screen does not offer it. Kept so the default is already off the day
+   * link previews arrive.
    */
   linkPreviews: boolean;
-  directMessagesFrom: DirectMessagePolicy;
+  /** Synced to the server, which is where a stranger's request arrives. */
+  friendRequestsFrom: FriendRequestPolicy;
 };
 
 /**
@@ -381,7 +425,7 @@ export const DEFAULT_SETTINGS: Settings = {
   profile: {
     displayName: '',
     about: '',
-    accent: ACCENTS[0],
+    accent: '',
     avatar: null,
     banner: null,
     presence: 'online',
@@ -441,7 +485,7 @@ export const DEFAULT_SETTINGS: Settings = {
     readReceipts: true,
     typingIndicators: true,
     linkPreviews: false,
-    directMessagesFrom: 'everyone',
+    friendRequestsFrom: 'everyone',
   },
   desktop: {
     closeToTray: true,

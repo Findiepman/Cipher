@@ -14,14 +14,18 @@ export interface User {
   /** Fallback avatar tint, used when there is no `avatarUrl`. */
   color: string;
   /**
-   * A picture, if this user has one. Today only the signed-in user can set one
-   * and it lives on their device (see lib/settings); once the server grows an
-   * avatar endpoint this becomes the URL it hands out.
+   * A picture, if this user has one: a data: URL the server handed down with
+   * their profile, or for yourself the copy in lib/settings.
    */
   avatarUrl?: string;
   presence: Presence;
-  /** Short status line under the name. */
+  /** Short status line under the name. Their about text, when they wrote one. */
   activity?: string;
+  /**
+   * When their profile last changed, from the server. The profile card uses
+   * it to know whether the banner it fetched last time is still the one.
+   */
+  profileUpdatedAt?: string;
   bot?: boolean;
 }
 

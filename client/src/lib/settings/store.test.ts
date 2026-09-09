@@ -45,6 +45,26 @@ describe('SettingsStore', () => {
     expect(store.current.privacy).toEqual(DEFAULT_SETTINGS.privacy);
   });
 
+  it('reads a version 1 blob, dropping the field version 2 renamed', () => {
+    const store = new SettingsStore(
+      fakeStorage(
+        JSON.stringify({
+          version: 1,
+          profile: { displayName: 'teto', accent: '#6f93b0' },
+          privacy: { readReceipts: false, directMessagesFrom: 'nobody' },
+        }),
+      ),
+    );
+
+    expect(store.current.version).toBe(DEFAULT_SETTINGS.version);
+    expect(store.current.profile.displayName).toBe('teto');
+    expect(store.current.profile.accent).toBe('#6f93b0');
+    expect(store.current.privacy.readReceipts).toBe(false);
+    // The old name gated nothing; its value is not carried over.
+    expect(store.current.privacy.friendRequestsFrom).toBe('everyone');
+    expect('directMessagesFrom' in store.current.privacy).toBe(false);
+  });
+
   it('accepts a string for a field whose default is null, and null itself', () => {
     const store = new SettingsStore(
       fakeStorage(

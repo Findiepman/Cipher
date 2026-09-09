@@ -43,6 +43,8 @@ export async function createLiveApp(
     mailer,
     rateLimits: false,
     deliver: (message) => realtime?.deliver(message),
+    presenceChanged: (userId) => realtime?.presenceChanged(userId),
+    disconnectSessions: (sessionIds) => realtime?.disconnectSessions(sessionIds),
     ice: options.ice,
   });
 
@@ -71,7 +73,7 @@ export async function resetDatabase(): Promise<void> {
   // to User, so truncating User would not cascade to it and rows would leak
   // between test cases.
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "AuditLog", "EmailToken", "Session", "Device", ' +
+    'TRUNCATE TABLE "AuditLog", "EmailToken", "Session", "Device", "Profile", ' +
       '"MessageEnvelope", "Message", "ConversationParticipant", "Conversation", ' +
       '"ContactNickname", "Friendship", "User" RESTART IDENTITY CASCADE',
   );

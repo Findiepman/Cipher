@@ -13,6 +13,7 @@ import type { Prisma } from '../../generated/prisma/client.js';
 import { prisma } from '../../db.js';
 import { recordAudit } from '../../lib/audit.js';
 import { badRequest, conflict, notFound, tooManyRequests } from '../../lib/errors.js';
+import { publicProfileSelect, toPublicProfile, type PublicProfileDto } from '../profile/dto.js';
 
 /// Per account, per hour, counted from the audit log so it survives a restart
 /// and so *failed* lookups count too - a scraper's requests all fail, which is
@@ -31,6 +32,9 @@ export interface FriendDto {
   /// ever sees it.
   nickname: string | null;
   friendsSince: string;
+  /// What they chose to show you: a display name, a colour, an avatar and an
+  /// about line. The light fields only; the banner is a request of its own.
+  profile: PublicProfileDto;
 }
 
 /// Nicknames are capped short because they are a label beside a name, not a
@@ -94,8 +98,8 @@ export async function listFriends(userId: string): Promise<FriendDto[]> {
       OR: [{ userAId: userId }, { userBId: userId }],
     },
     include: {
-      userA: { select: { id: true, username: true, devices: activeDevice } },
-      userB: { select: { id: true, username: true, devices: activeDevice } },
+      userA: { select: friendSelect },
+      userB: { select: friendSelect },
     },
   });
 
@@ -108,6 +112,7 @@ export async function listFriends(userId: string): Promise<FriendDto[]> {
         publicKey: other.devices[0]?.publicKey ?? null,
         nickname: nicknames.get(other.id) ?? null,
         friendsSince: (row.respondedAt ?? row.createdAt).toISOString(),
+        profile: toPublicProfile(other.profile),
       };
     })
     // Sorted by what the caller actually reads. A list ordered by a name only
@@ -184,7 +189,13 @@ export async function sendRequest(
   // principle differ only by case - see the note in STATUS.md.
   const target = await prisma.user.findFirst({
     where: { username: { equals: username, mode: 'insensitive' } },
-    select: { id: true, username: true, status: true, emailVerifiedAt: true },
+    select: {
+      id: true,
+      username: true,
+      status: true,
+      emailVerifiedAt: true,
+      profile: { select: { friendRequestsFrom: true } },
+    },
   });
 
   const unknown = notFound('user_not_found', `No user called "${username}".`);
@@ -250,6 +261,26 @@ export async function sendRequest(
       ip,
     });
     return { status: 'accepted', user: publicUser(target) };
+  }
+
+  // Their choice of who may ask. Checked only for a brand new request: an
+  // existing friendship, a block or a request they sent themselves has
+  // already settled the question. Refused the way a stranger is refused,
+  // because "this person exists but will not hear from you" is the same
+  // information as a block, and for the same reason it is not handed out.
+  const policy = target.profile?.friendRequestsFrom ?? 'EVERYONE';
+  const allowed =
+    policy === 'EVERYONE' ||
+    (policy === 'FRIENDS_OF_FRIENDS' && (await shareAFriend(userId, target.id)));
+
+  if (!allowed) {
+    await recordAudit({
+      action: 'friend.request_failed',
+      actorUserId: userId,
+      ip,
+      meta: { reason: 'refused_by_policy' },
+    });
+    throw unknown;
   }
 
   await prisma.friendship.create({
@@ -526,6 +557,28 @@ function publicUser(user: { id: string; username: string }) {
   return { id: user.id, username: user.username };
 }
 
+/// "People I know" means somebody you are both friends with. Two queries:
+/// everyone x is friends with, then whether y is friends with any of them.
+async function shareAFriend(x: string, y: string): Promise<boolean> {
+  const mine = await prisma.friendship.findMany({
+    where: { status: 'ACCEPTED', OR: [{ userAId: x }, { userBId: x }] },
+    select: { userAId: true, userBId: true },
+  });
+  const friendsOfX = mine.map((row) => (row.userAId === x ? row.userBId : row.userAId));
+  if (friendsOfX.length === 0) return false;
+
+  const shared = await prisma.friendship.count({
+    where: {
+      status: 'ACCEPTED',
+      OR: [
+        { userAId: y, userBId: { in: friendsOfX } },
+        { userBId: y, userAId: { in: friendsOfX } },
+      ],
+    },
+  });
+  return shared > 0;
+}
+
 /// The account's live device. One per account in v1, so `[0]` is "the" key.
 const activeDevice = {
   where: { revokedAt: null },
@@ -533,3 +586,11 @@ const activeDevice = {
   take: 1,
   select: { publicKey: true },
 } satisfies Prisma.User$devicesArgs;
+
+/// A friend as the list describes them: handle, key and what they show you.
+const friendSelect = {
+  id: true,
+  username: true,
+  devices: activeDevice,
+  profile: { select: publicProfileSelect },
+} satisfies Prisma.UserSelect;

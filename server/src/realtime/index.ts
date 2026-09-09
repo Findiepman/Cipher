@@ -33,8 +33,19 @@ import {
   requireParticipant,
   type PostedMessage,
 } from '../modules/conversations/service.js';
+import {
+  chosenPresence,
+  chosenPresences,
+  wantsReadReceipts,
+  type WirePresence,
+} from '../modules/profile/service.js';
 import { AppError } from '../lib/errors.js';
 import { createCallSignalling, type CallSignallingOptions } from './calls.js';
+import type { RealtimeHooks } from './hooks.js';
+
+/// What a friend is told. 'invisible' never crosses the wire: it becomes
+/// 'offline', which is the whole point of choosing it.
+export type EffectivePresence = 'online' | 'idle' | 'dnd' | 'offline';
 
 /// How often to re-check that every connected socket's session is still live.
 /// The window this leaves is the longest a revoked session can keep receiving.
@@ -45,7 +56,7 @@ interface SocketData {
   sessionId: string;
 }
 
-export interface Realtime {
+export interface Realtime extends RealtimeHooks {
   /// Pushes a stored message to whoever is connected. Wired into the HTTP
   /// routes too, so a message sent over HTTP still arrives in real time.
   deliver(message: PostedMessage): void;
@@ -105,6 +116,10 @@ export function attachRealtime(app: FastifyInstance, options: RealtimeOptions = 
 
     void socket.join(userId);
     void markOnline(userId, true);
+    // A fresh socket has no idea who is around: presence is only ever sent
+    // on a transition, and everyone already online made theirs before this
+    // one existed. So it is told once, now, about each friend who is.
+    void sendSnapshot(socket, userId);
     calls.attach(socket, userId, sessionId);
 
     socket.on('message:send', async (payload: unknown, ack?: (result: unknown) => void) => {
@@ -164,8 +179,12 @@ export function attachRealtime(app: FastifyInstance, options: RealtimeOptions = 
         // The reader is included, unlike typing. Their own other tabs are the
         // reason this event is worth having: reading on the phone should clear
         // the dot on the desktop. The other participant gets it so a sender can
-        // tell their message landed.
+        // tell their message landed, unless the reader has switched read
+        // receipts off, in which case the position still moves (it is their
+        // own unread count) and only the telling stops.
+        const tellOthers = await wantsReadReceipts(userId);
         for (const participant of participants) {
+          if (participant !== userId && !tellOthers) continue;
           io.to(participant).emit('read', {
             conversationId: state.conversationId,
             userId,
@@ -202,8 +221,10 @@ export function attachRealtime(app: FastifyInstance, options: RealtimeOptions = 
     }
   }
 
-  /// Presence goes to friends only. It is derived from live connections, which
-  /// means it is per-process: correct on one box, wrong the day there are two.
+  /// Presence goes to friends only. Whether somebody is connected is derived
+  /// from live sockets, which means it is per-process: correct on one box,
+  /// wrong the day there are two. What they appear as on top of that is the
+  /// presence they chose (modules/profile), read at the moment it is sent.
   async function markOnline(userId: string, online: boolean): Promise<void> {
     const before = connections.get(userId) ?? 0;
     const after = online ? before + 1 : Math.max(0, before - 1);
@@ -215,13 +236,51 @@ export function attachRealtime(app: FastifyInstance, options: RealtimeOptions = 
     // presence change.
     if (closing || before > 0 === after > 0) return;
 
+    await broadcastPresence(userId);
+  }
+
+  /// What this person's friends should see right now.
+  async function effectivePresence(userId: string): Promise<EffectivePresence> {
+    if (!connections.has(userId)) return 'offline';
+    return visible(await chosenPresence(userId));
+  }
+
+  async function broadcastPresence(userId: string): Promise<void> {
     try {
+      const presence = await effectivePresence(userId);
       const friends = await listFriends(userId);
       for (const friend of friends) {
-        io.to(friend.id).emit('presence', { userId, online: after > 0 });
+        io.to(friend.id).emit('presence', { userId, presence });
       }
     } catch {
       // A presence broadcast that fails must not take the connection with it.
+    }
+  }
+
+  /// One `presence` per friend who is connected, to this socket only. Friends
+  /// who are not connected are not mentioned: offline is what a client
+  /// assumes until told otherwise.
+  async function sendSnapshot(socket: Socket, userId: string): Promise<void> {
+    try {
+      // Frozen now, before the await: a friend who connects during it will
+      // announce themselves with their own transition, and counting them here
+      // as well would tell this socket the same arrival twice.
+      const onlineNow = new Set(connections.keys());
+
+      const friends = await listFriends(userId);
+      const around = friends.filter((friend) => onlineNow.has(friend.id));
+      if (around.length === 0) return;
+
+      const chosen = await chosenPresences(around.map((friend) => friend.id));
+      for (const friend of around) {
+        socket.emit('presence', {
+          userId: friend.id,
+          presence: visible(chosen.get(friend.id) ?? 'online'),
+        });
+      }
+    } catch {
+      // Same as a broadcast: a snapshot that fails leaves everyone offline
+      // until they next transition, which is the state before this existed.
     }
   }
 
@@ -238,6 +297,21 @@ export function attachRealtime(app: FastifyInstance, options: RealtimeOptions = 
 
   return {
     deliver,
+    presenceChanged(userId) {
+      // Somebody who is not connected appears offline whatever they chose,
+      // and their friends already see that. Nothing to say until they arrive.
+      if (!connections.has(userId)) return;
+      void broadcastPresence(userId);
+    },
+    disconnectSessions(sessionIds) {
+      const gone = new Set(sessionIds);
+      if (gone.size === 0) return;
+      void (async () => {
+        for (const socket of await io.fetchSockets()) {
+          if (gone.has((socket.data as SocketData).sessionId)) socket.disconnect(true);
+        }
+      })();
+    },
     async close() {
       closing = true;
       clearInterval(sweep);
@@ -245,6 +319,11 @@ export function attachRealtime(app: FastifyInstance, options: RealtimeOptions = 
       await io.close();
     },
   };
+}
+
+/// The one mapping between what a person chose and what their friends see.
+function visible(chosen: WirePresence): EffectivePresence {
+  return chosen === 'invisible' ? 'offline' : chosen;
 }
 
 /// The cookie (web) or the handshake auth field (desktop shell), matching the

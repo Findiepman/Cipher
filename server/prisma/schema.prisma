@@ -59,6 +59,7 @@ model User {
   sessions    Session[]
   emailTokens EmailToken[]
   devices     Device[]
+  profile     Profile?
 
   auditActions AuditLog[] @relation("AuditActor")
   auditTargets AuditLog[] @relation("AuditTarget")
@@ -75,6 +76,58 @@ model User {
 
   @@index([status])
   @@index([createdAt])
+}
+
+/// What the person chose to appear as. The wire says 'offline' for INVISIBLE:
+/// the choice is theirs to know, the effect is all their friends get.
+enum ProfilePresence {
+  ONLINE
+  IDLE
+  DND
+  INVISIBLE
+}
+
+enum FriendRequestPolicy {
+  EVERYONE
+  FRIENDS_OF_FRIENDS
+  NOBODY
+}
+
+/// What a person shows their friends, and the two settings the server has to
+/// act on for them.
+///
+/// Stored in the clear, like ContactNickname and for the same reason: this is
+/// profile metadata, not message content, and it exists to be shown to other
+/// people. It is served to friends only (see modules/profile), never listed,
+/// never searchable. A row is created the first time the account edits any of
+/// it; an account with no row has the defaults below.
+///
+/// The pictures are base64 data URLs, the exact string the client already
+/// renders from localStorage, capped in bytes and checked for a real image
+/// header on the way in. Blob storage would be the answer at a size this app
+/// deliberately does not allow.
+model Profile {
+  userId String @id @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Empty means "show the username".
+  displayName String @default("")
+  about       String @default("")
+  /// #rrggbb, or null for a colour derived from the user id on every device.
+  accent String?
+  avatar String?
+  banner String?
+
+  presence ProfilePresence @default(ONLINE)
+
+  /// Whether the other participant is told where this person has read up to.
+  /// Their own other tabs always are.
+  readReceipts Boolean @default(true)
+
+  friendRequestsFrom FriendRequestPolicy @default(EVERYONE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum FriendshipStatus {

@@ -32,8 +32,9 @@ the platform adapter all of that goes through. It compiles and builds on
 Windows; the workflow has run once on a push, with the signing secret in
 place, and its Windows job passed while the macOS and Linux jobs failed on
 a missing `DATABASE_URL`, which is fixed and awaits the next push. What is
-left is parked on purpose rather than forgotten: the account endpoints
-behind settings and the backup cron on the box.
+left is parked on purpose rather than forgotten: the backup cron on the box.
+The account endpoints behind settings are done as of 2026-09-09, and with
+them a profile your friends can see.
 
 This file is the "get up to speed without reading everything" document. It says
 what works, what does not, and which decisions are load-bearing. Keep it
@@ -503,18 +504,17 @@ Two end-to-end proofs, both against a running server over real HTTP:
   verification and the rate limits are the only friction. `DEPLOY.md`
   → *Restricting who can register* has the Cloudflare Access recipe if that
   should change.
-- **The account endpoints the settings screen is already written against.**
-  That screen now exists, which inverts the old problem: the UI is ahead of
-  the server rather than behind it. `POST /account/change-password` and
-  `POST /account/recovery-code` work and are wired. Still 404 today:
-  `PATCH /account/me`, `/account/change-email[/confirm]`,
-  `GET|DELETE /account/sessions[/:id]`, `DELETE /account`, all of `/admin/*`.
-  (`POST /keys/device` and `DELETE /keys/device/:id` do not exist either.) The
-  client half of each already exists in `authService.ts` and is bound to a
-  button, so four controls in settings call an endpoint that is not there. The
-  sessions pair matters most: it is the only per-session revocation there will
-  ever be short of rotating `JWT_SECRET` and signing out every account on the
-  box.
+- **The account endpoints behind settings are in, all but admin.** As of
+  2026-09-09 the settings screen's server half exists: `PATCH /account/me`
+  (profile fields plus username, the latter through `newUsernameSchema` and
+  capped at three changes a day), `GET|DELETE /account/sessions[/:id]`
+  (revoking by refresh-token family and pushing the socket closed, not waiting
+  the sweep out), `POST /account/change-email[/context|/confirm]` (the confirm
+  swaps address and verifier together, since the address is the auth salt),
+  and `DELETE /account` (a soft delete: the handle and address freed, sessions
+  killed, the other side's sealed history left alone). Still absent: all of
+  `/admin/*`, and `POST /keys/device` / `DELETE /keys/device/:id`, which
+  multi-device needs and one-device-per-account does not.
 - **Call records, video, and binding the call to the identity key.** Voice
   calls work but leave no trace: a missed call is a four-second notice and then
   nothing, because nothing about a call touches the schema yet
@@ -550,9 +550,10 @@ Two end-to-end proofs, both against a running server over real HTTP:
   the `getDisplayMedia` call.
 - **Per person sounds beyond this device.** The map lives in the settings
   blob in `localStorage`, so the ringtone you gave someone does not follow
-  you to another browser. It is a preference and the server deliberately
-  holds none, which is decision 11; a device that has never been told simply
-  uses the defaults.
+  you to another browser. It is a preference the server deliberately holds
+  none of, which is decision 32; a device that has never been told simply
+  uses the defaults. The exceptions are the handful the server has to act on,
+  presence and read receipts, which do live on the account.
 - **Phase 2 encryption.** See `packages/crypto/AGENTS.md`.
 - **The desktop app has never been through its own pipeline.** The Tauri
   app in `desktop/` compiles, and `npm run build` there produced a signed
@@ -787,6 +788,22 @@ worse for this specific app.
     of the same decision is `lib/origins.ts`: the desktop origins on the
     CORS allowlist, HTTP and socket alike, which grants them nothing a
     cookie-less bearer caller did not already have.
+32. **A setting stays on the device unless someone else has to see it, or the
+    server has to act on it.** That is the whole rule for what `Profile` holds.
+    A display name, an about line, an accent, an avatar and a banner are the
+    first kind: your friends see them, so the server keeps them, in the clear
+    like a nickname (decision 14) and served to friends only, gated the way
+    the key registry is. Presence and read receipts are the second kind: the
+    server broadcasts your chosen presence and relays your read marker, so it
+    cannot enforce "invisible" or "receipts off" without holding them. Who may
+    send you a friend request is the same, enforced in `friends/service.js`.
+    Everything else, theme and sounds and language and who you have muted and
+    the order of your list, never reaches the server, and
+    `client/src/lib/settings/types.ts` is where the line is drawn. The pictures
+    are the base64 data URLs the client already stored, capped in bytes and
+    checked for a real image header, PNG, JPEG or WebP but never SVG, which is
+    a document with scripts in it. "Invisible" is stored as itself and only
+    ever leaves as "offline": what you chose is yours to know.
 24. **The reset context endpoint is a POST, and it does not spend the token.**
     A GET would put a live credential in a query string, which is the part of
     a request that reliably reaches access logs and browser history. Not
@@ -1086,20 +1103,18 @@ suspended.
 
 ## Reasonable next steps
 
-Pick one; they are roughly independent. The first two are deliberately parked:
-they are known, planned and not being done yet.
+Pick one; they are roughly independent.
 
-1. **Finish the account endpoints behind settings.** [`settings-plan.md`](settings-plan.md)
-   is the plan for this, section by section, with the traps written down.
-   The short version: in this order, because
-   each is worth something on its own: `GET|DELETE /account/sessions[/:id]`
-   (Devices & keys already lists them and the `Session` table already has
-   `deviceLabel`, `ip`, `userAgent` and `lastUsedAt`), then `PATCH /account/me`
-   (username changes have to run the word filter, so reuse
-   `newUsernameSchema`), then `POST /account/change-email[/confirm]` (the
-   `EmailToken` model already has `EMAIL_CHANGE` and a `newEmail` column for
-   exactly this), then `DELETE /account`. Until they land, four controls in
-   settings call endpoints that 404.
+1. **Profile sharing landed on 2026-09-09; what is left is the edges.** The
+   settings screen's server half is done (see the capability note above), and
+   with it a `Profile` table friends can read: a display name, an avatar, a
+   banner, an about line and a chosen presence, plus the two settings the
+   server has to act on, read receipts and who may send a friend request. It
+   is stored in the clear, like a nickname, and served to friends only, gated
+   the way the key registry is. The rule is decision 32 below. The edges not
+   done: the profile card fetches the banner on open but does not yet
+   preload it, presence is still per-process (decision 22's caveat), and
+   `/admin/*` is untouched.
 2. **Run `deploy/setup-backups.sh` on the box.** One command, and it is the
    last unfinished piece of the deployment: it checks the target disk, takes a
    dump, rehearses restoring it, and installs the cron entry only if all three

@@ -11,6 +11,8 @@
  * what stops "just log the message to debug it" from being possible here.
  */
 
+import type { Presence } from '../../types';
+
 export type ConnectionState = 'idle' | 'connecting' | 'online' | 'offline';
 
 /**
@@ -70,11 +72,13 @@ export interface TransportEvents {
   state: ConnectionState;
   typing: { channelId: string; userId: string };
   /**
-   * Derived from live connections and sent to friends only. It says whether
-   * someone has a client connected, which is all the server can know. It is
-   * not a claim that they are reading anything.
+   * Sent to friends only. What the server says someone is: connected and
+   * showing as online, idle or do not disturb, or 'offline', which covers both
+   * a person with no client connected and one who chose to appear that way.
+   * The two are deliberately the same word on the wire. It is not a claim
+   * that they are reading anything.
    */
-  presence: { userId: string; online: boolean };
+  presence: { userId: string; presence: Presence };
   /**
    * Somebody moved their read position in a channel.
    *

@@ -1,5 +1,6 @@
-import type { Device, User } from '../../generated/prisma/client.js';
+import type { Device, Profile, User } from '../../generated/prisma/client.js';
 import { prisma } from '../../db.js';
+import { toOwnProfile, type OwnProfileDto } from '../profile/dto.js';
 import { env } from '../../env.js';
 import { recordAudit, type AuditAction, type AuditEntry } from '../../lib/audit.js';
 import { badRequest, unauthorized } from '../../lib/errors.js';
@@ -52,6 +53,10 @@ export function recordCredentialAudit(
 /// Mirrors AccountDto in client/src/lib/api/types.ts. Lowercased role and
 /// status because the enum casing is a database detail, and `emailVerifiedAt`
 /// rather than a boolean because the UI shows when, not just whether.
+///
+/// `profile` is the caller's own, settings included, so one request at boot
+/// tells the client everything it has to show and everything it has to seed
+/// its local settings from. Null rows come out as the defaults.
 export interface AccountDto {
   id: string;
   email: string;
@@ -61,9 +66,10 @@ export interface AccountDto {
   emailVerifiedAt: string | null;
   createdAt: string;
   lastLoginAt: string | null;
+  profile: OwnProfileDto;
 }
 
-export function toAccountDto(user: User): AccountDto {
+export function toAccountDto(user: User, profile: Profile | null | undefined): AccountDto {
   return {
     id: user.id,
     email: user.email,
@@ -73,6 +79,7 @@ export function toAccountDto(user: User): AccountDto {
     emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
     createdAt: user.createdAt.toISOString(),
     lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
+    profile: toOwnProfile(profile),
   };
 }
 

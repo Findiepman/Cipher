@@ -48,6 +48,10 @@ export function DesktopNotifier() {
       // answer a question nobody is asking in between. The same test
       // ChatProvider uses to decide a conversation has been read.
       watching: document.hasFocus() && !document.hidden,
+      // Do not disturb is a presence, so it lives with the profile rather
+      // than the notification settings, and it silences this along with the
+      // chime and the ringer.
+      quiet: settings.profile.presence === 'dnd',
     });
 
     for (const arrival of allowed.slice(0, MOST_AT_ONCE)) {

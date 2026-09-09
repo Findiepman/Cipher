@@ -204,7 +204,7 @@ export class SocketTransport implements Transport {
     });
 
     socket.on('presence', (...args) => {
-      this.emit('presence', args[0] as { userId: string; online: boolean });
+      this.emit('presence', args[0] as TransportEvents['presence']);
     });
 
     socket.on('read', (...args) => {

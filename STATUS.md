@@ -112,6 +112,7 @@ account-work axis (`backend-plan.md`).
 | An OS notification when a message lands and the window is not in front | `client/src/components/DesktopNotifier.tsx`, `client/src/lib/settings/desktopNotifications.ts` |
 | The vault: notes to yourself, sealed under a passkey, on this device | `client/src/lib/vault/`, `client/src/screens/VaultScreen.tsx` |
 | Two languages, English and Dutch, with dates, times and numbers to match | `client/src/lib/i18n/`, `client/src/state/I18nProvider.tsx` |
+| Links you can click, inline code and code blocks with a copy button and colouring, in a message or a vault note | `client/src/lib/chat/format.ts`, `client/src/components/MessageBody.tsx` |
 | Alert sounds, synthesised rather than shipped, eight for a message and seven for a ring | `client/src/lib/media/sounds.ts` |
 | A different sound per person, so you know who it is without looking | `client/src/lib/settings/notificationSounds.ts`, `client/src/screens/settings/NotificationsSection.tsx` |
 | A ringtone on an incoming call, a chime on an arriving message | `client/src/components/CallRinger.tsx`, `client/src/components/MessageChime.tsx`, `client/src/state/useArrivingMessages.ts` |
@@ -397,6 +398,45 @@ notification setting are three separate places it can be silently off.
 
 Typecheck, the 324 client tests and `vite build` are clean. Not walked through
 by hand.
+
+**Links, inline code and code blocks in a message.** Added 2026-09-09, the two
+cards on the roadmap called *link formatting* and *code blocks*, and it is the
+first thing a bubble draws beyond the words as typed. Nothing changed on the
+wire: a body is still the text somebody wrote, and
+[`lib/chat/format.ts`](client/src/lib/chat/format.ts) decides on the reading
+device what it contains. Three backticks on a line of their own fence a block,
+with an optional language tag after the opening fence, and a closing fence may
+be missing, as on Discord. Single backticks are inline code. An address
+starting with http://, https:// or www. becomes a link, trimmed of the sentence
+punctuation after it, and it opens through the platform adapter rather than
+through the anchor, because in the desktop shell the anchor would open inside
+the WebView. A block has a language label and a copy button, and is coloured by
+highlight.js with nineteen grammars, loaded as a separate chunk by the first
+block that renders, so a conversation with no code in it never pays for them.
+The colours are four new tokens in `theme.css`, the same in every palette, and
+none of them is sage or red. The library's markup is the one place in the app
+where a typed string becomes HTML: highlight.js escapes the source before it
+emits a span, and nothing else is spliced into that string, which the note at
+the top of `lib/chat/highlight.ts` says in so many words.
+
+The other half of the card is a detector: a message with no fence that
+nonetheless reads as code is drawn as one block of it. It is a heuristic, and
+it is biased towards prose on purpose, because a snippet it misses can be
+fenced by hand and a sentence it wrongly claims cannot be unclaimed. One line
+has to prove it alone (a shell command, a dotted call, `const x = 5;`) and
+several lines are judged together: at least two have to look like code and be
+the majority, and lines that read as sentences must be outnumbered.
+`format.test.ts` keeps a list of messages that must stay prose ("let me know
+(tomorrow)", "see you at 5 ;)") beside the snippets that must not, and the
+prose list is the one to add to when something slips through. Two smaller
+things came with it: Enter inside an open fence in the composer inserts a line
+break instead of sending, and the conversation list flattens a body to one line
+for its preview rather than showing backticks. The vault draws its notes
+through the same component, so a note can hold a snippet too.
+
+Typecheck, the 407 client tests and `vite build` are clean. The bubbles were
+looked at in a browser through the vault in mock mode, not in a real
+conversation between two accounts.
 
 **Settings is a screen in front of endpoints that do not exist.** Seven
 sections render and three of them work end to end (Appearance, Voice & video,

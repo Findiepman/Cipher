@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
+import { hasOpenFence } from '../lib/chat/format';
 import { useT } from '../state/I18nProvider';
 import { EmojiIcon, PlusIcon } from './Icons';
 import '../styles/composer.css';
@@ -65,6 +66,10 @@ export function Composer({ placeholder, onSend, typing = [], onTyping, notice }:
           onChange={(event) => change(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
+              // Inside an open ``` fence, Enter is a line break: a code block
+              // is typed the way it will be read. Closing the fence, or the
+              // send button, sends it.
+              if (hasOpenFence(value)) return;
               event.preventDefault();
               send();
             }

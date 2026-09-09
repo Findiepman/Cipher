@@ -37,6 +37,16 @@
 
   --red: #e5484d;
 
+  /* Code in a message, four colours and no more, kept quiet on purpose: a
+     snippet should read as code without shouting over the bubble around it.
+     None of them is sage or red, which keep their meanings, and they are the
+     same in every palette because a keyword is not decoration. Comments take
+     --text-mute. The scopes they map onto are at the end of messages.css. */
+  --code-keyword: #c5a3e8;
+  --code-string: #d9b382;
+  --code-number: #8fc4cf;
+  --code-name: #92b4e6;
+
   --presence-online: #7fb08a;
   --presence-idle: #d9b382;
   --presence-dnd: #e5484d;
@@ -78,6 +88,11 @@
   --sage-line: #bcd6c3;
 
   --red: #b3261e;
+
+  --code-keyword: #6b3fa0;
+  --code-string: #8a6224;
+  --code-number: #1f6f7e;
+  --code-name: #2e5ea8;
 
   --presence-online: #3f7a53;
   --presence-idle: #a8813f;

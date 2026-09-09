@@ -18,7 +18,7 @@
 	#
 	# Adding a server module means adding it here. The SPA only ever navigates
 	# to / and /verify-email, so there is nothing to collide with.
-	@api path /auth /auth/* /account /account/* /friends /friends/* /keys /keys/* /conversations /conversations/* /calls /calls/* /health /health/* /socket.io /socket.io/*
+	@api path /auth /auth/* /account /account/* /users /users/* /friends /friends/* /keys /keys/* /conversations /conversations/* /calls /calls/* /health /health/* /socket.io /socket.io/*
 
 	handle @api {
 		reverse_proxy server:3000 {

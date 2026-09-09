@@ -47,17 +47,37 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
   exit 1
 }
 
+
+# Windows PowerShell 5.1 wraps a native command's stderr in an ErrorRecord, and
+# with $ErrorActionPreference = 'Stop' above that becomes a terminating error.
+# Every probe below expects a non-zero exit and a line on stderr as its normal
+# answer: "not logged in" and "release not found" are the questions being
+# asked, not failures. So they run with the preference relaxed and are judged
+# on the exit code alone, which is what was intended.
+#
+# PowerShell 7 does not do this, which is why the script ran there and stopped
+# here: `powershell -ExecutionPolicy Bypass` launches 5.1.
+function Invoke-GhProbe {
+  param([Parameter(ValueFromRemainingArguments = $true)][string[]]$GhArgs)
+  $previous = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    & gh @GhArgs 1>$null 2>$null
+    return $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previous
+  }
+}
+
 # A one-time browser sign-in. Skipped on every run after the first.
-gh auth status 1>$null 2>$null
-if ($LASTEXITCODE -ne 0) {
+if ((Invoke-GhProbe auth status) -ne 0) {
   Write-Host '==> signing in to GitHub (one time)'
   gh auth login
 }
 
 # 1. The empty hand-made release, if it is still around. It has no installers
 #    and no latest.json, so leaving it keeps the updater pointed at a 404.
-gh release view $staleTag 1>$null 2>$null
-if ($LASTEXITCODE -eq 0) {
+if ((Invoke-GhProbe release view $staleTag) -eq 0) {
   Write-Host "==> removing the empty $staleTag release and its tag"
   gh release delete $staleTag --yes --cleanup-tag
 }
@@ -73,7 +93,13 @@ if ($LASTEXITCODE -ne 0) { Write-Host 'Could not dispatch the workflow.'; exit 1
 Write-Host '==> waiting for the build to register'
 $runId = ''
 for ($i = 0; $i -lt 20; $i++) {
-  $runId = (gh run list --workflow=desktop.yml --event=workflow_dispatch -L 1 --json databaseId -q '.[0].databaseId' 2>$null)
+  $previous = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    $runId = (gh run list --workflow=desktop.yml --event=workflow_dispatch -L 1 --json databaseId -q '.[0].databaseId' 2>$null)
+  } finally {
+    $ErrorActionPreference = $previous
+  }
   if (-not [string]::IsNullOrWhiteSpace($runId)) { break }
   Start-Sleep -Seconds 3
 }

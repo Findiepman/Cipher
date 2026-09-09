@@ -1,6 +1,6 @@
 {
   "name": "@cipher/desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "The Cipher desktop app: the web client from client/ bundled into a Tauri shell, with a tray, notifications and signed updates. Packaging and native integration only, no app logic.",
   "scripts": {

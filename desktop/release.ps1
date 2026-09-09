@@ -34,10 +34,16 @@ if ([string]::IsNullOrWhiteSpace($version)) {
 Write-Host "==> desktop release v$version  (tag $tag)"
 
 # The GitHub CLI does the GitHub half. Everything below is one of its commands.
+# It installs to a fixed place that a window opened before the install does not
+# have on PATH, so add it here rather than making you reopen anything.
+if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+  foreach ($dir in @("$env:ProgramFiles\GitHub CLI", "${env:ProgramFiles(x86)}\GitHub CLI", "$env:LOCALAPPDATA\Programs\GitHub CLI")) {
+    if (Test-Path (Join-Path $dir 'gh.exe')) { $env:PATH = "$dir;$env:PATH"; break }
+  }
+}
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
   Write-Host 'The GitHub CLI is not installed. Install it once, then re-run this:'
   Write-Host '    winget install --id GitHub.cli'
-  Write-Host '(then open a new PowerShell window so gh is on PATH)'
   exit 1
 }
 

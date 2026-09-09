@@ -37,6 +37,13 @@ fi
 echo "==> desktop release v${VERSION}  (tag ${TAG})"
 
 # The GitHub CLI does the GitHub half. Everything below is one of its commands.
+# It installs to a fixed place that a terminal opened before the install does
+# not have on PATH, so add it here rather than making you reopen anything.
+if ! command -v gh >/dev/null 2>&1; then
+  for dir in "/c/Program Files/GitHub CLI" "/c/Program Files (x86)/GitHub CLI" "$LOCALAPPDATA/Programs/GitHub CLI"; do
+    if [ -x "$dir/gh.exe" ]; then PATH="$dir:$PATH"; break; fi
+  done
+fi
 if ! command -v gh >/dev/null 2>&1; then
   echo "The GitHub CLI is not installed. Install it once, then re-run this:" >&2
   echo "    winget install --id GitHub.cli" >&2

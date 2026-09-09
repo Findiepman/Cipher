@@ -27,7 +27,7 @@
  * notifications pauses all of it and not most of it.
  */
 import type { Arrival } from './desktopNotifications';
-import { isMuted } from './notificationSounds';
+import { isMuted, isPersonMuted } from './notificationSounds';
 import type { NotificationSettings } from './types';
 
 export interface ToastAttention {
@@ -58,7 +58,10 @@ export function toastable(
   if (!attention.watching) return [];
   if (isMuted(notifications.mutedUntil, now)) return [];
   return arrivals.filter(
-    (arrival) => !arrival.own && arrival.channelId !== attention.activeChannelId,
+    (arrival) =>
+      !arrival.own &&
+      arrival.channelId !== attention.activeChannelId &&
+      !isPersonMuted(notifications, arrival.message.authorId),
   );
 }
 

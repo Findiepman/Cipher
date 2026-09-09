@@ -31,7 +31,7 @@
  * is from is one you have to open the app to act on, which defeats it.
  */
 import type { Message } from '../../types';
-import { isMuted } from './notificationSounds';
+import { isMuted, isPersonMuted } from './notificationSounds';
 import type { NotificationSettings } from './types';
 
 /** One conversation whose newest message changed. */
@@ -87,7 +87,9 @@ export function notifiable(
   if (attention.watching) return [];
   if (isMuted(notifications.mutedUntil, now)) return [];
   if (attention.quiet) return [];
-  return arrivals.filter((arrival) => !arrival.own);
+  return arrivals.filter(
+    (arrival) => !arrival.own && !isPersonMuted(notifications, arrival.message.authorId),
+  );
 }
 
 /**

@@ -337,42 +337,6 @@
 
 /* --- the signed-in account strip --------------------------------------- */
 
-.account-strip {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 7px 14px;
-  border-bottom: 1px solid var(--line);
-  background: var(--bg-panel);
-  font-size: 12.5px;
-}
-
-.account-strip-who {
-  color: var(--text-mute);
-}
-
-.account-strip-who strong {
-  color: var(--text-hi);
-  font-weight: 600;
-}
-
-.account-strip-spacer {
-  flex: 1;
-}
-
-.account-strip button {
-  padding: 4px 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  color: var(--text-mute);
-  font-size: 12px;
-}
-
-.account-strip button:hover {
-  color: var(--text-hi);
-  background: var(--hover);
-}
-
 .auth-centered {
   display: grid;
   place-items: center;

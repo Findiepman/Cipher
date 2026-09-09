@@ -50,6 +50,18 @@ function InlinePart({ part }: { part: Inline }) {
   if (part.kind === 'text') return <>{part.text}</>;
   if (part.kind === 'code') return <code className="bubble__inline-code mono">{part.text}</code>;
 
+  if (part.kind === 'emphasis') {
+    // Recursive, because emphasis nests: bold inside italic inside a link is
+    // one tree and rendering it flat would lose the inner half.
+    const inner = part.parts.map((child, index) => <InlinePart key={index} part={child} />);
+    if (part.style === 'bold') return <strong>{inner}</strong>;
+    if (part.style === 'italic') return <em>{inner}</em>;
+    if (part.style === 'strike') return <s>{inner}</s>;
+    // A spoiler is hidden until asked for, so it is a button rather than a
+    // span: it is a thing you press, and a keyboard has to be able to press it.
+    return <Spoiler>{inner}</Spoiler>;
+  }
+
   return (
     <a
       className="bubble__link"
@@ -67,6 +79,29 @@ function InlinePart({ part }: { part: Inline }) {
     >
       {part.text}
     </a>
+  );
+}
+
+/**
+ * Hidden text, revealed on a press and not before.
+ *
+ * Once shown it stays shown: re-hiding on a second click reads as a mistake,
+ * and the point was never to keep it secret from the person who asked.
+ */
+function Spoiler({ children }: { children: React.ReactNode }) {
+  const [shown, setShown] = useState(false);
+  const t = useT();
+  return (
+    <button
+      type="button"
+      className={shown ? 'bubble__spoiler bubble__spoiler--shown' : 'bubble__spoiler'}
+      aria-label={shown ? undefined : t('chat.spoiler')}
+      onClick={() => setShown(true)}
+      // The bubble's right-click menu should still work over one.
+      onContextMenu={(event) => event.stopPropagation()}
+    >
+      {children}
+    </button>
   );
 }
 

@@ -85,7 +85,14 @@ function ProfileHarness() {
         type="button"
         onClick={() =>
           applyProfiles(
-            saveAs({ profile: settings.profile, profiles: settings.profiles }, 'day'),
+            saveAs(
+              {
+                profile: settings.profile,
+                profiles: settings.profiles,
+                appearance: settings.appearance,
+              },
+              'day',
+            ),
           )
         }
       >

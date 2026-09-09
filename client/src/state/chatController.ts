@@ -156,12 +156,18 @@ export class ChatController {
         void this.ingest(incoming);
       }),
       this.transport.on('read', ({ channelId, userId, lastReadMessageId }) => {
-        // Only our own reads move our own badges. Somebody else reading is
-        // their business, and this client draws it nowhere.
+        // Our own reads move our own badges; somebody else's marks our
+        // messages as seen.
         //
         // This includes the echo of what this tab just reported, which needs
         // no special case: the count it lands on is the one we already have.
-        if (userId !== this.identity?.userId) return;
+        if (userId !== this.identity?.userId) {
+          // Somebody else's read position. It moves no badge of ours, but it
+          // is what lets our own message say it was seen.
+          this.dispatch({ type: 'peerRead', channelId, userId, messageId: lastReadMessageId });
+          this.emit();
+          return;
+        }
         this.dispatch({ type: 'readUpTo', channelId, messageId: lastReadMessageId });
       }),
       this.transport.on('state', (state) => {
@@ -229,6 +235,51 @@ export class ChatController {
     });
 
     await this.outbox.enqueue({ clientId, channelId, envelopes, sentAt });
+    await this.flush();
+  }
+
+  /**
+   * Tries an abandoned message again.
+   *
+   * Needed because nothing else will. The outbox drops an entry once it has
+   * spent its attempts or hit an error not worth retrying, so a message in
+   * `unsent` has no queue behind it and will sit there forever unless somebody
+   * asks. That is the whole reason the bubble grew a button.
+   *
+   * It is sealed again from the plaintext rather than reusing the old
+   * ciphertext, because the reason it failed may have been the recipient list:
+   * a friend who had no device when you typed it has one now, and a stale
+   * envelope would fail for exactly the same reason a second time.
+   */
+  async retry(clientId: string): Promise<void> {
+    const identity = this.requireIdentity();
+    const message = this.state.messages.find((entry) => entry.clientId === clientId);
+    if (!message || message.state !== 'unsent' || message.body === null) return;
+
+    const recipients = await this.recipientsFor(message.channelId, identity);
+    const envelopes: Envelope[] = await Promise.all(
+      recipients.map(async (recipient) => ({
+        recipientUserId: recipient.userId,
+        ciphertext: serializeCiphertext(
+          await encryptMessage(message.body ?? '', recipient.publicKey, identity.privateKey),
+        ),
+      })),
+    );
+
+    // Back to sending under the same clientId, so the bubble already on screen
+    // becomes the live one rather than a second copy appearing beneath it.
+    this.dispatch({
+      type: 'sending',
+      message: { ...message, state: 'sending', error: undefined },
+    });
+    this.emit();
+
+    await this.outbox.enqueue({
+      clientId,
+      channelId: message.channelId,
+      envelopes,
+      sentAt: message.sentAt,
+    });
     await this.flush();
   }
 

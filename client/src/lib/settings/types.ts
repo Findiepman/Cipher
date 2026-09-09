@@ -219,11 +219,35 @@ export type ProfileSettings = {
  * A diff would make "this one has no picture" and "this one does not say"
  * the same thing, and they are not.
  */
+/**
+ * What a saved profile carries with it.
+ *
+ * A profile started as a face and a bio. It is a mood now: the point of
+ * keeping one is that switching back means not retyping *anything*, and the
+ * things people change together are the bio, the colours and where the bar
+ * sits. Which of those a given profile restores is the user's choice, because
+ * one person keeps four bios under one theme and another keeps four themes
+ * under one bio, and guessing wrong makes switching destructive.
+ *
+ * Named in groups rather than per field: nobody wants a checklist of eleven
+ * appearance properties, and "wallpaper" plainly means the picture and how far
+ * it is dimmed and blurred.
+ */
+export type ProfileCapture = 'profile' | 'theme' | 'wallpaper' | 'layout';
+
 export type SavedProfile = {
   id: string;
   /** Whatever you want to call it. Never shown to anyone else. */
   name: string;
   profile: ProfileSettings;
+  /**
+   * Which groups this one restores when worn. Absent means profile alone,
+   * which is what every profile saved before moods existed carries, and is
+   * why it is optional rather than defaulted at the type level.
+   */
+  captures?: ProfileCapture[];
+  /** The appearance fields the captures name, and nothing else. */
+  appearance?: Partial<AppearanceSettings>;
 };
 
 /**
@@ -357,6 +381,16 @@ export type NotificationSettings = {
   perPerson: Record<string, PersonSounds>;
   /** ISO-8601 instant, or null when notifications are not paused. */
   mutedUntil: string | null;
+  /**
+   * People whose messages make no sound and raise nothing, by user id.
+   *
+   * Different from `mutedUntil`, which pauses everything for a while. This is
+   * per person and has no end: the one flatmate who sends forty messages an
+   * hour is a standing arrangement, not a snooze. Kept beside `perPerson`
+   * because they are the same idea pointed opposite ways, one choosing a
+   * sound and one choosing none.
+   */
+  mutedPeople: string[];
   unreadBadge: boolean;
 };
 
@@ -502,6 +536,7 @@ export const DEFAULT_SETTINGS: Settings = {
     callSound: 'bells',
     perPerson: {},
     mutedUntil: null,
+    mutedPeople: [],
     unreadBadge: true,
   },
   privacy: {

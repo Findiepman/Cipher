@@ -40,60 +40,75 @@
   overflow: hidden;
 }
 
+/* A destination in the rail: a square with an icon, no words. The label is
+   the tooltip and the accessible name, so nothing is lost to a screen reader
+   or to a pointer that pauses. */
 .workspace {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  height: 30px;
-  padding: 0 12px;
-  border-radius: 15px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-md);
   color: var(--text-mute);
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
   transition:
     color 140ms ease,
-    background-color 140ms ease;
+    background-color 140ms ease,
+    border-radius 140ms ease;
 }
+
 .workspace:hover {
   color: var(--text-hi);
   background: var(--hover);
 }
 
+/* Where you are: the tile fills, and a marker sits against the rail's edge.
+   Two signals rather than one, because colour alone is missed at the edge of
+   vision and by anyone who cannot separate these two colours. */
 .workspace--active,
 .workspace--active:hover {
-  padding-left: 10px;
   background: var(--ember);
   color: var(--ember-ink);
-  font-weight: 600;
 }
 
-.workspace__dot {
+.workspace__icon {
+  display: grid;
+  place-items: center;
+}
+
+/* Drawn only for the active tile, and only in the rail placements, where
+   there is an edge for it to sit against. */
+.workspace__marker {
+  display: none;
+}
+
+.workspace__dot--unread {
+  position: absolute;
+  top: 8px;
+  right: 8px;
   width: 6px;
   height: 6px;
   border-radius: 3px;
-  background: var(--ember-ink);
-  flex: 0 0 auto;
-}
-.workspace__dot--unread {
   background: var(--text-hi);
 }
 
+/* Corner-mounted, because the tile is now square and a badge in the flow
+   would stretch it. */
 .workspace__badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
   min-width: 17px;
   height: 17px;
   padding: 0 5px;
   border-radius: 9px;
+  border: 2px solid var(--bg-panel);
   background: var(--red);
-  color: var(--bg-app);
+  color: #fff;
   font-size: 10px;
   font-weight: 600;
-  line-height: 17px;
+  line-height: 13px;
   text-align: center;
-}
-.workspace--active .workspace__badge {
-  background: var(--ember-ink);
-  color: var(--ember);
 }
 
 .top-bar__add {
@@ -157,40 +172,78 @@
   .top-bar[data-placement='left'],
   .top-bar[data-placement='right'] {
     height: auto;
-    width: 132px;
-    flex: 0 0 132px;
+    /* 72px: a 44px tile with room either side, which is what Discord's rail
+       is and what the icons need. The 60px it gives back goes to the
+       conversation, which is the column anyone is actually reading. */
+    width: 72px;
+    flex: 0 0 72px;
     flex-direction: column;
-    align-items: stretch;
-    gap: 16px;
-    padding: 14px 12px;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 0;
   }
 
   .top-bar[data-placement='left'] .top-bar__brand,
   .top-bar[data-placement='right'] .top-bar__brand {
-    padding: 2px 4px;
+    padding: 2px 0;
+    justify-content: center;
+  }
+
+  /* The wordmark does not fit a 72px rail and was spilling under the
+     conversation list. The mark alone carries it here, which is the whole
+     point of a mark, and the full name is still on the sign-in screen and in
+     the window title. */
+  .top-bar[data-placement='left'] .top-bar__wordmark,
+  .top-bar[data-placement='right'] .top-bar__wordmark {
+    display: none;
   }
 
   .top-bar[data-placement='left'] .top-bar__workspaces,
   .top-bar[data-placement='right'] .top-bar__workspaces {
     flex-direction: column;
-    align-items: stretch;
-    gap: 2px;
+    align-items: center;
+    gap: 8px;
     overflow: visible;
   }
 
-  /* A pill in a rail is a row: the label takes the space and the badge stays
-     pinned to the end of it, so two entries of different lengths line up. */
-  .top-bar[data-placement='left'] .workspace,
-  .top-bar[data-placement='right'] .workspace {
-    height: 34px;
-    border-radius: var(--r-sm);
+  /* The marker against the rail's edge, drawn only here because only a rail
+     has an edge to sit against. It grows from a stub on hover to a full bar
+     when active, which is the movement that makes it read as "you are here"
+     rather than as decoration. */
+  .top-bar[data-placement='left'] .workspace__marker,
+  .top-bar[data-placement='right'] .workspace__marker {
+    display: block;
+    position: absolute;
+    top: 50%;
+    width: 4px;
+    height: 0;
+    border-radius: 0 3px 3px 0;
+    background: var(--text-hi);
+    transform: translateY(-50%);
+    transition:
+      height 160ms ease,
+      opacity 160ms ease;
+    opacity: 0;
   }
 
-  .top-bar[data-placement='left'] .workspace__label,
-  .top-bar[data-placement='right'] .workspace__label {
-    flex: 1 1 auto;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .top-bar[data-placement='left'] .workspace__marker {
+    left: -12px;
+  }
+  .top-bar[data-placement='right'] .workspace__marker {
+    right: -12px;
+    border-radius: 3px 0 0 3px;
+  }
+
+  .top-bar[data-placement='left'] .workspace:hover .workspace__marker,
+  .top-bar[data-placement='right'] .workspace:hover .workspace__marker {
+    height: 10px;
+    opacity: 1;
+  }
+
+  .top-bar[data-placement='left'] .workspace--active .workspace__marker,
+  .top-bar[data-placement='right'] .workspace--active .workspace__marker {
+    height: 24px;
+    opacity: 1;
   }
 
   /* You, at the foot of the rail. `margin-top: auto` is what the horizontal bar

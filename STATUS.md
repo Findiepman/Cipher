@@ -1322,11 +1322,65 @@ and not fixable from the client: Android freezes the page, so no code is
 running to notify. That case is web push, which needs the server half nobody
 has built.
 
-**Settings cannot be reached on a phone.** Found the same day: the only way in
-was to switch on the desktop layout by hand. The gear lives somewhere the
-narrow layout does not render, which makes every per-device preference
-unreachable on the device most likely to need different ones, notifications
-above all. Not yet fixed.
+**A phone has its own bar along the bottom now.** Fixed 2026-09-09, and the
+bug behind it was worse than "hard to find". A narrow screen drops the
+conversation list (`app.css`, the 820px rule) and the settings gear lived
+inside it, so a phone had no way *in*. Once in, the close button lives in
+`settings__topline`, inside a pane the list view hides, so going back to the
+list left no way *out* either. Both were the same missing thing: no navigation
+that stays on screen.
+
+`components/MobileNav.tsx` is that navigation: Direct, Friends, Vault and your
+own avatar for settings, labelled rather than icons alone, 56px targets and
+`env(safe-area-inset-bottom)` so a gesture bar does not sit on it. It is drawn
+on the settings screen too, deliberately, which is what makes it an escape as
+well as a destination: you leave by going somewhere.
+
+One trap worth recording. The bar cannot live inside `.app`, because the
+activity bar's bottom, left and right placements all become `column-reverse`
+on a narrow screen, which would have put it at the *top* for three settings
+out of four. An `.app-frame` wrapper holds the screen and the bar as siblings
+so it sits below whatever the app does with its own children.
+
+**And the activity bar setting now says what it does.** It has no effect on a
+phone, since the wide bar's pills are hidden there and this bar replaces them,
+so the hint no longer claims a side rail falls to the bottom and a note only
+that screen can see says the app draws its own. A setting that silently does
+nothing is worse than one that admits it.
+
+**A pass over the chat surface, 2026-09-09.** Seven things, and two of them
+were bugs rather than gaps.
+
+**A message that never sent said the wrong thing entirely.** `'failed'` meant
+both "arrived and would not decrypt" and "you wrote this and it never left",
+and `MessageList` drew a padlock over both. So your own words came back as
+unreadable. Worse, by the time the UI knew, nothing was going to retry: the
+outbox reports an entry as failed only after eight attempts or a non-retryable
+error, and drops it from the queue in the same breath. `'unsent'` is its own
+state now, the bubble keeps its text and dims, and "Try again" is the only
+thing that will ever send it. Retry re-seals from the plaintext rather than
+reusing the envelope, because a common cause is a recipient who had no device
+then and has one now.
+
+**The other person's read position was being thrown away.** The server relays
+it, and the controller had a comment saying this client draws it nowhere.
+It draws it now: "Seen" under the last of your messages they have read.
+
+Also: markdown emphasis (`**bold**`, `*italic*`, `~~strike~~`, `||spoiler||`)
+on top of the links and code Fin shipped, with nine tests for the things that
+go wrong quietly, chiefly that `**` must be tried before `*` and that a lone
+marker stays a character so "2 * 3" is arithmetic. One timestamp per run
+instead of one per bubble, the rest on hover, which is what makes grouping
+visible: it was always there. Copy on hover, and copy only, because the server
+has no route to edit or delete a message and a button that lied would be
+worse. Per-person mute in the right-click menu, checked by one helper so the
+chime, the toast and the OS notification cannot drift into three answers. A
+conversation now opens with the person's face, handle and about line rather
+than the app's own logo. And the vault's first screen says the thing everyone
+asks, which is why the passkey is not the account password.
+
+Not built and not ours: editing and deleting a message need
+`PATCH`/`DELETE` routes that do not exist.
 
 **A phone can now be a real test device.** Added 2026-09-09. Three pieces,
 and the reason for each is worth keeping.

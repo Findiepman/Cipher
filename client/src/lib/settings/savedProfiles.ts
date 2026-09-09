@@ -21,7 +21,14 @@
  * operation moves both of them and doing that in two steps would publish a
  * moment where they disagree about which profile is loaded.
  */
-import { DEFAULT_SETTINGS, type ProfileSettings, type ProfilesSettings, type SavedProfile } from './types';
+import {
+  DEFAULT_SETTINGS,
+  type AppearanceSettings,
+  type ProfileCapture,
+  type ProfileSettings,
+  type ProfilesSettings,
+  type SavedProfile,
+} from './types';
 
 /**
  * Enough to be useful, few enough that the row of them stays a row.
@@ -39,6 +46,62 @@ export const MAX_PROFILE_NAME = 24;
 export interface ProfilesState {
   profile: ProfileSettings;
   profiles: ProfilesSettings;
+  /**
+   * The live appearance. Here because a profile is a mood now and a mood can
+   * carry colours and a wallpaper, so wearing one has to be able to change
+   * them and taking one off has to be able to keep them.
+   */
+  appearance: AppearanceSettings;
+}
+
+/**
+ * Which appearance fields each capture group owns.
+ *
+ * Grouped rather than per field because a checklist of eleven properties is
+ * not a feature, it is a form. Each group is one sentence a person would say:
+ * the colours, the picture behind it, the way it is laid out.
+ *
+ * `profile` is not in here: it is the whole ProfileSettings section and is
+ * handled on its own, since it is the one group that existed before moods did.
+ */
+export const CAPTURE_FIELDS = {
+  theme: ['theme', 'palette', 'customAccent', 'customTint'],
+  wallpaper: ['wallpaper', 'wallpaperDim', 'wallpaperBlur'],
+  layout: ['activityBar', 'density', 'fontScale'],
+} as const satisfies Record<string, readonly (keyof AppearanceSettings)[]>;
+
+/** Every group, in the order the settings screen offers them. */
+export const CAPTURES: readonly ProfileCapture[] = [
+  'profile',
+  'theme',
+  'wallpaper',
+  'layout',
+];
+
+/** What a profile saved before moods existed carries. */
+const LEGACY_CAPTURES: ProfileCapture[] = ['profile'];
+
+/** The captures a stored entry declares, treating absence as the old shape. */
+export function capturesOf(entry: SavedProfile): ProfileCapture[] {
+  return entry.captures ?? LEGACY_CAPTURES;
+}
+
+/** The appearance fields those groups name, lifted out of a live section. */
+export function snapshotAppearance(
+  appearance: AppearanceSettings,
+  captures: readonly ProfileCapture[],
+): Partial<AppearanceSettings> {
+  const out: Partial<AppearanceSettings> = {};
+  for (const capture of captures) {
+    if (capture === 'profile') continue;
+    for (const field of CAPTURE_FIELDS[capture]) {
+      // Written one field at a time so the result only ever holds what was
+      // asked for. Spreading the section and deleting would leave anything
+      // added to AppearanceSettings later silently riding along.
+      (out as Record<string, unknown>)[field] = appearance[field];
+    }
+  }
+  return out;
 }
 
 /**
@@ -47,15 +110,22 @@ export interface ProfilesState {
  * Saving does not change how you look, which is the point: the profile you
  * were already using is the one that gets kept, and it stays loaded.
  */
-export function saveAs(state: ProfilesState, name: string): ProfilesState {
+export function saveAs(
+  state: ProfilesState,
+  name: string,
+  captures: readonly ProfileCapture[] = LEGACY_CAPTURES,
+): ProfilesState {
   if (state.profiles.saved.length >= MAX_PROFILES) return state;
   const entry: SavedProfile = {
     id: newId(),
     name: nameFor(name, state.profiles.saved),
     profile: { ...state.profile },
+    captures: [...captures],
+    appearance: snapshotAppearance(state.appearance, captures),
   };
   return {
     profile: state.profile,
+    appearance: state.appearance,
     profiles: { active: entry.id, saved: [...state.profiles.saved, entry] },
   };
 }
@@ -78,6 +148,7 @@ export function addBlank(state: ProfilesState, name: string): ProfilesState {
   };
   return {
     profile: entry.profile,
+    appearance: state.appearance,
     profiles: { active: entry.id, saved: [...shelved, entry] },
   };
 }
@@ -95,6 +166,7 @@ export function duplicate(state: ProfilesState, id: string, name: string): Profi
   };
   return {
     profile: entry.profile,
+    appearance: state.appearance,
     profiles: { active: entry.id, saved: [...shelved, entry] },
   };
 }
@@ -111,8 +183,14 @@ export function switchTo(state: ProfilesState, id: string): ProfilesState {
   const shelved = mirror(state);
   const target = shelved.find((entry) => entry.id === id);
   if (!target) return state;
+  const captures = capturesOf(target);
+
   return {
-    profile: { ...target.profile },
+    // A mood that does not carry a profile leaves the one you are wearing
+    // alone. That is the whole reason the groups are a choice: somebody who
+    // keeps four themes under one bio must not lose the bio to a theme.
+    profile: captures.includes('profile') ? { ...target.profile } : state.profile,
+    appearance: { ...state.appearance, ...(target.appearance ?? {}) },
     profiles: { active: id, saved: shelved },
   };
 }
@@ -122,6 +200,7 @@ export function rename(state: ProfilesState, id: string, name: string): Profiles
   if (!trimmed) return state;
   return {
     profile: state.profile,
+    appearance: state.appearance,
     profiles: {
       ...state.profiles,
       saved: state.profiles.saved.map((entry) =>
@@ -143,6 +222,7 @@ export function remove(state: ProfilesState, id: string): ProfilesState {
   if (saved.length === state.profiles.saved.length) return state;
   return {
     profile: state.profile,
+    appearance: state.appearance,
     profiles: { active: state.profiles.active === id ? '' : state.profiles.active, saved },
   };
 }
@@ -151,9 +231,18 @@ export function remove(state: ProfilesState, id: string): ProfilesState {
 function mirror(state: ProfilesState): SavedProfile[] {
   const { active, saved } = state.profiles;
   if (!active) return saved;
-  return saved.map((entry) =>
-    entry.id === active ? { ...entry, profile: { ...state.profile } } : entry,
-  );
+  return saved.map((entry) => {
+    if (entry.id !== active) return entry;
+    const captures = capturesOf(entry);
+    return {
+      ...entry,
+      // Only what it captures. Writing the live profile back into a mood that
+      // is only about colours would quietly turn it into one about both, and
+      // the next switch would carry a bio the user never put there.
+      profile: captures.includes('profile') ? { ...state.profile } : entry.profile,
+      appearance: snapshotAppearance(state.appearance, captures),
+    };
+  });
 }
 
 /**
@@ -197,10 +286,23 @@ export function resolveSavedProfiles(value: unknown): SavedProfile[] {
     if (typeof item.id !== 'string' || !item.id || seen.has(item.id)) continue;
     if (typeof item.name !== 'string' || !item.name.trim()) continue;
     seen.add(item.id);
+    // Captures and appearance are checked the same way everything else here
+    // is: fall back quietly. A settings file is the last thing that should
+    // stop the app from starting, and an entry claiming a group that does not
+    // exist would otherwise reach `snapshotAppearance` and index nothing.
+    const captures = Array.isArray(item.captures)
+      ? (item.captures.filter(
+          (capture): capture is ProfileCapture =>
+            typeof capture === 'string' && (CAPTURES as readonly string[]).includes(capture),
+        ) as ProfileCapture[])
+      : undefined;
+
     out.push({
       id: item.id,
       name: item.name.slice(0, MAX_PROFILE_NAME),
       profile: resolveProfile(item.profile),
+      ...(captures ? { captures } : {}),
+      ...(isRecord(item.appearance) ? { appearance: item.appearance as never } : {}),
     });
     if (out.length === MAX_PROFILES) break;
   }

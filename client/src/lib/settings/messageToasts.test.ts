@@ -142,3 +142,20 @@ describe('the pairing with the desktop notification', () => {
     expect(away).toBe(1);
   });
 });
+
+describe('muting one person', () => {
+  it('silences their messages without silencing anyone else', () => {
+    const muted = { ...on, mutedPeople: ['them'] };
+    expect(toastable([arrival()], muted, here)).toEqual([]);
+    const other = arrival({ message: message({ authorId: 'someone-else' }) });
+    expect(toastable([other], muted, here)).toHaveLength(1);
+  });
+
+  it('is not a pause: it has no end and outlives one', () => {
+    // mutedUntil is a snooze for everything; this is a standing arrangement
+    // for one person, and the two must not be confused for each other.
+    const muted = { ...on, mutedPeople: ['them'], mutedUntil: null };
+    const longAfter = Date.parse('2030-01-01T00:00:00.000Z');
+    expect(toastable([arrival()], muted, here, longAfter)).toEqual([]);
+  });
+});

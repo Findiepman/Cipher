@@ -19,7 +19,9 @@ import {
 } from 'react';
 import { SettingsStore, settingsStore as defaultStore } from '../lib/settings/store';
 import {
+  capturesOf,
   resolveSavedProfiles,
+  snapshotAppearance,
   type ProfilesState,
 } from '../lib/settings/savedProfiles';
 import {
@@ -171,26 +173,61 @@ export function SettingsProvider({
   const update = useCallback<SettingsContextValue['update']>(
     (section, values) => {
       const { active, saved } = store.current.profiles;
-      if (section !== 'profile' || !active) {
-        store.patch(section, values);
+      const worn = active ? saved.find((entry) => entry.id === active) : undefined;
+
+      if (section === 'profile' && worn && capturesOf(worn).includes('profile')) {
+        const profile = {
+          ...store.current.profile,
+          ...(values as Partial<Settings['profile']>),
+        };
+        store.patchSections({
+          profile,
+          profiles: {
+            saved: saved.map((entry) => (entry.id === active ? { ...entry, profile } : entry)),
+          },
+        });
         return;
       }
-      const profile = { ...store.current.profile, ...(values as Partial<Settings['profile']>) };
-      store.patchSections({
-        profile,
-        profiles: {
-          saved: saved.map((entry) =>
-            entry.id === active ? { ...entry, profile } : entry,
-          ),
-        },
-      });
+
+      // The same mirroring for the appearance groups. Without it, tweaking a
+      // wallpaper while wearing a mood that carries one would look applied and
+      // then vanish the next time you switched back to it.
+      if (section === 'appearance' && worn) {
+        const captures = capturesOf(worn).filter((capture) => capture !== 'profile');
+        if (captures.length > 0) {
+          const appearance = {
+            ...store.current.appearance,
+            ...(values as Partial<Settings['appearance']>),
+          };
+          store.patchSections({
+            appearance,
+            profiles: {
+              saved: saved.map((entry) =>
+                entry.id === active
+                  ? { ...entry, appearance: snapshotAppearance(appearance, captures) }
+                  : entry,
+              ),
+            },
+          });
+          return;
+        }
+      }
+
+      store.patch(section, values);
     },
     [store],
   );
 
   const applyProfiles = useCallback<SettingsContextValue['applyProfiles']>(
     (next) => {
-      store.patchSections({ profile: next.profile, profiles: next.profiles });
+      // Appearance rides along now: a profile is a mood and a mood can carry
+      // the colours, the wallpaper and where the bar sits. One patch rather
+      // than three, so the app never paints a half-applied mood.
+      store.patchSections({
+        profile: next.profile,
+        profiles: next.profiles,
+        appearance: next.appearance,
+      });
     },
     [store],
   );

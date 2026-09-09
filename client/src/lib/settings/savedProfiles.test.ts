@@ -33,7 +33,11 @@ function profile(over: Partial<ProfileSettings> = {}): ProfileSettings {
 
 /** Nothing saved yet, wearing whatever is passed in. */
 function fresh(live: Partial<ProfileSettings> = {}): ProfilesState {
-  return { profile: profile(live), profiles: { active: '', saved: [] } };
+  return {
+    profile: profile(live),
+    profiles: { active: '', saved: [] },
+    appearance: DEFAULT_SETTINGS.appearance,
+  };
 }
 
 describe('saving a profile', () => {

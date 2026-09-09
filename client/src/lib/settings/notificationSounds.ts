@@ -70,3 +70,18 @@ export function withPersonSound(
 
   return next;
 }
+
+/**
+ * Whether this person is muted outright.
+ *
+ * Its own function so the three places that ask (the chime, the toast and the
+ * OS notification) cannot drift into three different answers, which is exactly
+ * how a muted person ends up silent in one place and not another.
+ */
+export function isPersonMuted(
+  notifications: NotificationSettings,
+  userId: string | undefined,
+): boolean {
+  if (!userId) return false;
+  return notifications.mutedPeople.includes(userId);
+}

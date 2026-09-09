@@ -44,7 +44,7 @@ describe('optimistic send', () => {
     expect(state.messages[0]).toMatchObject({ id: 'srv-9', state: 'decrypted', body: 'hello' });
   });
 
-  it('marks a rejected message failed rather than removing it', () => {
+  it('marks a rejected message unsent rather than removing it', () => {
     let state = chatReducer(initialChatState, {
       type: 'sending',
       message: message({ id: 'c-1', clientId: 'c-1', state: 'sending' }),
@@ -52,7 +52,20 @@ describe('optimistic send', () => {
     state = chatReducer(state, { type: 'sendFailed', clientId: 'c-1', error: 'rejected' });
 
     expect(state.messages).toHaveLength(1);
-    expect(state.messages[0]).toMatchObject({ state: 'failed', error: 'rejected', body: 'hello' });
+    expect(state.messages[0]).toMatchObject({ state: 'unsent', error: 'rejected', body: 'hello' });
+  });
+
+  it('keeps the body, so an unsent message can still be read and retried', () => {
+    // The failure this guards: `unsent` sharing a state with `failed` meant
+    // the list drew a padlock over your own words and offered no way to send
+    // them, which is the opposite of both facts.
+    let state = chatReducer(initialChatState, {
+      type: 'sending',
+      message: message({ id: 'c-2', clientId: 'c-2', state: 'sending' }),
+    });
+    state = chatReducer(state, { type: 'sendFailed', clientId: 'c-2', error: 'offline' });
+    expect(state.messages[0]?.body).toBe('hello');
+    expect(state.messages[0]?.state).not.toBe('failed');
   });
 });
 

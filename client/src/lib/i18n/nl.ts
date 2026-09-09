@@ -44,6 +44,10 @@ export const nl: Catalogue<Key> = {
   'settings.nav': 'Onderdelen van instellingen',
   'settings.back': 'Instellingen',
   'settings.close': 'Instellingen sluiten',
+  'account.you':
+    'Jij',
+  'account.editProfile':
+    'Profiel bewerken',
   'settings.lock': 'Vergrendelen',
   'settings.signOut': 'Uitloggen',
   'settings.group.you': 'jij',
@@ -237,7 +241,9 @@ export const nl: Catalogue<Key> = {
   'appearance.group.layout': 'indeling',
   'appearance.bar': 'Activiteitenbalk',
   'appearance.barHint':
-    'Aan welke rand Direct en Vrienden zitten. Een venster dat te smal is voor een balk naast het gesprek zet een zijbalk onderlangs tot er weer ruimte is.',
+    'Aan welke rand Direct en Vrienden staan, in een venster dat breed genoeg is om te kiezen. Een zijbalk heeft ruimte naast het gesprek nodig, dus een smal venster valt terug op de onderkant.',
+  'appearance.barPhone':
+    'Op een telefoon doet dit niets. De app tekent daar zijn eigen balk onderaan, met Direct, Vrienden, Kluis en Instellingen, omdat een telefoonscherm kort is en het enige wat het niet kan missen een tweede rij met dezelfde bestemmingen is.',
   'appearance.bar.top': 'Boven',
   'appearance.bar.left': 'Links',
   'appearance.bar.right': 'Rechts',
@@ -268,6 +274,52 @@ export const nl: Catalogue<Key> = {
 
   /* --- aanwezigheid ----------------------------------------------------- */
 
+  'profile.capture.profile':
+    'Profiel',
+  'profile.capture.profileHint':
+    'Naam, foto, banner, accent, over jou en status.',
+  'profile.capture.theme':
+    'Kleuren',
+  'profile.capture.themeHint':
+    'Licht of donker, het palet, en een eigen palet als je er een schreef.',
+  'profile.capture.wallpaper':
+    'Achtergrond',
+  'profile.capture.wallpaperHint':
+    'De afbeelding achter de app, en hoe sterk die gedimd en vervaagd is.',
+  'profile.capture.layout':
+    'Indeling',
+  'profile.capture.layoutHint':
+    'Aan welke rand de activiteitenbalk staat, de regelafstand en de tekstgrootte.',
+  'profile.captures':
+    'Wat deze onthoudt',
+  'switcher.open':
+    'Zoek of begin een gesprek',
+  'switcher.placeholder':
+    'Waar wil je heen?',
+  'switcher.none':
+    'Niemand met die naam.',
+  'switcher.start':
+    'Beginnen',
+  'chat.spoiler':
+    'Spoiler, klik om te tonen',
+  'chat.notSent':
+    'Niet verzonden',
+  'chat.retry':
+    'Opnieuw proberen',
+  'chat.copyMessage':
+    'Bericht kopiëren',
+  'chat.seen':
+    'Gezien',
+  'person.mute':
+    'Meldingen dempen',
+  'person.unmute':
+    'Dempen opheffen',
+  'vault.setup.pointGate':
+    'Bewust niet je accountwachtwoord. Het is een tweede slot, zodat een scherm dat iemand ontgrendeld aantreft nog steeds geen open kluis is.',
+  'vault.setup.pointSealed':
+    'Nu al echt versleuteld. Berichten nog niet: dit is de enige plek in de app waarvan de inhoud verzegeld is in plaats van te wachten op fase 2.',
+  'vault.setup.pointDevice':
+    'Alleen dit apparaat. Er gaat niets naar buiten, dus hij reist nog niet mee naar een andere browser.',
   'presence.online': 'Online',
   'presence.idle': 'Afwezig',
   'presence.dnd': 'Niet storen',
@@ -897,7 +949,6 @@ export const nl: Catalogue<Key> = {
 
   /* --- de schil --------------------------------------------------------- */
 
-  'strip.signedInAs': 'Ingelogd als',
   'strip.thisAccount': 'dit account',
   'load.backOnline': 'Weer online',
   'load.backOnlineDetail': 'Alles wat klaarstond is onderweg.',

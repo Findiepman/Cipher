@@ -29,11 +29,13 @@ import {
   duplicate,
   remove,
   rename,
+  CAPTURES,
   saveAs,
   suggestName,
   switchTo,
 } from '../../lib/settings/savedProfiles';
 import type { Key } from '../../lib/i18n/en';
+import type { ProfileCapture } from '../../lib/settings/types';
 import { ABOUT_MAX, ACCENTS, resolvePicture, type SavedProfile } from '../../lib/settings/types';
 import { useT } from '../../state/I18nProvider';
 import { useSettings } from '../../state/SettingsProvider';
@@ -47,6 +49,20 @@ const PRESENCES: { value: Presence; label: Key }[] = [
   { value: 'dnd', label: 'presence.dnd' },
   { value: 'offline', label: 'presence.invisible' },
 ];
+
+const CAPTURE_LABEL = {
+  profile: 'profile.capture.profile',
+  theme: 'profile.capture.theme',
+  wallpaper: 'profile.capture.wallpaper',
+  layout: 'profile.capture.layout',
+} as const;
+
+const CAPTURE_HINT = {
+  profile: 'profile.capture.profileHint',
+  theme: 'profile.capture.themeHint',
+  wallpaper: 'profile.capture.wallpaperHint',
+  layout: 'profile.capture.layoutHint',
+} as const;
 
 export function ProfileSection({ user, fallbackName }: { user: User; fallbackName: string }) {
   const { settings, update, reset } = useSettings();
@@ -181,11 +197,20 @@ function ProfilePicker({ fallbackName, userId }: { fallbackName: string; userId:
   const { settings, savedProfiles, applyProfiles } = useSettings();
   const t = useT();
   const { active } = settings.profiles;
-  const state = { profile: settings.profile, profiles: settings.profiles };
+  const state = {
+    profile: settings.profile,
+    profiles: settings.profiles,
+    appearance: settings.appearance,
+  };
   const loaded = savedProfiles.find((entry) => entry.id === active) ?? null;
   const full = savedProfiles.length >= MAX_PROFILES;
 
   const [draft, setDraft] = useState('');
+  /* What the next saved profile will carry. The profile itself is always on
+     and cannot be turned off: a saved profile that captures nothing is a name
+     with nothing behind it. The rest start off, so saving behaves exactly as
+     it did before moods existed until somebody asks for more. */
+  const [captures, setCaptures] = useState<ProfileCapture[]>(['profile']);
   const [confirming, setConfirming] = useState(false);
 
   return (
@@ -312,12 +337,48 @@ function ProfilePicker({ fallbackName, userId }: { fallbackName: string; userId:
                 className="set-btn"
                 disabled={full}
                 onClick={() => {
-                  applyProfiles(saveAs(state, draft || suggestName(savedProfiles)));
+                  applyProfiles(saveAs(state, draft || suggestName(savedProfiles), captures));
                   setDraft('');
                 }}
               >
                 {t('common.save')}
               </button>
+            </div>
+
+            {/* What this one remembers. The point of a mood is that switching
+                back means retyping nothing, and the things people change
+                together are the bio, the colours, the picture behind it and
+                where the bar sits. Which of those belong together is not
+                something the app can guess: one person keeps four bios under
+                one theme, another keeps four themes under one bio, and
+                guessing wrong makes switching destructive. */}
+            <p className="set-captures__head eyebrow">{t('profile.captures')}</p>
+            <div className="set-captures">
+              {CAPTURES.map((capture) => {
+                const locked = capture === 'profile';
+                const on = captures.includes(capture);
+                return (
+                  <label
+                    key={capture}
+                    className={on ? 'set-capture set-capture--on' : 'set-capture'}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      disabled={locked}
+                      onChange={() =>
+                        setCaptures((current) =>
+                          current.includes(capture)
+                            ? current.filter((item) => item !== capture)
+                            : [...current, capture],
+                        )
+                      }
+                    />
+                    <span className="set-capture__label">{t(CAPTURE_LABEL[capture])}</span>
+                    <span className="set-capture__hint">{t(CAPTURE_HINT[capture])}</span>
+                  </label>
+                );
+              })}
             </div>
           </Row>
         </>

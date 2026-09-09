@@ -56,7 +56,21 @@ export interface Channel {
  * states because with real E2EE a client can legitimately hold a message it
  * cannot read (missing key, key rotated, sender's device unknown).
  */
-export type MessageState = 'sending' | 'decrypted' | 'encrypted' | 'failed';
+/**
+ * Where a message is.
+ *
+ *   sending    queued, still being tried
+ *   unsent     the outbox gave up: eight attempts, or an error worth no retry
+ *   decrypted  readable
+ *   encrypted  held, key not available yet
+ *   failed     arrived and would not open
+ *
+ * `unsent` and `failed` are deliberately not one state. They are opposite
+ * problems: unsent is your own words that never left this device, failed is
+ * somebody else's that arrived and could not be read. Sharing a state meant
+ * the UI drew a padlock over a message the author could see perfectly well.
+ */
+export type MessageState = 'sending' | 'unsent' | 'decrypted' | 'encrypted' | 'failed';
 
 export interface Message {
   /** The server's id once it has one; the clientId until then. */

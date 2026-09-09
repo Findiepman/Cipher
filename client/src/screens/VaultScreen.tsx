@@ -65,6 +65,15 @@ function SetUp() {
         <h2 className="vault-card__title">{t('vault.setup.title')}</h2>
         <p className="vault-card__lede">{t('vault.setup.lede')}</p>
 
+        {/* The three things worth knowing before choosing a passkey, and the
+            reason this screen exists rather than a bare prompt. The first is
+            the one everybody asks: why is this not just my password. */}
+        <ul className="vault-card__points">
+          <li>{t('vault.setup.pointGate')}</li>
+          <li>{t('vault.setup.pointSealed')}</li>
+          <li>{t('vault.setup.pointDevice')}</li>
+        </ul>
+
         <div className="vault-kind" role="radiogroup" aria-label={t('vault.setup.kind')}>
           {(Object.keys(PASSKEY_RULES) as PasskeyKind[]).map((option) => (
             <button

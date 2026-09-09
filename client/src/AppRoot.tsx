@@ -13,7 +13,6 @@
  */
 import { useCallback, useState } from 'react';
 import App from './App';
-import { AccountStrip } from './components/AccountStrip';
 import { LoadingScreen } from './components/LoadingScreen';
 import { AuthScreen } from './screens/AuthScreen';
 import { ChangeEmailScreen } from './screens/ChangeEmailScreen';
@@ -141,7 +140,6 @@ export function AppRoot() {
   // CallProvider sits inside it because call signalling rides that socket.
   return (
     <div className="app-shell">
-      <AccountStrip />
       {/* Draw nothing: they keep the account's copy of your settings equal to
           this device's. ProfileSync owns the friend-facing profile; SettingsSync
           owns everything else, the whole settings blob. Here rather than higher

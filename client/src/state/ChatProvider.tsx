@@ -77,6 +77,16 @@ export interface ChatContextValue {
   typingIn: (channelId: string) => string[];
 
   send: (body: string) => Promise<void>;
+  /** Tries an abandoned message again. Nothing else will: see the controller. */
+  retrySend: (clientId: string) => Promise<void>;
+  /**
+   * The last message the other party has read in this channel, or undefined.
+   *
+   * Undefined is the normal case, not an error: it means they have not read
+   * this far, or they have read receipts switched off, in which case the
+   * server never tells us and no message will ever say "seen".
+   */
+  seenUpTo: (channelId: string) => string | undefined;
   notifyTyping: () => void;
   openDmWith: (userId: string) => Promise<void>;
 
@@ -448,6 +458,26 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
     [activeChannelId, controller],
   );
 
+  const seenUpTo = useCallback(
+    (channelId: string) => {
+      const perUser = chatState.peerReads[channelId];
+      if (!perUser) return undefined;
+      // The furthest anyone else has read. A DM has one other party, so this
+      // is theirs; a group would show the most-read position, which is the
+      // useful one for "has this been seen".
+      const others = Object.entries(perUser).filter(([userId]) => userId !== account?.id);
+      return others.at(-1)?.[1];
+    },
+    [chatState.peerReads, account?.id],
+  );
+
+  const retrySend = useCallback(
+    async (clientId: string) => {
+      await controller.chat.retry(clientId);
+    },
+    [controller],
+  );
+
   /// Typing indicators off means this device never says so. There is nothing
   /// for the server to enforce: a signal that is not sent cannot be relayed,
   /// which is why this setting, alone among the privacy ones, stays local.
@@ -576,6 +606,8 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
       unread: chatState.unread,
       typingIn,
       send,
+      retrySend,
+      seenUpTo,
       notifyTyping,
       openDmWith,
       addFriend,
@@ -607,6 +639,8 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
       chatState.unread,
       typingIn,
       send,
+      retrySend,
+      seenUpTo,
       notifyTyping,
       openDmWith,
       addFriend,

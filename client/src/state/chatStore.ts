@@ -29,6 +29,14 @@ export interface ChatState {
   /** How many messages have arrived in each channel that nobody has looked at. */
   unread: Record<string, number>;
   /**
+   * How far the other party has read, per channel and per person.
+   *
+   * Kept apart from `unread`, which is about you. This is what lets a message
+   * say it was seen, and it only ever arrives when the other side has read
+   * receipts switched on: the server does not relay it otherwise.
+   */
+  peerReads: Record<string, Record<string, string>>;
+  /**
    * The channel on screen, and only while the window has focus. Null when the
    * app is in the background: a conversation open behind another window has
    * not been read, and pretending otherwise is how a messenger loses a message.
@@ -50,12 +58,15 @@ export type ChatAction =
   | { type: 'unread'; counts: Record<string, number> }
   | { type: 'focus'; channelId: string | null }
   /** We read up to here somewhere else: another tab, or the phone. */
-  | { type: 'readUpTo'; channelId: string; messageId: string };
+  | { type: 'readUpTo'; channelId: string; messageId: string }
+  /** Somebody else moved their read position. */
+  | { type: 'peerRead'; channelId: string; userId: string; messageId: string };
 
 export const initialChatState: ChatState = {
   messages: [],
   cursors: {},
   unread: {},
+  peerReads: {},
   focusedChannelId: null,
   selfId: null,
 };
@@ -115,10 +126,19 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case 'sendFailed': {
       const messages = state.messages.map((message) =>
         message.clientId === action.clientId
-          ? { ...message, state: 'failed' as const, error: action.error }
+          ? { ...message, state: 'unsent' as const, error: action.error }
           : message,
       );
       return { ...state, messages };
+    }
+
+    case 'peerRead': {
+      const forChannel = { ...(state.peerReads[action.channelId] ?? {}) };
+      forChannel[action.userId] = action.messageId;
+      return {
+        ...state,
+        peerReads: { ...state.peerReads, [action.channelId]: forChannel },
+      };
     }
 
     case 'received':
@@ -239,7 +259,7 @@ function cursorsFrom(messages: Message[]): Record<string, string> {
   for (const message of sortMessages(messages)) {
     // Optimistic messages have no server id yet, so they cannot be a cursor.
     // using one would make the next backlog pull skip real history.
-    if (message.state === 'sending' || message.state === 'failed') continue;
+    if (message.state === 'sending' || message.state === 'unsent') continue;
     cursors[message.channelId] = message.id;
   }
   return cursors;

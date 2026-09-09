@@ -40,6 +40,10 @@ export const en = {
   'settings.nav': 'Settings sections',
   'settings.back': 'Settings',
   'settings.close': 'Close settings',
+  'account.you':
+    'You',
+  'account.editProfile':
+    'Edit profile',
   'settings.lock': 'Lock',
   'settings.signOut': 'Sign out',
   'settings.group.you': 'you',
@@ -228,7 +232,9 @@ export const en = {
   'appearance.group.layout': 'layout',
   'appearance.bar': 'Activity bar',
   'appearance.barHint':
-    'Which edge Direct and Friends sit on. A window too narrow for a rail beside the conversation puts a side bar along the bottom until there is room for it again.',
+    'Which edge Direct and Friends sit on, in a window wide enough to choose. A rail needs room beside the conversation, so a narrow window falls back to the bottom.',
+  'appearance.barPhone':
+    'On a phone this has no effect. The app draws its own bar along the bottom there, carrying Direct, Friends, Vault and Settings, because a phone screen is short and the one thing it cannot spare is a second row of the same destinations.',
   'appearance.bar.top': 'Top',
   'appearance.bar.left': 'Left',
   'appearance.bar.right': 'Right',
@@ -257,6 +263,52 @@ export const en = {
 
   /* --- presence --------------------------------------------------------- */
 
+  'profile.capture.profile':
+    'Profile',
+  'profile.capture.profileHint':
+    'Name, picture, banner, accent, about and status.',
+  'profile.capture.theme':
+    'Colours',
+  'profile.capture.themeHint':
+    'Light or dark, the palette, and a custom one if you wrote it.',
+  'profile.capture.wallpaper':
+    'Wallpaper',
+  'profile.capture.wallpaperHint':
+    'The picture behind the app, and how far it is dimmed and blurred.',
+  'profile.capture.layout':
+    'Layout',
+  'profile.capture.layoutHint':
+    'Which edge the activity bar is on, the spacing and the text size.',
+  'profile.captures':
+    'What this one remembers',
+  'switcher.open':
+    'Find or start a conversation',
+  'switcher.placeholder':
+    'Where would you like to go?',
+  'switcher.none':
+    'Nobody by that name.',
+  'switcher.start':
+    'Start',
+  'chat.spoiler':
+    'Spoiler, click to show',
+  'chat.notSent':
+    'Not sent',
+  'chat.retry':
+    'Try again',
+  'chat.copyMessage':
+    'Copy message',
+  'chat.seen':
+    'Seen',
+  'person.mute':
+    'Mute notifications',
+  'person.unmute':
+    'Unmute notifications',
+  'vault.setup.pointGate':
+    'Not your account password, on purpose. It is a second gate, so a screen somebody finds unlocked is still not an open vault.',
+  'vault.setup.pointSealed':
+    'Really encrypted, today. Messages are not yet: this is the one place in the app whose contents are sealed rather than waiting on phase 2.',
+  'vault.setup.pointDevice':
+    'This device only. Nothing here is sent anywhere, so it does not follow you to another browser yet.',
   'presence.online': 'Online',
   'presence.idle': 'Idle',
   'presence.dnd': 'Do not disturb',
@@ -875,7 +927,6 @@ export const en = {
 
   /* --- the shell -------------------------------------------------------- */
 
-  'strip.signedInAs': 'Signed in as',
   'strip.thisAccount': 'this account',
   'load.backOnline': 'Back online',
   'load.backOnlineDetail': 'Anything that was waiting is on its way.',

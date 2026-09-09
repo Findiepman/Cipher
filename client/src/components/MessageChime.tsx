@@ -14,7 +14,7 @@
  * conversation you are not currently in is useful even while you are at the
  * keyboard, and a notification for the same message would not be.
  */
-import { isMuted, messageSoundFor } from '../lib/settings/notificationSounds';
+import { isMuted, isPersonMuted, messageSoundFor } from '../lib/settings/notificationSounds';
 import { playMessage } from '../lib/media/sounds';
 import { useChat } from '../state/ChatProvider';
 import { useSettings } from '../state/SettingsProvider';
@@ -41,6 +41,7 @@ export function MessageChime() {
       }
 
       if (focused && arrival.channelId === activeChannelId) continue;
+      if (isPersonMuted(notifications, arrival.message.authorId)) continue;
 
       // Kept separate so you can go quiet without going deaf: a mention sounds
       // even when ordinary messages are switched off.

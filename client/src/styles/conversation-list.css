@@ -1,3 +1,50 @@
+/* The go-anywhere button, above the list. A field rather than a button,
+   because what it opens is somewhere to type. */
+.clist-find {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 10px 4px;
+  padding: 0 10px;
+  height: 32px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  background: var(--bg-app);
+  color: var(--text-mute);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.clist-find:hover {
+  border-color: var(--line);
+  color: var(--text);
+}
+
+.clist-find span {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Shown, because a shortcut nobody is told about is a shortcut nobody uses.
+   Dropped on a phone, where there is no Ctrl to press. */
+.clist-find__key {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+@media (max-width: 820px) {
+  .clist-find__key {
+    display: none;
+  }
+}
+
 .conversations {
   flex: 1 1 auto;
   min-height: 0;
@@ -161,24 +208,76 @@
 }
 
 /* The panel's foot: who you are, and the way to settings. */
+/* You, at the foot of the list. Two targets, not one: the face and name open
+   the account panel, the cog goes straight to settings. */
 .list-foot {
-  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--bg-panel-alt);
+}
+
+.list-foot__me {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 10px;
-  border-top: 1px solid var(--line);
-}
-.list-foot__name {
   flex: 1 1 auto;
   min-width: 0;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.list-foot__me:hover {
+  background: var(--hover);
+}
+
+.list-foot__who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.list-foot__name {
   font-size: 13px;
-  font-weight: 500;
-  color: var(--text);
-  white-space: nowrap;
+  font-weight: 600;
+  color: var(--text-hi);
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.list-foot .icon-button {
+
+/* The one place in the app that says what your own presence is without
+   opening anything. */
+.list-foot__presence {
+  font-size: 11px;
   color: var(--text-mute);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+
+.list-foot__cog {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: none;
+  color: var(--text-mute);
+  cursor: pointer;
+}
+
+.list-foot__cog:hover {
+  color: var(--text-hi);
+  background: var(--hover);
+}
+

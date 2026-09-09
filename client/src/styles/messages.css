@@ -348,3 +348,143 @@
 :root[data-density='compact'] .code-block__pre {
   padding: 6px 9px 7px;
 }
+
+/* Emphasis. `strong` and `em` carry their own weight and slant from the
+   stylesheet's defaults; only the two that need drawing are here. */
+
+.bubble__spoiler {
+  padding: 0 3px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--text);
+  color: transparent;
+  font: inherit;
+  cursor: pointer;
+  /* Selecting it would copy the text straight out of a thing whose whole job
+     is not showing it yet. */
+  user-select: none;
+}
+
+.bubble__spoiler--shown {
+  background: var(--line-soft);
+  color: inherit;
+  cursor: text;
+  user-select: text;
+}
+
+/* Struck text keeps its colour rather than fading: it is still something
+   somebody said, and a strikethrough already says it is withdrawn. */
+.bubble s {
+  text-decoration-thickness: 1px;
+}
+
+/* A message that never left. The bubble keeps its shape and its text, because
+   it is still what you wrote; only its confidence drops. */
+.message--unsent .bubble {
+  opacity: 0.62;
+}
+
+.message__unsent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 3px 2px 0;
+  color: var(--red);
+  font-size: 11.5px;
+}
+
+/* Right-aligned with your own bubbles, which is where the eye already is for
+   a message you sent. */
+.message--own .message__unsent {
+  justify-content: flex-end;
+}
+
+.message__retry {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Every bubble knows its time; only the last of a run says so unasked. Kept
+   in the layout rather than removed, so revealing it cannot reflow the run. */
+.bubble__meta--hover {
+  visibility: hidden;
+}
+
+.bubble:hover .bubble__meta--hover {
+  visibility: visible;
+}
+
+/* The hover toolbar. Absolutely placed so appearing cannot nudge the bubble,
+   which is what makes a toolbar that follows the pointer feel unsteady. */
+.message__column {
+  position: relative;
+}
+
+.message__tools {
+  position: absolute;
+  top: -10px;
+  right: 6px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg-raised);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 22%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Shown on hover, and on focus so a keyboard can reach it at all. */
+.message:hover .message__tools,
+.message__tools:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.message__tool {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-mute);
+  cursor: pointer;
+}
+
+.message__tool:hover {
+  color: var(--text-hi);
+  background: var(--hover);
+}
+
+/* Under your own last read message, quiet enough to ignore. */
+.message__seen {
+  margin: 2px 2px 0;
+  text-align: right;
+  color: var(--text-faint);
+  font-size: 10.5px;
+}
+
+/* The person's handle and about line at the top of a conversation. Both are
+   optional, so neither carries margin that would collapse oddly when absent. */
+.messages__intro-handle {
+  margin: 0;
+  color: var(--text-mute);
+  font-size: 12px;
+}
+
+.messages__intro-about {
+  max-width: 46ch;
+  margin: 8px auto 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}

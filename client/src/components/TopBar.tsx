@@ -1,8 +1,7 @@
 import type { Key } from '../lib/i18n/en';
 import type { ActivityBarPosition } from '../lib/settings/types';
+import { LockIcon, MessageIcon, ProfileIcon } from './Icons';
 import { useT } from '../state/I18nProvider';
-import type { User } from '../types';
-import { Avatar } from './Avatar';
 import { BrandMark } from './BrandMark';
 import '../styles/top-bar.css';
 
@@ -21,9 +20,10 @@ export type View = 'direct' | 'friends' | 'vault';
 type Props = {
   view: View;
   onSelect: (view: View) => void;
-  currentUser: User | null;
   /** Pending incoming friend requests, badged on the Friends pill. */
   requestCount: number;
+  /** Unread messages across every conversation, badged on Direct. */
+  unreadCount: number;
   /** Shown when the socket is not up, so silence is never mistaken for calm. */
   connection: string;
   /**
@@ -38,8 +38,8 @@ type Props = {
 export function TopBar({
   view,
   onSelect,
-  currentUser,
   requestCount,
+  unreadCount,
   connection,
   placement = 'top',
 }: Props) {
@@ -54,17 +54,25 @@ export function TopBar({
       <nav className="top-bar__workspaces" aria-label={t('chat.views')}>
         <WorkspacePill
           label={t('chat.direct')}
+          icon={<MessageIcon size={20} />}
           active={view === 'direct'}
+          /* Unread waiting in Direct, shown while you are somewhere else. The
+             count is on the conversation list, which you cannot see from
+             Friends or the Vault, so without this the rail is the one place
+             that knows something arrived and says nothing about it. */
+          badge={view === 'direct' ? 0 : unreadCount}
           onClick={() => onSelect('direct')}
         />
         <WorkspacePill
           label={t('chat.friends')}
+          icon={<ProfileIcon size={20} />}
           active={view === 'friends'}
           badge={requestCount}
           onClick={() => onSelect('friends')}
         />
         <WorkspacePill
           label={t('vault.title')}
+          icon={<LockIcon size={20} />}
           active={view === 'vault'}
           onClick={() => onSelect('vault')}
         />
@@ -76,7 +84,6 @@ export function TopBar({
             {t(connectionLabel(connection))}
           </span>
         )}
-        {currentUser && <Avatar user={currentUser} size={32} showPresence />}
       </div>
     </header>
   );
@@ -95,14 +102,29 @@ function connectionLabel(connection: string): Key {
   }
 }
 
+/**
+ * One destination in the rail.
+ *
+ * The label is the tooltip and the accessible name rather than visible text,
+ * which is what turns a 132px column of words into a strip of icons and hands
+ * the width back to the conversation. Discord's rail works the same way and
+ * for the same reason: three destinations are learned in a day, and after that
+ * the words are just a wall.
+ *
+ * The phone's bar keeps its labels. There the bar is the only navigation and
+ * the screen is short, so an unlabelled glyph is something you learn once and
+ * forget.
+ */
 function WorkspacePill({
   label,
+  icon,
   active,
   badge,
   dot,
   onClick,
 }: {
   label: string;
+  icon: React.ReactNode;
   active: boolean;
   badge?: number;
   dot?: boolean;
@@ -114,11 +136,16 @@ function WorkspacePill({
       className={`workspace${active ? ' workspace--active' : ''}`}
       onClick={onClick}
       aria-current={active || undefined}
+      title={label}
+      aria-label={label}
     >
-      {active && <span className="workspace__dot" />}
+      {/* The marker Discord puts against the edge for where you are. It reads
+          at a glance from the corner of the eye, which a colour change alone
+          does not. */}
+      <span className="workspace__marker" aria-hidden />
+      <span className="workspace__icon">{icon}</span>
       {!active && dot && <span className="workspace__dot workspace__dot--unread" />}
-      <span className="workspace__label">{label}</span>
-      {badge ? <span className="workspace__badge mono">{badge}</span> : null}
+      {badge ? <span className="workspace__badge mono">{badge > 99 ? '99+' : badge}</span> : null}
     </button>
   );
 }

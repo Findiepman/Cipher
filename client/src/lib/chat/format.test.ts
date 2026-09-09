@@ -189,3 +189,64 @@ describe('hasOpenFence', () => {
     expect(hasOpenFence('plain')).toBe(false);
   });
 });
+
+describe('emphasis', () => {
+  /** The text a tree stands for, so a test can assert on shape and content. */
+  function flat(parts: import('./format').Inline[]): string {
+    return parts
+      .map((part) =>
+        part.kind === 'emphasis' ? flat(part.parts) : part.kind === 'text' ? part.text : '',
+      )
+      .join('');
+  }
+
+  it('reads **bold** and *italic*', () => {
+    const bold = parseInline('a **b** c');
+    expect(bold[1]).toMatchObject({ kind: 'emphasis', style: 'bold' });
+    const italic = parseInline('a *b* c');
+    expect(italic[1]).toMatchObject({ kind: 'emphasis', style: 'italic' });
+  });
+
+  it('reads ~~strike~~ and ||spoiler||', () => {
+    expect(parseInline('~~x~~')[0]).toMatchObject({ style: 'strike' });
+    expect(parseInline('||x||')[0]).toMatchObject({ style: 'spoiler' });
+  });
+
+  it('tries the long marker first, so bold is not two empty italics', () => {
+    const parts = parseInline('**b**');
+    expect(parts).toHaveLength(1);
+    expect(parts[0]).toMatchObject({ style: 'bold' });
+    expect(flat(parts)).toBe('b');
+  });
+
+  it('nests, so bold can hold an italic', () => {
+    const parts = parseInline('**a *b* c**');
+    expect(parts[0]).toMatchObject({ kind: 'emphasis', style: 'bold' });
+    expect(flat(parts)).toBe('a b c');
+  });
+
+  it('leaves a lone marker as the character it is', () => {
+    // The failure this guards: "2 * 3 and 4 * 5" coming out italic.
+    expect(flat(parseInline('2 * 3'))).toBe('2 * 3');
+    expect(parseInline('2 * 3').every((part) => part.kind !== 'emphasis')).toBe(true);
+  });
+
+  it('does not let an unclosed marker swallow the next line', () => {
+    const parts = parseInline('*a\nb');
+    expect(parts.every((part) => part.kind !== 'emphasis')).toBe(true);
+  });
+
+  it('leaves markers inside a code span alone', () => {
+    const parts = parseInline('`**x**`');
+    expect(parts).toHaveLength(1);
+    expect(parts[0]).toMatchObject({ kind: 'code', text: '**x**' });
+  });
+
+  it('does not italicise snake_case, which is why _ is not a marker', () => {
+    expect(parseInline('some_variable_name').every((p) => p.kind !== 'emphasis')).toBe(true);
+  });
+
+  it('strips markers from the conversation preview', () => {
+    expect(plainText('**hello** there')).toBe('hello there');
+  });
+});

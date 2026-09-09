@@ -47,6 +47,17 @@ export function ChatHeader({
       className="chat-header"
       onContextMenu={recipient ? (event) => menu.open(event, recipient.id) : undefined}
     >
+      {/* The person, not just their name. A DM header that shows only text is
+          the one place in the app where you cannot see who you are talking to
+          or whether they are around, which is exactly what a header is for.
+          The presence dot is the same one the conversation list draws, so the
+          two can never disagree. */}
+      {recipient && (
+        <span className="chat-header__face">
+          <Avatar user={recipient} size={30} showPresence />
+        </span>
+      )}
+
       <h1 className="chat-header__name">{channel.name}</h1>
 
       {/* The handle, but only when it is not already the title. A nickname that

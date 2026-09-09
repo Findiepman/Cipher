@@ -24,10 +24,14 @@
  * contains `<script>` a body that says `<script>`.
  */
 
+export type Emphasis = 'bold' | 'italic' | 'strike' | 'spoiler';
+
 export type Inline =
   | { kind: 'text'; text: string }
   | { kind: 'code'; text: string }
-  | { kind: 'link'; href: string; text: string };
+  | { kind: 'link'; href: string; text: string }
+  /** Recursive, so `**bold with *italic* inside**` is one tree, not two runs. */
+  | { kind: 'emphasis'; style: Emphasis; parts: Inline[] };
 
 export type Block =
   | { kind: 'text'; parts: Inline[] }
@@ -129,20 +133,81 @@ function mergeText(blocks: RawBlock[]): RawBlock[] {
   return out;
 }
 
-/* --- inline: `code` and links -------------------------------------------- */
+/* --- inline: `code`, emphasis and links ---------------------------------- */
 
 const INLINE_CODE = /`([^`\n]+)`/g;
+
+/**
+ * The wrappers, longest marker first.
+ *
+ * Order is the whole correctness of this: `**` has to be tried before `*`, or
+ * bold parses as two empty italics.
+ *
+ * A single `_` is deliberately not an italic marker. It is the character in
+ * snake_case identifiers and file names, and a message full of
+ * `some_variable_name` should not come out half italic. Asterisks are
+ * unambiguous enough on their own.
+ */
+const WRAPPERS: readonly { marker: string; style: Emphasis }[] = [
+  { marker: '***', style: 'bold' },
+  { marker: '**', style: 'bold' },
+  { marker: '__', style: 'bold' },
+  { marker: '||', style: 'spoiler' },
+  { marker: '~~', style: 'strike' },
+  { marker: '*', style: 'italic' },
+];
 
 export function parseInline(text: string): Inline[] {
   const parts: Inline[] = [];
   let at = 0;
+  // Code first and unconditionally: what is inside backticks is not markup,
+  // and `**` in a code span is two asterisks somebody meant to type.
   for (const match of text.matchAll(INLINE_CODE)) {
-    parts.push(...linkify(text.slice(at, match.index)));
+    parts.push(...emphasise(text.slice(at, match.index)));
     parts.push({ kind: 'code', text: match[1] });
     at = match.index + match[0].length;
   }
-  parts.push(...linkify(text.slice(at)));
+  parts.push(...emphasise(text.slice(at)));
   return parts;
+}
+
+/**
+ * Wraps runs between matching markers, recursing into what is inside.
+ *
+ * A marker with no partner is left as the characters it is, which is what
+ * keeps "2 * 3 and 4 * 5" arithmetic rather than an italic. Nothing here may
+ * span a newline: an unclosed marker at the end of one line would otherwise
+ * swallow the rest of the message.
+ */
+function emphasise(text: string): Inline[] {
+  if (!text) return [];
+
+  for (const { marker, style } of WRAPPERS) {
+    const open = text.indexOf(marker);
+    if (open === -1) continue;
+    const close = text.indexOf(marker, open + marker.length);
+    if (close === -1) continue;
+
+    const inner = text.slice(open + marker.length, close);
+    // An empty pair is not emphasis, and a run crossing a line is a marker
+    // somebody typed rather than one they meant.
+    if (!inner.trim() || inner.includes('\n')) continue;
+
+    // `***` is bold and italic at once, which is why it carries a nested
+    // italic rather than having a style of its own.
+    const body: Inline[] =
+      marker === '***'
+        ? [{ kind: 'emphasis', style: 'italic', parts: emphasise(inner) }]
+        : emphasise(inner);
+
+    return [
+      ...emphasise(text.slice(0, open)),
+      { kind: 'emphasis', style, parts: body },
+      ...emphasise(text.slice(close + marker.length)),
+    ];
+  }
+
+  return linkify(text);
 }
 
 const URL_CANDIDATE = /\b(?:https?:\/\/|www\.)[^\s<>"'`]+/gi;
@@ -281,11 +346,17 @@ function isSentence(line: string): boolean {
  * and backticks are dropped rather than shown, because three backticks in a
  * twelve-pixel preview say nothing about what was sent.
  */
+/** One inline part as the characters it stands for, markers and all gone. */
+function flatten(part: Inline): string {
+  if (part.kind === 'emphasis') return part.parts.map(flatten).join('');
+  return part.text;
+}
+
 export function plainText(body: string): string {
   const pieces: string[] = [];
   for (const block of parseMessage(body)) {
     if (block.kind === 'code') pieces.push(block.code);
-    else pieces.push(block.parts.map((part) => part.text).join(''));
+    else pieces.push(block.parts.map(flatten).join(''));
   }
   return pieces.join(' ').replace(/\s+/g, ' ').trim();
 }

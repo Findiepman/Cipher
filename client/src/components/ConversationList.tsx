@@ -4,7 +4,7 @@ import { useI18n, type Translate } from '../state/I18nProvider';
 import type { Channel, User } from '../types';
 import { Avatar } from './Avatar';
 import { usePersonMenu } from './PersonMenu';
-import { PinIcon, SettingsIcon, SpeakerIcon } from './Icons';
+import { PinIcon, SearchIcon, SettingsIcon, SpeakerIcon } from './Icons';
 import '../styles/conversation-list.css';
 
 export type Preview = { text: string; at: string };
@@ -37,13 +37,27 @@ type Props = {
   unread: Record<string, number>;
   /** Null on the first paint, before the account has loaded. */
   currentUser: User | null;
+  /** Opens the account panel: who you are and what you can do about it. */
+  onOpenAccount: () => void;
+  /** Straight to settings, from the cog. No panel in between. */
   onOpenSettings: () => void;
+  /** Opens the go-anywhere palette. */
+  onOpenSwitcher: () => void;
 };
 
 /**
  * One list for channels and DMs alike, each row carrying the last thing said
  * in it. A messenger's list, not a directory of rooms.
  */
+/** The word under your name in the foot. Same set the account panel uses. */
+const PRESENCE_LABEL = {
+  online: 'presence.online',
+  idle: 'presence.idle',
+  dnd: 'presence.dnd',
+  offline: 'presence.offline',
+  invisible: 'presence.invisible',
+} as const;
+
 export function ConversationList({
   sections,
   activeChannelId,
@@ -52,11 +66,22 @@ export function ConversationList({
   previews,
   unread,
   currentUser,
+  onOpenAccount,
   onOpenSettings,
+  onOpenSwitcher,
 }: Props) {
   const { locale, t } = useI18n();
   return (
     <>
+      {/* Above the list, because it is the thing you reach for instead of
+          reading the list. Styled as a field rather than a button so it reads
+          as somewhere to type, which is what it becomes. */}
+      <button type="button" className="clist-find" onClick={onOpenSwitcher}>
+        <SearchIcon size={14} />
+        <span>{t('switcher.open')}</span>
+        <kbd className="clist-find__key mono">Ctrl K</kbd>
+      </button>
+
       <div className="conversations scroller">
         {sections
           .filter((section) => section.channels.length > 0)
@@ -98,14 +123,33 @@ export function ConversationList({
           ))}
       </div>
 
+      {/* You, at the foot of the list, as two targets rather than one. The
+          name and face open the account panel; the cog goes straight to
+          settings. They are different destinations and a single button had to
+          guess which you meant, which is how tapping your own face ended up
+          in a settings section. Discord splits them the same way. */}
       <div className="list-foot">
-        {currentUser && <Avatar user={currentUser} size={26} showPresence />}
-        <span className="list-foot__name">{currentUser?.name ?? t('chat.loading')}</span>
         <button
           type="button"
-          className="icon-button"
-          aria-label={t('settings.back')}
+          className="list-foot__me"
+          onClick={onOpenAccount}
+          aria-label={t('account.you')}
+        >
+          {currentUser && <Avatar user={currentUser} size={30} showPresence />}
+          <span className="list-foot__who">
+            <span className="list-foot__name">{currentUser?.name ?? t('chat.loading')}</span>
+            <span className="list-foot__presence">
+              {t(PRESENCE_LABEL[currentUser?.presence ?? 'offline'])}
+            </span>
+          </span>
+        </button>
+
+        <button
+          type="button"
+          className="list-foot__cog"
           onClick={onOpenSettings}
+          title={t('settings.back')}
+          aria-label={t('settings.back')}
         >
           <SettingsIcon size={16} />
         </button>

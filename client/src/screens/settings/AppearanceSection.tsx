@@ -176,6 +176,10 @@ export function AppearanceSection() {
             onChange={(activityBar) => update('appearance', { activityBar })}
           />
         </Row>
+
+        <div className="set-phone-only">
+          <Note>{t('appearance.barPhone')}</Note>
+        </div>
       </Group>
 
       <Group title={t('appearance.group.messages')}>

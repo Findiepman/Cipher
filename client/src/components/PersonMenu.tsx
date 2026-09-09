@@ -22,6 +22,7 @@ import {
   PinIcon,
   PinOffIcon,
   ProfileIcon,
+  SpeakerIcon,
   UserMinusIcon,
 } from './Icons';
 import { isPinned, pinnedIsFull, togglePin } from '../lib/settings/pinned';
@@ -129,6 +130,9 @@ export function PersonMenuProvider({ children, onViewProfile }: PersonMenuProvid
 
   const person = pending ? usersById.get(pending.userId) : undefined;
   const isFriend = pending ? friends.some((friend) => friend.id === pending.userId) : false;
+  const muted = pending
+    ? settings.notifications.mutedPeople.includes(pending.userId)
+    : false;
   // Your own row has a menu with nothing on it worth showing, so it has none.
   const isSelf = pending ? pending.userId === self?.id : false;
 
@@ -192,6 +196,24 @@ export function PersonMenuProvider({ children, onViewProfile }: PersonMenuProvid
               onClick={() => act('clear-nickname', pending.userId)}
             />
           )}
+
+          {/* Muting is not blocking and sits well away from it: their
+              messages still arrive and still count as unread, they just stop
+              making noise. Standing, with no end, because the flatmate who
+              sends forty an hour is an arrangement rather than a snooze. */}
+          <MenuItem
+            icon={<SpeakerIcon size={15} />}
+            label={t(muted ? 'person.unmute' : 'person.mute')}
+            onClick={() => {
+              const list = settings.notifications.mutedPeople;
+              update('notifications', {
+                mutedPeople: muted
+                  ? list.filter((id) => id !== pending.userId)
+                  : [...list, pending.userId],
+              });
+              close();
+            }}
+          />
 
           <MenuDivider />
 

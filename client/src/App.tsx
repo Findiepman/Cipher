@@ -24,11 +24,14 @@ import { TopBar, type View } from './components/TopBar';
 import { UserProfile } from './components/UserProfile';
 import { FriendsScreen } from './screens/FriendsScreen';
 import { VaultScreen } from './screens/VaultScreen';
-import { SettingsScreen } from './screens/settings/SettingsScreen';
+import { SettingsScreen, type SectionId } from './screens/settings/SettingsScreen';
 import { CallPanel } from './components/CallPanel';
 import { CallRinger } from './components/CallRinger';
 import { DesktopNotifier } from './components/DesktopNotifier';
 import { MessageChime } from './components/MessageChime';
+import { AccountMenu } from './components/AccountMenu';
+import { MobileNav } from './components/MobileNav';
+import { QuickSwitcher } from './components/QuickSwitcher';
 import { MessageToasts } from './components/MessageToasts';
 import { plainText } from './lib/chat/format';
 import { splitPinned } from './lib/settings/pinned';
@@ -51,6 +54,11 @@ export default function App() {
   );
   const [pinnedUserId, setPinnedUserId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /* Which section settings lands on. "Edit profile" in the account menu goes
+     straight to Profile; everything else opens where it left off. */
+  const [settingsSection, setSettingsSection] = useState<SectionId>('account');
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
 
   // The shortcut everyone tries first. Bound here rather than in the settings
   // screen so it can open as well as close.
@@ -59,6 +67,12 @@ export default function App() {
       if ((event.ctrlKey || event.metaKey) && event.key === ',') {
         event.preventDefault();
         setSettingsOpen((open) => !open);
+      }
+      // The shortcut this control has settled on everywhere else. Toggles, so
+      // the same keystroke that opened it puts it away.
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setSwitcherOpen((open) => !open);
       }
     }
     window.addEventListener('keydown', onKey);
@@ -96,6 +110,12 @@ export default function App() {
         onSetPinned={setPinnedUserId}
         settingsOpen={settingsOpen}
         onSetSettingsOpen={setSettingsOpen}
+        settingsSection={settingsSection}
+        onSetSettingsSection={setSettingsSection}
+        accountOpen={accountOpen}
+        onSetAccountOpen={setAccountOpen}
+        switcherOpen={switcherOpen}
+        onSetSwitcherOpen={setSwitcherOpen}
       />
     </PersonMenuProvider>
   );
@@ -114,6 +134,12 @@ function Shell({
   onSetPinned,
   settingsOpen,
   onSetSettingsOpen,
+  settingsSection,
+  onSetSettingsSection,
+  accountOpen,
+  onSetAccountOpen,
+  switcherOpen,
+  onSetSwitcherOpen,
 }: {
   view: View;
   onSelectView: (view: View) => void;
@@ -123,6 +149,12 @@ function Shell({
   onSetPinned: (userId: string | null) => void;
   settingsOpen: boolean;
   onSetSettingsOpen: (open: boolean) => void;
+  settingsSection: SectionId;
+  onSetSettingsSection: (section: SectionId) => void;
+  accountOpen: boolean;
+  onSetAccountOpen: (open: boolean) => void;
+  switcherOpen: boolean;
+  onSetSwitcherOpen: (open: boolean) => void;
 }) {
   const chat = useChat();
   const menu = usePersonMenu();
@@ -209,14 +241,47 @@ function Shell({
         ? 'here'
         : 'elsewhere';
 
+  const openSettings = (section?: SectionId) => {
+    if (section) onSetSettingsSection(section);
+    onSetSettingsOpen(true);
+  };
+
   // The call panel floats above whichever screen is up, settings included: a
   // call does not stop being a call because you went to look at a setting.
   if (settingsOpen && me) {
     return (
-      <>
-        <SettingsScreen user={me} onClose={() => onSetSettingsOpen(false)} />
+      <div className="app-frame">
+        <div className="app-frame__screen">
+          <SettingsScreen
+            user={me}
+            initialSection={settingsSection}
+            onClose={() => onSetSettingsOpen(false)}
+          />
+        </div>
+        {/* The bar is drawn here too, and that is the point rather than an
+            oversight. On a phone the settings close button lives inside the
+            pane, and the list view hides that pane, so going back to the list
+            left no way out of settings at all. Picking a destination is the
+            way out now, which is how a phone app is expected to behave. */}
+        <MobileNav
+          view={null}
+          onSelect={(next) => {
+            onSetSettingsOpen(false);
+            onSelectView(next);
+          }}
+          accountOpen={accountOpen}
+          onOpenAccount={() => onSetAccountOpen(true)}
+          currentUser={me}
+          requestCount={incoming.length}
+        />
+        <AccountMenu
+          open={accountOpen}
+          onClose={() => onSetAccountOpen(false)}
+          onOpenSettings={openSettings}
+          currentUser={me}
+        />
         <CallPanel />
-      </>
+      </div>
     );
   }
 
@@ -227,12 +292,15 @@ function Shell({
   const activityBar = resolveActivityBar(settings.appearance.activityBar);
 
   return (
-    <div className="app" data-bar={activityBar}>
-      <TopBar
+    <div className="app-frame">
+      <div className="app" data-bar={activityBar}>
+        <TopBar
         view={view}
         onSelect={onSelectView}
-        currentUser={me}
         requestCount={incoming.length}
+        /* Everything unread, so the rail can say that Direct has something
+           waiting while you are reading Friends or the Vault. */
+        unreadCount={Object.values(unread).reduce((sum, n) => sum + n, 0)}
         connection={connection}
         placement={activityBar}
       />
@@ -264,7 +332,9 @@ function Shell({
                 previews={previews}
                 unread={unread}
                 currentUser={me}
-                onOpenSettings={() => onSetSettingsOpen(true)}
+                onOpenAccount={() => onSetAccountOpen(true)}
+                onOpenSettings={() => openSettings()}
+                onOpenSwitcher={() => onSetSwitcherOpen(true)}
               />
             </div>
 
@@ -341,6 +411,25 @@ function Shell({
           </>
         )}
       </div>
+      </div>
+
+      <MobileNav
+        view={view}
+        onSelect={onSelectView}
+        accountOpen={accountOpen}
+        onOpenAccount={() => onSetAccountOpen(true)}
+        currentUser={me}
+        requestCount={incoming.length}
+      />
+
+      <AccountMenu
+        open={accountOpen}
+        onClose={() => onSetAccountOpen(false)}
+        onOpenSettings={openSettings}
+        currentUser={me}
+      />
+
+      <QuickSwitcher open={switcherOpen} onClose={() => onSetSwitcherOpen(false)} />
 
       <CallPanel />
     </div>

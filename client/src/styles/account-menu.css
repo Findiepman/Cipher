@@ -1,0 +1,191 @@
+/* You, as a panel. A popover beside the account control on a wide screen, a
+   sheet along the bottom on a phone. Same markup, one media query, because it
+   is the same idea in both places and two components would drift. */
+
+.acct__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.acct {
+  position: fixed;
+  z-index: 71;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--bg-raised);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 38%);
+}
+
+/* Wide: above the account control at the foot of the conversation list, which
+   is where the control lives and where the eye already is. */
+@media (min-width: 821px) {
+  .acct {
+    left: 12px;
+    bottom: 64px;
+    width: 300px;
+  }
+}
+
+/* Phone: a sheet across the bottom, clearing the nav bar rather than sitting
+   under it. 56px is the bar, and the inset is the gesture area below it. */
+@media (max-width: 820px) {
+  .acct {
+    left: 8px;
+    right: 8px;
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 8px);
+    border-radius: 16px;
+  }
+}
+
+.acct__card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.acct__names {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.acct__name {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--text-hi);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.acct__handle {
+  font-size: 12px;
+  color: var(--text-mute);
+}
+
+.acct__presence {
+  font-size: 12px;
+  color: var(--text-mute);
+}
+
+/* Three lines is a glimpse; a paragraph here would push the actions off a
+   phone screen, and the whole thing is a menu rather than a profile page. */
+.acct__about {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--r-md);
+  background: var(--bg-panel);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.acct__actions {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 8px;
+}
+
+.acct__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* 44 is the smallest a thumb should be asked to hit, and this is the panel
+     that exists because a phone could not reach these at all. */
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: none;
+  color: var(--text);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.acct__item:hover:not(:disabled),
+.acct__item:active:not(:disabled) {
+  background: var(--hover);
+}
+
+.acct__item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.acct__item--danger {
+  color: var(--red);
+}
+
+.acct__item-icon {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  color: var(--text-mute);
+}
+
+.acct__item--danger .acct__item-icon {
+  color: inherit;
+}
+
+/* The two stacks are separated by their own top border, so the status group
+   and the actions read as two lists rather than one long one. */
+.acct__actions + .acct__actions {
+  margin-top: 4px;
+}
+
+.acct__chevron {
+  margin-left: auto;
+  color: var(--text-mute);
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* Indented, because these belong to the row above rather than to the panel. */
+.acct__item--sub {
+  padding-left: 20px;
+  font-size: 13px;
+}
+
+.acct__item--on {
+  color: var(--text-hi);
+  font-weight: 600;
+}
+
+/* The same four colours the avatar's presence dot uses, so a status chosen
+   here and a status seen on a face are never two different greens. */
+.acct__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: block;
+}
+
+.acct__dot--online {
+  background: var(--presence-online);
+}
+.acct__dot--idle {
+  background: var(--presence-idle);
+}
+.acct__dot--dnd {
+  background: var(--presence-dnd);
+}
+.acct__dot--offline,
+.acct__dot--invisible {
+  background: var(--presence-offline);
+}

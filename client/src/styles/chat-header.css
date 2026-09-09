@@ -135,3 +135,12 @@
     display: inline;
   }
 }
+
+/* The recipient's face, left of their name. No margin: the header is a flex
+   row with its own 12px gap, and adding one here would space this differently
+   from every other thing in the row. */
+.chat-header__face {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}

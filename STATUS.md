@@ -1,6 +1,6 @@
 # STATUS: where this project actually is
 
-Last updated **2026-09-08**, after three passes over the chat UI and one over
+Last updated **2026-09-09**, after three passes over the chat UI and one over
 the account layer. The first UI pass brought nicknames, right-click actions on
 a person, a password reveal on the auth screens and the removal of every
 encryption badge. The second added the profile panel, rebuilt the Friends
@@ -29,7 +29,9 @@ its session across restarts, has a tray, native notifications, an unread
 badge, a taskbar flash for calls, one instance, start-with-computer and
 signed auto-updates announced by a banner in the app, and the client gained
 the platform adapter all of that goes through. It compiles and builds on
-Windows; the workflow has not run yet and needs one secret first. What is
+Windows; the workflow has run once on a push, with the signing secret in
+place, and its Windows job passed while the macOS and Linux jobs failed on
+a missing `DATABASE_URL`, which is fixed and awaits the next push. What is
 left is parked on purpose rather than forgotten: the account endpoints
 behind settings and the backup cron on the box.
 
@@ -519,12 +521,16 @@ Two end-to-end proofs, both against a running server over real HTTP:
   Signing in from the desktop against the deployed server, the tray, the
   notifications, the badge and the update banner have not been walked
   through by hand yet; their logic is tested, their wiring is not.
-  Everything past that is unrun: the
-  GitHub Actions workflow has not been dispatched, the
-  `TAURI_SIGNING_PRIVATE_KEY` secret is not added (the private key is in
-  `~/.tauri/cipher.key` on the machine that generated it and nowhere else),
-  no macOS or Linux build exists, no release exists and so the updater has
-  never had a `latest.json` to read. **There are no code-signing
+  The GitHub Actions workflow ran once, on the push of 2026-09-08, with
+  the `TAURI_SIGNING_PRIVATE_KEY` secret added (the private key is in
+  `~/.tauri/cipher.key` on the machine that generated it and nowhere else,
+  and in that secret). Its Windows job passed and produced a signed
+  installer as an artifact; the macOS and Linux jobs failed at the step
+  that adds the native rollup and esbuild binaries, because a root
+  `npm install` re-runs `server/`'s `prisma generate` and that step had
+  no `DATABASE_URL`. Fixed on 2026-09-09, unproven until the next push.
+  The workflow has never been dispatched, so no release exists and the
+  updater has never had a `latest.json` to read. **There are no code-signing
   certificates** either, so the installers trip Gatekeeper and SmartScreen;
   `desktop/README.md` says what that means on each OS.
 - **No OS keychain on desktop.** The device key sits in the WebView's

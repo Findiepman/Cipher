@@ -756,25 +756,35 @@ Two end-to-end proofs, both against a running server over real HTTP:
   the blob is what carries it between devices. A device that has never synced
   uses the defaults until it does.
 - **Phase 2 encryption.** See `packages/crypto/AGENTS.md`.
-- **The desktop app has never been through its own pipeline.** The Tauri
-  app in `desktop/` compiles, and `npm run build` there produced a signed
-  NSIS installer on the Windows dev machine on 2026-09-08, and the release
-  binary launched and drew the sign-in screen from its bundled pages.
-  Signing in from the desktop against the deployed server, the tray, the
-  notifications, the badge and the update banner have not been walked
-  through by hand yet; their logic is tested, their wiring is not.
-  The GitHub Actions workflow ran once, on the push of 2026-09-08, with
-  the `TAURI_SIGNING_PRIVATE_KEY` secret added (the private key is in
-  `~/.tauri/cipher.key` on the machine that generated it and nowhere else,
-  and in that secret). Its Windows job passed and produced a signed
-  installer as an artifact; the macOS and Linux jobs failed at the step
-  that adds the native rollup and esbuild binaries, because a root
-  `npm install` re-runs `server/`'s `prisma generate` and that step had
-  no `DATABASE_URL`. Fixed on 2026-09-09, unproven until the next push.
-  The workflow has never been dispatched, so no release exists and the
-  updater has never had a `latest.json` to read. **There are no code-signing
-  certificates** either, so the installers trip Gatekeeper and SmartScreen;
-  `desktop/README.md` says what that means on each OS.
+- **The desktop app has shipped, and the updater feed is live.** Version
+  **1.0.1** is published at `desktop-v1.0.1` with installers and signatures for
+  Windows, macOS (both architectures) and Linux, plus `latest.json`. That
+  manifest resolves and advertises 1.0.1, which is the first time
+  `releases/latest/download/latest.json` has been anything but a 404. The
+  macOS and Linux jobs that failed on 2026-09-08 for want of a `DATABASE_URL`
+  are fixed and proven: all four jobs are green.
+  What is still unwalked is the app itself against the deployed server:
+  signing in from the desktop, the tray, the notifications, the badge and the
+  update banner have logic that is tested and wiring that is not. **There are
+  still no code-signing certificates**, so the installers trip Gatekeeper and
+  SmartScreen; `desktop/README.md` says what that means on each OS.
+- **`release.ps1` publishes the wrong build if a previous dispatch exists.**
+  Found the hard way on 2026-09-09: it dispatches, then finds the run with
+  `gh run list --event=workflow_dispatch -L 1`, which returns the newest
+  dispatch *that has registered*. A run started seconds ago has not, so it
+  picks up an earlier one, sees it already succeeded, and publishes straight
+  away. That shipped a 1.0.0 built from the commit before the client work
+  landed; the build it actually started then succeeded with nowhere to put its
+  output, because the tag existed and the release was published. 1.0.1 was cut
+  by hand instead, dispatching and then checking the run's event and head sha
+  before watching it. The fix is to match the run id from the dispatch output,
+  or filter by a creation time newer than the dispatch. Still unfixed.
+  Its other 5.1 bug is fixed: three `gh` probes now run with
+  `$ErrorActionPreference` relaxed, because Windows PowerShell wraps a native
+  command's stderr in an ErrorRecord and the script's own `Stop` preference
+  turned "not logged in" and "release not found" into terminating errors. Both
+  are the question being asked. PowerShell 7 does not do this, which is why it
+  worked elsewhere, and `powershell -ExecutionPolicy Bypass` launches 5.1.
 - **No OS keychain on desktop.** The device key sits in the WebView's
   IndexedDB exactly as it does in a browser, and so does the refresh token,
   in the clear: bearer mode has no cookie jar, and a session that died with
@@ -1455,15 +1465,16 @@ Pick one; they are roughly independent.
    `AGENTS.md` names as the precondition. The registry and the envelope model
    are already in place, so this is `encryptMessage`/`decryptMessage` plus the
    line in `packages/crypto/AGENTS.md`: no schema change, no data migration.
-5. **Ship the first desktop build.** Add `TAURI_SIGNING_PRIVATE_KEY` to the
-   repository's Actions secrets (the content of `~/.tauri/cipher.key`),
-   dispatch the `desktop` workflow, and see whether the macOS and Linux jobs
-   pass on their first run, since only Windows has been built so far. Then
-   install the result on a clean machine per `desktop/AGENTS.md` before
-   publishing the draft. Code-signing certificates are a separate, paid
-   decision and are not needed for this step. After that, releasing is the
-   normal way a client change reaches desktop users (decision 29), so it
-   should become routine rather than an event.
+5. **Fix the release script's run-finder, then walk the desktop app through.**
+   Shipping happened on 2026-09-09: 1.0.1 is live for three platforms and the
+   updater feed resolves. Two things are left. `release.ps1` still finds its
+   run with `-L 1` and will publish a stale build whenever a previous dispatch
+   exists, which is now always; it should match the run id the dispatch prints.
+   And the app itself has never been driven against the deployed server:
+   signing in, the tray, notifications, the badge and the update banner are
+   tested in logic and unproven in wiring. Installing 1.0.1 over an older
+   version and watching the banner appear is the one test that covers most of
+   it at once. Code-signing certificates remain a separate, paid decision.
 6. **Fold the four credential audit actions into `lib/audit.ts`.** Small and
    nagging: `recordCredentialAudit` in `modules/auth/service.ts` names
    `auth.reset_requested`, `auth.reset_completed`, `auth.password_changed` and

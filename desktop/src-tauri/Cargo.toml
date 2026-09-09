@@ -1,6 +1,6 @@
 [package]
 name = "cipher-desktop"
-version = "0.2.0"
+version = "1.0.0"
 description = "The Cipher desktop app: the bundled web client in a native shell, with a tray, notifications and signed updates."
 edition = "2021"
 publish = false

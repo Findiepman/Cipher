@@ -1,0 +1,69 @@
+/* Between the messages and the composer, for as long as a changed key is
+   waiting on a decision. Sage, because it is the one thing in a conversation
+   that is about the encryption itself (theme.css), and the only ember in the
+   strip is the button that ends it. Tinted from --sage rather than the fixed
+   --sage-bg so it sits right on a light palette too. */
+.key-change {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+  margin: 0 18px 4px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--sage) 40%, transparent);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--sage) 12%, transparent);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.key-change > svg {
+  flex: 0 0 auto;
+  color: var(--sage);
+}
+
+.key-change__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.key-change__title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text-hi);
+}
+
+.key-change__body {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-mute);
+}
+
+.key-change__accept {
+  flex: 0 0 auto;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--ember);
+  color: var(--ember-ink);
+}
+.key-change__accept:hover:not(:disabled) {
+  background: var(--ember-hover);
+}
+.key-change__accept:disabled {
+  opacity: 0.6;
+}
+
+/* On a phone the button goes under the text rather than squeezing it. */
+@media (max-width: 600px) {
+  .key-change {
+    flex-wrap: wrap;
+  }
+  .key-change__accept {
+    margin-left: 28px;
+  }
+}

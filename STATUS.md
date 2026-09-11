@@ -1,6 +1,6 @@
 # STATUS: where this project actually is
 
-Last updated **2026-09-09**, after three passes over the chat UI and one over
+Last updated **2026-09-11**, after three passes over the chat UI and one over
 the account layer. The first UI pass brought nicknames, right-click actions on
 a person, a password reveal on the auth screens and the removal of every
 encryption badge. The second added the profile panel, rebuilt the Friends
@@ -17,9 +17,9 @@ phone, both connected and carried audio. The fifth pass is
 appearance: five palettes in either light or dark, an activity bar that docks
 to any of the four edges and a close button that follows you down a settings
 section. The sixth is the vault, stage 1 of
-[`vault-plan.md`](vault-plan.md): a private space behind a passkey, which is
-the first feature in the app whose contents are genuinely encrypted rather than
-waiting on phase 2. The seventh is making the app yours: a banner and a real
+[`vault-plan.md`](vault-plan.md): a private space behind a passkey, which was
+the first feature in the app whose contents were genuinely encrypted, two days
+before messages were. The seventh is making the app yours: a banner and a real
 description on your profile, people pinned to the top of the conversation
 list, a palette you write from two colours and a wallpaper behind everything.
 The eighth was a desktop shell that opened the deployed site in a window.
@@ -34,7 +34,10 @@ place, and its Windows job passed while the macOS and Linux jobs failed on
 a missing `DATABASE_URL`, which is fixed and awaits the next push. What is
 left is parked on purpose rather than forgotten: the backup cron on the box.
 The account endpoints behind settings are done as of 2026-09-09, and with
-them a profile your friends can see.
+them a profile your friends can see. The tenth pass, on 2026-09-11, is the one
+this whole project was waiting on: phase 2, real encryption on every message
+and every call description, with other people's keys pinned on first sight.
+It is tested and not yet walked through in a browser.
 
 This file is the "get up to speed without reading everything" document. It says
 what works, what does not, and which decisions are load-bearing. Keep it
@@ -63,13 +66,17 @@ offline queue, a backlog on reconnect and unread counts that clear when you
 actually look at the conversation. **Losing a password is no longer losing the
 account**: a reset link plus the recovery code rebuilds it with the identity
 intact, and the alternative branch discards the identity knowingly rather than
-by accident. **Encryption is still deliberately
-phase 1**, meaning `encryptMessage`/`decryptMessage` are base64 no-ops, so the
-server can currently read message bodies. The UI no longer says anything about
-this either way: the SEALED pill, the key fingerprints and the ciphertext
-toggle were all removed on 2026-09-07, because a badge claiming a property the
-code does not have yet is worse than no badge. Group servers/channels do not
-exist; DMs only. **It is deployed and reachable** at
+by accident. **Encryption is phase 2 as of
+2026-09-11**: every message and every call description is sealed with
+`crypto_box` to the recipient's key, the conversation is bound into the box,
+the server stores and relays ciphertext it cannot open, and other people's
+keys are pinned on first sight so a swapped key stops the conversation until
+you accept it. History from before that date is stored base64 under
+`alg: 'none'` and still opens. The UI says nothing about encryption beyond
+that one notice: the SEALED pill, the key fingerprints and the ciphertext
+toggle were removed on 2026-09-07, and an out-of-band verification screen is
+still to come. Group servers/channels do not exist; DMs only, and when groups
+come they will not be end-to-end encrypted (decision 34). **It is deployed and reachable** at
 <https://cipher.findiepman.dev>, on Docker Compose on the Ubuntu mini PC, one
 origin behind a Cloudflare Tunnel, mail through Resend. Registration,
 verification-by-email and messaging have all been driven by hand against the
@@ -89,6 +96,8 @@ account-work axis (`backend-plan.md`).
 | Unlock / lock / sign out, session restored across reloads | `client/src/state/SessionProvider.tsx` |
 | A reload staying unlocked, without the password, for 30 idle days | `client/src/lib/session/keyManager.ts`, `packages/crypto/src/deviceKey.ts` |
 | Keypair generation, Argon2id key wrapping, recovery codes, fingerprints | `packages/crypto/src/` |
+| Messages and call descriptions sealed with `crypto_box`, bound to their conversation (tests and the smoke script, not yet a browser) | `packages/crypto/src/message.ts`, `client/src/state/chatController.ts`, `client/src/lib/call/sealing.ts` |
+| Other people's keys pinned on first sight, a notice and a consent when one changes | `client/src/lib/session/keyPins.ts`, `client/src/components/KeyChangeNotice.tsx` |
 | Refresh-token rotation with reuse detection | `server/src/modules/auth/sessions.ts` |
 | Account lockout, generic responses that resist enumeration | `server/src/modules/auth/service.ts` |
 | Friend requests by exact username, accept/decline, unfriend, block | `server/src/modules/friends/` |
@@ -145,16 +154,11 @@ account-work axis (`backend-plan.md`).
 | A hidden desktop window is kept awake, so close-to-tray keeps the socket up | `desktop/src-tauri/src/main.rs` (`BROWSER_ARGS`) |
 | Live registration + verification email landing in an inbox | verified by hand 2026-09-07 |
 
-616 tests pass: 41 crypto, 352 client, 223 server. `npm run
-typecheck` and `npm run build` are clean across all workspaces, and `cargo
-check` in `desktop/src-tauri/` is clean. That is the committed tree; on the
-other maintainer's machine, as of the 2026-09-08 client pass, **`packages/crypto`
-is mid-rewrite and does not currently compile**: `kdf.ts`, `messages.ts`,
-`recovery.ts`, `wrap.ts` and their tests are untracked working-tree files that
-import names `sodium.ts`, `keys.ts` and `encoding.ts` do not export yet, so
-`npm run typecheck` fails at the root and 28 of its 78 tests fail. That is
-work in progress rather than a regression, and nothing in `client/` or
-`server/` depends on the half-written half of it.
+As of the phase 2 pass: 54 crypto, 470 client and 262 server tests pass, and
+`tsc` is clean in all three workspaces. The earlier note about a half-written rewrite of `packages/crypto`
+on the other maintainer's machine (`kdf.ts`, `messages.ts`, `recovery.ts`,
+`wrap.ts`, untracked) predates phase 2, which was built on the committed
+`message.ts` instead; if those files still exist somewhere, they are dead.
 
 **The UI has been driven by hand in a browser, and it works.** That is worth
 stating separately from the tests. Adding a friend and exchanging messages were
@@ -222,8 +226,8 @@ of CSS worth knowing about: the close button in Settings is sticky, so it
 follows you down a long section.
 
 **The vault is built, stage 1, and not walked through either.** Added
-2026-09-08, and it is the odd one out in this codebase: its contents are
-*really* encrypted today. Phase 1 makes `encryptMessage` a no-op, but the
+2026-09-08, and for two days it was the odd one out in this codebase: its
+contents were *really* encrypted while messages still were not. The
 credential half of `packages/crypto` (Argon2id, `crypto_secretbox`) has always
 been real, and the vault is built on that half rather than on the message path.
 A random vault key is wrapped twice, under the passkey and under the account
@@ -642,14 +646,19 @@ Two end-to-end proofs, both against a running server over real HTTP:
 - `cd server && npm run smoke:messaging`: two accounts befriend each other,
   open a DM, send over a websocket, receive live, and page the backlog. Its
   last assertion is the one the envelope model exists for: **the sender can
-  read their own message back off the server.**
+  read their own message back off the server.** Run against a local server
+  on 2026-09-11, after the phase 2 flip: all checks passed, with the stored
+  envelope tagged `box`, the two copies different ciphertext, and neither the
+  plaintext nor its base64 anywhere on the wire. It needs the server started
+  with `MAIL_TRANSPORT=file` and both sides agreeing on `MAIL_DIR`.
 
 ## What is not built
 
 - **Group servers and channels.** DMs only. The message tables are generic
-  enough for groups (a `Conversation` with N participants), but the key model
-  is not chosen, see `packages/crypto/AGENTS.md`. The UI's server rail is
-  gone; there is a Direct view and a Friends view.
+  enough for groups (a `Conversation` with N participants). There is no key
+  model to choose because groups will not be end-to-end encrypted (decision
+  34): when they come they are ordinary server-side chat. The UI's server
+  rail is gone; there is a Direct view and a Friends view.
 - **Sharing your profile with anyone else.** You have one now, under
   Settings, with a picture, a banner, an accent, a display name, a paragraph
   about yourself and any number of saved variants to switch between. All of it is
@@ -703,11 +712,11 @@ Two end-to-end proofs, both against a running server over real HTTP:
   calls work but leave no trace: a missed call is a four-second notice and then
   nothing, because nothing about a call touches the schema yet
   ([`voice-plan.md`](voice-plan.md) stage 5). Video is deferred with the
-  camera settings already stored (stage 6). And the DTLS fingerprint in the
-  SDP is not yet bound to the account keypair, so a hostile server could sit
-  in the middle of a call's setup; that is the standard WebRTC threat model
-  and it is phase 2 work (stage 6 too). The UI says nothing about any of this,
-  per decision 21.
+  camera settings already stored (stage 6). The DTLS fingerprint in the SDP
+  has been bound to the account keypair since phase 2: `sealing.ts` seals
+  every description to the peer's pinned key, which closes the standard
+  WebRTC threat model for a call's setup. The UI says nothing about any of
+  this, per decision 21.
 - **A TURN key on the box.** `TURN_KEY_ID` and `TURN_KEY_API_TOKEN` are not
   yet in `deploy/.env`, so the deployed server hands out STUN only and a call
   between two home networks will not connect. `DEPLOY.md` → *Voice calls* has
@@ -755,7 +764,15 @@ Two end-to-end proofs, both against a running server over real HTTP:
   on. `localStorage` is still where a device keeps its own copy between loads;
   the blob is what carries it between devices. A device that has never synced
   uses the defaults until it does.
-- **Phase 2 encryption.** See `packages/crypto/AGENTS.md`.
+- **An out-of-band key verification screen.** Pinning on first sight narrows
+  a lying server to the first contact; reading fingerprints to each other in
+  person would close that too. `keyFingerprint` exists and nothing draws it.
+  Decision 21 says it should be one considered screen, not a badge.
+- **Phase 2 walked through in a browser.** The crypto is proven by 54 tests
+  including the NaCl vector, the controller by 25 and the smoke script seals
+  for real, but nobody has yet sent a message between two browsers on the
+  live box since the flip, made a call, or reset a password without the
+  recovery code to see the key-change notice appear on the other side.
 - **The desktop app has shipped, and the updater feed is live.** Version
   **1.0.1** is published at `desktop-v1.0.1` with installers and signatures for
   Windows, macOS (both architectures) and Linux, plus `latest.json`. That
@@ -834,18 +851,21 @@ worse for this specific app.
 6. **`packages/crypto` is the only caller of libsodium.** `server/` depends on
    it as a **devDependency only**, used by `scripts/smoke.ts`, which acts as a
    client. Server runtime code must never import it for anything that decrypts.
-7. **Phase 1 message envelope is `{ v: 1, alg: 'none', nonce: null, body }`**
-   with a base64 body. Readers dispatch on `alg`, so phase 2 messages can
-   coexist with phase 1 ones during a rollout. The client's tests construct this
-   envelope by hand, so change one side and you must change the other.
+7. **The message envelope is `{ v: 1, alg, nonce, body }`, `alg: 'box'` since
+   phase 2 and `alg: 'none'` for everything written before it.** Readers
+   dispatch on `alg`, which is what let the flip happen with no migration:
+   old and new messages sit in one conversation and both open. The client's
+   tests still construct the `none` envelope by hand for that history case, so
+   change one side and you must change the other.
 8. **A message is a header plus one sealed envelope per participant**, the
    author included (`Message` + `MessageEnvelope`). `crypto_box` seals to
    exactly one recipient, so a message sealed for the person you are talking to
    cannot be opened by you. Without a self-addressed copy, a sender on a fresh
-   device would find their own history unreadable. Phase 1 puts the same
-   `alg: 'none'` blob in every envelope, so this costs a row per participant
-   today and saves a migration later. The server validates that the recipient
-   set equals the participant set and hands each caller only their own copy.
+   device would find their own history unreadable. Phase 1 put the same
+   `alg: 'none'` blob in every envelope; phase 2 made each one a different
+   box with no migration, which is what the row per participant bought. The
+   server validates that the recipient set equals the participant set and
+   hands each caller only their own copy.
 9. **Friendship is the authorization gate** for the key registry and for
    opening a conversation. Unfriending stops new messages but leaves the
    history readable: it withdraws the ability to add to a conversation, not a
@@ -910,10 +930,11 @@ worse for this specific app.
     panel would reopen every time you switched DM, or a pinned profile would be
     silently replaced on the next render.
 21. **The UI makes no claim about encryption.** No SEALED pill, no key
-    fingerprint beside a name, no "the server only ever held the blob". If
-    phase 2 lands and someone wants to surface it again, it should be one
-    considered screen (an out-of-band verification flow), not a badge on every
-    row.
+    fingerprint beside a name, no "the server only ever held the blob". Phase
+    2 has landed and this still holds; if someone wants to surface it, it
+    should be one considered screen (an out-of-band verification flow), not a
+    badge on every row. The one exception is the key-change notice (decision
+    33), which is a consent the user has to give, not a claim.
 22. **Read marking only ever moves forward, and counts come from `seq`.**
     `markRead` leaves the stored position alone when handed an older marker,
     and `readUpTo` in `chatStore` only ever lowers a count. Two tabs race
@@ -956,9 +977,9 @@ worse for this specific app.
     carries the DTLS fingerprint the call's security rests on, so the client
     seals it with `encryptMessage` to the peer's registry key
     (`client/src/lib/call/sealing.ts`) and the server relays a string it may
-    not read. In phase 1 that is a base64 no-op and protects nothing, which
-    the plan says out loud; the point is that phase 2 makes the server unable
-    to rewrite an offer in the same commit it becomes unable to read a
+    not read. Since phase 2 that is a real box, under its own `call` context
+    so a message body can never pass as an offer, and the server became
+    unable to rewrite an offer in the same commit it became unable to read a
     message. `sealing.ts` is therefore the second and last caller of the
     crypto seam in the frontend, beside `chatController.ts`. ICE candidates are
     not sealed: they are addresses, and a relay sees them regardless.
@@ -1018,6 +1039,39 @@ worse for this specific app.
     pictures in any of it are base64 data URLs, capped in bytes and checked for
     a real PNG, JPEG or WebP header, never SVG, which is a document with scripts
     in it.
+33. **Other people's keys are pinned on first sight, and a changed key stops
+    the conversation until you accept it.** Every key the client seals to
+    comes from the server's registry, and correct encryption to a key the
+    server made up protects nothing. Pinning (`lib/session/keyPins.ts`) is
+    the cheapest thing that makes a lying server have to lie at first contact
+    and never again. A change is also a real event, a password reset without
+    the recovery code makes a fresh keypair, which is why it is a notice with
+    an explanation and a button (`KeyChangeNotice`) rather than a silent
+    refusal. While it waits: nothing is sealed to the new key, nothing sealed
+    under it is opened (those land as locked bubbles), the composer is
+    disabled, and a call to that person fails. Accepting re-opens what was
+    refused. `ChatProvider` is the only place a registry key becomes one the
+    app uses, and `CallProvider` takes its peer keys from it. Your own key is
+    never pinned: your own copy is sealed to the unlocked identity, never to
+    what the server says your key is. Pins are per account in the secure
+    store, unsealed, because public keys are public.
+    Two related choices made in the same pass. The conversation id is bound
+    into the box (`crypto_box` has no field for authenticated-but-clear data,
+    so the plaintext is framed as `{ c, m }` inside it and the context is
+    checked on opening), which stops the server serving a sealed body in a
+    different conversation and stops a message being replayed as a call
+    offer. And there is no forward secrecy, on purpose: a ratchet would buy
+    it and then lose it again to the self-addressed copy and to history that
+    follows you to a new device, both of which this app wants more.
+34. **Group chats and servers will not be end-to-end encrypted.** Decided
+    2026-09-11, before any group code exists. The private product is the DM;
+    a server's members are not something this app wants to take
+    responsibility for against each other and against the operator, and the
+    maintainers do not want to run rooms nobody can moderate. So when groups
+    come they are ordinary server-readable chat, kept clearly apart from the
+    sealed DM path, and the fan-out and shared-key designs (MLS, Megolm) that
+    `packages/crypto/AGENTS.md` used to flag for evaluation are off the table.
+    The root `AGENTS.md` has the rule.
 24. **The reset context endpoint is a POST, and it does not spend the token.**
     A GET would put a live credential in a query string, which is the part of
     a request that reliably reaches access logs and browser history. Not
@@ -1461,10 +1515,10 @@ Pick one; they are roughly independent.
    schema, and the plan leans towards a separate `Call` table over a message
    variant. Check the TURN key is in `deploy/.env` on the box first if calls
    across two networks ever fail (`DEPLOY.md` → *Voice calls*).
-4. **Phase 2 encryption.** DMs now work end to end in phase 1, which
-   `AGENTS.md` names as the precondition. The registry and the envelope model
-   are already in place, so this is `encryptMessage`/`decryptMessage` plus the
-   line in `packages/crypto/AGENTS.md`: no schema change, no data migration.
+4. **Walk phase 2 through on the live box.** Two browsers, a message each
+   way, a call, and a password reset without the recovery code so the other
+   side sees the key-change notice and accepts it. Then the verification
+   screen (*What is not built*), which is the last piece of the trust story.
 5. **Fix the release script's run-finder, then walk the desktop app through.**
    Shipping happened on 2026-09-09: 1.0.1 is live for three platforms and the
    updater feed resolves. Two things are left. `release.ps1` still finds its
@@ -1486,4 +1540,5 @@ Pick one; they are roughly independent.
    desktop app (Tauri's deep-link plugin) plus a second link in the emails
    would keep someone who registered from the desktop inside it.
 
-Do not start with group encryption, see `packages/crypto/AGENTS.md`.
+Groups and servers are not going to be encrypted (decision 34), so when they
+come, start from the conversation tables, not from a key model.

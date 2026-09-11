@@ -15,13 +15,14 @@
  * after that, renegotiation and ICE restarts included.
  *
  * Every session description goes out through `CallSealer`, the same envelope
- * seam a message body uses, and comes back in through it. In phase 1 that is
- * a base64 no-op; the engine does not know or care, which is the point.
+ * seam a message body uses, and comes back in through it. Since phase 2 that
+ * is a real box to the peer's key; the engine does not know or care, which is
+ * the point.
  *
  * What the engine says about privacy: nothing. The audio is DTLS-SRTP between
  * two browsers and never touches the server, which is real end-to-end
- * encryption, and the signalling that sets it up is not yet bound to the
- * identity key (voice-plan.md, stage 6). Decision 21 in STATUS.md is that the
+ * encryption, and since phase 2 the signalling that sets it up is sealed to
+ * the identity key friendship vouches for. Decision 21 in STATUS.md is that the
  * UI makes no encryption claims, so there is no flag here to draw one from.
  */
 import type { VoiceSettings } from '../settings/types';

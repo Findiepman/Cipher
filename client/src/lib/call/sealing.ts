@@ -4,10 +4,14 @@
  * The SDP carries each side's DTLS certificate fingerprint. A server that can
  * read and rewrite it can substitute its own and sit in the middle of the
  * call, and neither browser would notice (voice-plan.md, "The encryption
- * story"). Phase 1's envelope is a base64 no-op and stops nothing. But it is
- * the seam: when `encryptMessage` becomes a real `crypto_box` to the peer's
- * key, the server loses the ability to rewrite an offer in the same commit it
- * loses the ability to read a message, with no change here or in the engine.
+ * story"). Since phase 2 the envelope is a real `crypto_box` to the peer's
+ * key, so the server lost the ability to rewrite an offer in the same commit
+ * it lost the ability to read a message, with no change here or in the
+ * engine. The DTLS fingerprint is thereby bound to the identity key that
+ * friendship vouches for.
+ *
+ * Sealed under its own context rather than a conversation's, so a sealed
+ * message body can never be replayed as a description or the other way round.
  *
  * This is the second place in the frontend that calls the two seam functions,
  * beside state/chatController.ts. Components still never do.
@@ -19,6 +23,9 @@ import {
   serializeCiphertext,
 } from '@cipher/crypto';
 import type { CallSealer, SessionDescription } from './types';
+
+/** What a description is sealed under, beside the two keys. */
+const CALL_CONTEXT = 'call';
 
 export interface CallSealerOptions {
   /// Our own keypair, unlocked.
@@ -49,6 +56,7 @@ export function createCallSealer(options: CallSealerOptions): CallSealer {
         JSON.stringify(description),
         await peerKey(peerId),
         options.privateKey,
+        CALL_CONTEXT,
       );
       return serializeCiphertext(sealed);
     },
@@ -58,6 +66,7 @@ export function createCallSealer(options: CallSealerOptions): CallSealer {
         parseCiphertext(sealed),
         await peerKey(peerId),
         options.privateKey,
+        CALL_CONTEXT,
       );
       return parseDescription(plaintext);
     },

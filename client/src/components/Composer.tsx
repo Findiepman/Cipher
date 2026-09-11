@@ -13,13 +13,22 @@ type Props = {
   onTyping?: () => void;
   /** Shown on the right of the footer. Used for queue depth. */
   notice?: string;
+  /** Nothing can be sent right now, and the notice above the box says why. */
+  disabled?: boolean;
 };
 
 const MAX_HEIGHT = 160;
 /** One typing signal per this long, however fast someone types. */
 const TYPING_THROTTLE_MS = 2_500;
 
-export function Composer({ placeholder, onSend, typing = [], onTyping, notice }: Props) {
+export function Composer({
+  placeholder,
+  onSend,
+  typing = [],
+  onTyping,
+  notice,
+  disabled = false,
+}: Props) {
   const t = useT();
   const [value, setValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -34,7 +43,7 @@ export function Composer({ placeholder, onSend, typing = [], onTyping, notice }:
 
   function send() {
     const body = value.trim();
-    if (!body) return;
+    if (!body || disabled) return;
     onSend(body);
     setValue('');
   }
@@ -63,6 +72,7 @@ export function Composer({ placeholder, onSend, typing = [], onTyping, notice }:
           rows={1}
           value={value}
           placeholder={placeholder}
+          disabled={disabled}
           onChange={(event) => change(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
@@ -87,7 +97,7 @@ export function Composer({ placeholder, onSend, typing = [], onTyping, notice }:
           type="button"
           className="composer__send"
           onClick={send}
-          disabled={empty}
+          disabled={empty || disabled}
           aria-label={t('chat.send')}
           title={t('chat.send')}
         >

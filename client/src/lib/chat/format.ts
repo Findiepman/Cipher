@@ -2,7 +2,7 @@
  * What a message body means, worked out before anything draws it.
  *
  * A body is the text somebody typed and nothing else: no markup travels over
- * the wire, and the server (once phase 2 lands) cannot see it anyway. So
+ * the wire, and the server cannot see it anyway. So
  * everything a bubble shows beyond the raw words is decided here, on the
  * reading device, from the text alone:
  *

@@ -23,16 +23,17 @@ Read the root `AGENTS.md` first. This file covers the React app in `client/`, wh
 - The user's private key is generated and stored client-side only, and it never gets sent to the server in any request, ever, including telemetry/error reporting. Be deliberate about this when adding logging or crash reporting.
 - Web: store the private key in IndexedDB (or similar), scoped and not exposed to any script you don't control (careful with third-party embeds, browser extensions with broad permissions, etc.).
 - Desktop: the OS keychain, through `NativeSecureStorage` in `lib/storage/secureStore.ts`, is the goal and is not built; today the desktop stores the wrapped key and the device key in the WebView's IndexedDB exactly as the browser does, and the refresh token beside them (`lib/storage/refreshTokenStore.ts`, which says what that costs). Never a plain file, and never a lowered default for convenience: a dev shortcut is an explicit dev-only code path.
-- During phase 1, `encryptMessage()`/`decryptMessage()` are no-ops, so message content in the UI is genuinely plaintext right now. Don't build UI assumptions (e.g. "we can search message history via the socket in one round trip") that only work because plaintext is currently flowing through the server. Once phase 2 lands, the server can't search or index message content, plan the UI accordingly (client-side search over decrypted local history is the usual answer).
+- Since phase 2 (2026-09-11) `encryptMessage()`/`decryptMessage()` are real `crypto_box`, so the server cannot search or index message content. Plan the UI accordingly: client-side search over decrypted local history is the usual answer. History from before that date is stored under `alg: 'none'` and still opens.
+- Other people's keys are pinned on first sight (`lib/session/keyPins.ts`). `state/ChatProvider.tsx` is the only place that turns a registry key into one the app seals to or opens with, and `CallProvider` takes its peer keys from it through `resolvePeerKey`. Don't read `publicKey` off a friend or participant DTO anywhere else, and never seal your own copy to what the server says your key is: the controller uses the unlocked identity for that.
 
 ## Real-time and offline behavior
 
 - Messages sent while offline should queue locally and flush on reconnect, not get silently dropped. The queue is `lib/transport/outbox.ts`, backed by the same secure store that holds the wrapped key. An in-memory-only queue would keep that promise just until the tab closed.
 - The UI must say when it is not connected and how much is waiting. Silence is the one answer a messenger cannot give.
-- On reconnect, pull any backlog from the server (which will be ciphertext once phase 2 lands) and decrypt client-side before rendering.
+- On reconnect, pull any backlog from the server (ciphertext) and decrypt client-side before rendering.
 
 ## Testing
 
 - There is no fixture render of the chat any more. `VITE_BACKEND=mock` short-circuits auth but does not draw a fake conversation: the UI has a real server now, and a parallel fixture render would mean making every change twice, which is what "don't fork UI code" in the root `AGENTS.md` is about.
-- Component tests can and should run against phase 1 (plaintext) behavior without needing real libsodium keys; that's the point of isolating crypto behind the two functions.
-- Add a couple of tests that specifically assert the app never sends a request containing the raw private key, once phase 2 lands.
+- Component tests run under jsdom and never touch libsodium (`vite.config.ts` says why). The controller, sealer and pin suites run in node with keys generated in the test, never from a fixture.
+- Still to add: a test that specifically asserts the app never sends a request containing the raw private key.

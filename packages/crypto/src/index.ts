@@ -18,6 +18,7 @@ export {
 export { equalBytes, fromBase64, fromUtf8, toBase64, toUtf8, wipe } from './encoding.js';
 export { generateKeyPair, keyFingerprint, publicKeyToBase64, type KeyPair } from './keys.js';
 export {
+  BOX_ALG,
   DecryptError,
   decryptMessage,
   encryptMessage,

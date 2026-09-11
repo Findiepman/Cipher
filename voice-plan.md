@@ -61,8 +61,10 @@ model (RFC 8827) and it is not specific to us.
 The fix fits this codebase unusually well and is deliberately deferred: there is
 already an account keypair per user and a public-key registry gated on
 friendship (`GET /keys/user/:userId`), so the fingerprint can be bound to the
-identity key that friendship already vouches for. That is phase 2 work, listed
-as stage 6. Until then:
+identity key that friendship already vouches for. That landed with phase 2 on
+2026-09-11: `sealing.ts` seals every description to the peer's registry key,
+pinned on first sight, under its own context so a message body can never pass
+as one. What was done in preparation:
 
 - Route the SDP through the same envelope seam messages use, so phase 2 lights
   up calls and messages in one change rather than two. **Done:** every session
@@ -306,7 +308,8 @@ needs its own merge into the message list. Lean towards the separate table.
 ## Stage 6. Not started.
 
 - Video. The settings are already there.
-- Binding the DTLS fingerprint to the identity key, with phase 2.
+- Binding the DTLS fingerprint to the identity key: done with phase 2 on
+  2026-09-11.
 
 ---
 

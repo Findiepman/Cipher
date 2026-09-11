@@ -1,4 +1,4 @@
-import { generateKeyPair } from '@cipher/crypto';
+import { BOX_ALG, encryptMessage, generateKeyPair, serializeCiphertext } from '@cipher/crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { MockTransport } from '../lib/transport/mockTransport';
 import { Outbox } from '../lib/transport/outbox';
@@ -6,7 +6,11 @@ import { ChatController, type ChatControllerOptions } from './chatController';
 import { messagesForChannel } from './chatStore';
 
 async function setup(
-  options: { offline?: boolean; recipients?: ChatControllerOptions['resolveRecipients'] } = {},
+  options: {
+    offline?: boolean;
+    recipients?: ChatControllerOptions['resolveRecipients'];
+    authorKey?: ChatControllerOptions['resolveAuthorKey'];
+  } = {},
 ) {
   const keyPair = await generateKeyPair();
   const transport = new MockTransport({
@@ -18,6 +22,7 @@ async function setup(
     transport,
     outbox: new Outbox(),
     resolveRecipients: options.recipients,
+    resolveAuthorKey: options.authorKey,
   });
   controller.setIdentity({
     userId: 'u-me',
@@ -25,7 +30,7 @@ async function setup(
     publicKey: keyPair.publicKey,
   });
   await controller.start();
-  return { controller, transport };
+  return { controller, transport, keyPair };
 }
 
 describe('sending', () => {
@@ -48,10 +53,8 @@ describe('sending', () => {
 
     const payload = sent.mock.calls[0][0];
     expect(JSON.stringify(payload)).not.toContain('the corner radius is 90% of the theme');
-    // Phase 1 seals to base64 and says so. The point of the assertion is that
-    // the composer's string is not what travels; in phase 2 the same assertion
-    // holds for real.
-    expect(payload.envelopes[0].ciphertext).toContain('"alg":"none"');
+    expect(JSON.stringify(payload)).not.toContain(btoa('the corner radius is 90% of the theme'));
+    expect(payload.envelopes[0].ciphertext).toContain(`"alg":"${BOX_ALG}"`);
   });
 
   it('seals a copy for every participant, the sender included', async () => {
@@ -83,6 +86,24 @@ describe('sending', () => {
     await controller.send('d-nova', 'sealed twice, not three times');
 
     expect(sent.mock.calls[0][0].envelopes).toHaveLength(2);
+  });
+
+  it('does not send when a recipient key cannot be trusted', async () => {
+    // A resolver that throws is how the provider says "this person's key has
+    // changed and nobody has accepted it yet". Nothing is shown as sending
+    // and nothing is queued: a bubble that can never leave would be a lie.
+    const { controller, transport } = await setup({
+      recipients: async () => {
+        throw new Error('key changed');
+      },
+    });
+    const sent = vi.spyOn(transport, 'send');
+
+    await expect(controller.send('d-nova', 'to nobody')).rejects.toThrow(/key changed/);
+
+    expect(sent).not.toHaveBeenCalled();
+    expect(messagesForChannel(controller.snapshot, 'd-nova')).toHaveLength(0);
+    expect(controller.queuedCount).toBe(0);
   });
 
   it('refuses to send while locked', async () => {
@@ -133,23 +154,132 @@ describe('offline behaviour', () => {
 });
 
 describe('receiving', () => {
-  it('opens an incoming message', async () => {
-    const { controller, transport } = await setup();
-    const other = await generateKeyPair();
-    const sealed = JSON.stringify({ v: 1, alg: 'none', nonce: null, body: btoa('hey') });
+  /// Somebody else's message, sealed to us the way their client would.
+  async function sealedBy(
+    author: { privateKey: Uint8Array },
+    us: { publicKey: Uint8Array },
+    body: string,
+    channelId = 'c-general',
+  ): Promise<string> {
+    return serializeCiphertext(
+      await encryptMessage(body, us.publicKey, author.privateKey, `conversation:${channelId}`),
+    );
+  }
+
+  it('opens an incoming message sealed to us by somebody else', async () => {
+    const nova = await generateKeyPair();
+    const { controller, transport, keyPair } = await setup({
+      authorKey: async (authorId) => (authorId === 'u-nova' ? nova.publicKey : null),
+    });
 
     transport.receive({
       id: 'srv-100',
       channelId: 'c-general',
       authorId: 'u-nova',
       sentAt: new Date().toISOString(),
-      ciphertext: sealed,
+      ciphertext: await sealedBy(nova, keyPair, 'hey'),
     });
-    void other;
 
     await vi.waitFor(() => {
       expect(messagesForChannel(controller.snapshot, 'c-general')).toHaveLength(1);
     });
+    expect(messagesForChannel(controller.snapshot, 'c-general')[0]).toMatchObject({
+      state: 'decrypted',
+      body: 'hey',
+    });
+  });
+
+  it('still opens history written before phase 2', async () => {
+    const { controller, transport } = await setup();
+
+    transport.receive({
+      id: 'srv-100',
+      channelId: 'c-general',
+      authorId: 'u-nova',
+      sentAt: new Date().toISOString(),
+      ciphertext: JSON.stringify({ v: 1, alg: 'none', nonce: null, body: btoa('hey') }),
+    });
+
+    await vi.waitFor(() => {
+      expect(messagesForChannel(controller.snapshot, 'c-general')).toHaveLength(1);
+    });
+    expect(messagesForChannel(controller.snapshot, 'c-general')[0]).toMatchObject({
+      state: 'decrypted',
+      body: 'hey',
+    });
+  });
+
+  it('shows a locked bubble for a sender whose key it does not have', async () => {
+    const nova = await generateKeyPair();
+    const { controller, transport, keyPair } = await setup();
+
+    transport.receive({
+      id: 'srv-100',
+      channelId: 'c-general',
+      authorId: 'u-nova',
+      sentAt: new Date().toISOString(),
+      ciphertext: await sealedBy(nova, keyPair, 'hey'),
+    });
+
+    await vi.waitFor(() => {
+      expect(messagesForChannel(controller.snapshot, 'c-general')).toHaveLength(1);
+    });
+    expect(messagesForChannel(controller.snapshot, 'c-general')[0]).toMatchObject({
+      state: 'failed',
+      body: null,
+      error: expect.stringMatching(/no key for the sender/),
+    });
+  });
+
+  it('refuses a message the server moved to another conversation', async () => {
+    const nova = await generateKeyPair();
+    const { controller, transport, keyPair } = await setup({
+      authorKey: async () => nova.publicKey,
+    });
+
+    transport.receive({
+      id: 'srv-100',
+      channelId: 'c-general',
+      authorId: 'u-nova',
+      sentAt: new Date().toISOString(),
+      ciphertext: await sealedBy(nova, keyPair, 'hey', 'c-other'),
+    });
+
+    await vi.waitFor(() => {
+      expect(messagesForChannel(controller.snapshot, 'c-general')).toHaveLength(1);
+    });
+    expect(messagesForChannel(controller.snapshot, 'c-general')[0]).toMatchObject({
+      state: 'failed',
+      error: expect.stringMatching(/somewhere else/),
+    });
+  });
+
+  it('opens what it refused once the key resolver changes its mind', async () => {
+    // The accept-new-key path: the resolver threw, the message failed, the
+    // user accepted, and reopen() gives it another go without a reload.
+    const nova = await generateKeyPair();
+    let trusted = false;
+    const { controller, transport, keyPair } = await setup({
+      authorKey: async () => {
+        if (!trusted) throw new Error('key changed');
+        return nova.publicKey;
+      },
+    });
+
+    transport.receive({
+      id: 'srv-100',
+      channelId: 'c-general',
+      authorId: 'u-nova',
+      sentAt: new Date().toISOString(),
+      ciphertext: await sealedBy(nova, keyPair, 'hey'),
+    });
+    await vi.waitFor(() => {
+      expect(messagesForChannel(controller.snapshot, 'c-general')[0]?.state).toBe('failed');
+    });
+
+    trusted = true;
+    await controller.reopen('c-general');
+
     expect(messagesForChannel(controller.snapshot, 'c-general')[0]).toMatchObject({
       state: 'decrypted',
       body: 'hey',

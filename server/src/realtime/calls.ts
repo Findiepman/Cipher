@@ -5,12 +5,12 @@
  * browsers and keeps track of who is ringing whom. It never sees the media:
  * that runs browser to browser over DTLS-SRTP. The descriptions it relays
  * arrive sealed in the same envelope a message body does, so `sdp` below is an
- * opaque string this process must not try to read. In phase 1 that envelope
- * is a base64 no-op and a hostile server could still open it, rewrite the
- * DTLS fingerprint inside and sit in the middle; that is the standard WebRTC
- * threat model and it is written down in voice-plan.md. Phase 2 closes it for
- * calls and messages in the same commit, which is the point of the shared
- * seam. Nothing here claims otherwise.
+ * opaque string this process must not try to read. Since phase 2 that
+ * envelope is a real box to the peer's key, so a hostile server cannot open
+ * it, rewrite the DTLS fingerprint inside and sit in the middle, which was
+ * the standard WebRTC threat model (voice-plan.md) until then. Calls and
+ * messages were closed in the same commit, which is the point of the shared
+ * seam.
  *
  * Events, client to server. Every one takes an optional ack answered with
  * `{ ok: true }` or `{ error: { code, message } }`, the same envelope

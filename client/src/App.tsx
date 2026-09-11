@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChatHeader } from './components/ChatHeader';
 import { Composer } from './components/Composer';
+import { KeyChangeNotice } from './components/KeyChangeNotice';
 import { ConversationList, type Preview } from './components/ConversationList';
 import { MessageList } from './components/MessageList';
 import { PersonMenuProvider, usePersonMenu } from './components/PersonMenu';
@@ -179,6 +180,8 @@ function Shell({
     typingIn,
     send,
     notifyTyping,
+    keyChanges,
+    acceptKey,
   } = chat;
 
   // Your own row, your avatar in the top bar and your own bubbles all read from
@@ -195,6 +198,8 @@ function Shell({
   const recipient = activeChannel?.recipientId
     ? usersById.get(activeChannel.recipientId)
     : undefined;
+  // A changed key stops the conversation until it is accepted: see the notice.
+  const keyChange = recipient ? keyChanges.get(recipient.id) : undefined;
 
   // A pinned profile is dropped when you change conversation: being shown
   // someone from a conversation you have left is worse than showing nobody.
@@ -376,11 +381,20 @@ function Shell({
                     currentUserName={self?.name ?? t('chat.you')}
                   />
 
+                  {keyChange && (
+                    <KeyChangeNotice
+                      name={activeChannel.name}
+                      change={keyChange}
+                      onAccept={acceptKey}
+                    />
+                  )}
+
                   <Composer
                     placeholder={t('chat.composerTo', { name: activeChannel.name })}
                     onSend={(body) => void send(body)}
                     onTyping={notifyTyping}
                     typing={typingIn(activeChannel.id)}
+                    disabled={Boolean(keyChange)}
                     // Says what is true: nothing is lost, it just has not left
                     // yet. Silently swallowing a send is the behaviour that
                     // makes people stop trusting a messenger.

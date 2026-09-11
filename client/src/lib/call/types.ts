@@ -29,8 +29,8 @@ export interface SessionDescription {
  * A session description sealed in the message envelope, as it goes over the
  * wire. The SDP carries the DTLS fingerprint the whole call's security hangs
  * on, so it travels through the same seam a message body does (lib/call/
- * sealing.ts): a base64 no-op in phase 1, a real box to the peer's key the
- * day phase 2 lands, with no change to the engine or the server for it.
+ * sealing.ts): a real `crypto_box` to the peer's key since phase 2, with no
+ * change to the engine or the server for it.
  */
 export type SealedDescription = string;
 

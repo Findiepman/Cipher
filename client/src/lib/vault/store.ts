@@ -20,10 +20,10 @@
  * re-encrypted. Changing the passkey is the same move, and equally cheap.
  *
  * What this file deliberately does not do is go anywhere near
- * `encryptMessage`. That function is a no-op in phase 1, so routing the vault
- * through it would mean writing notes to disk in plaintext. The vault uses the
- * credential half of the crypto package, which is real today. See
- * vault-plan.md, *The encryption story, stated honestly*.
+ * `encryptMessage`. That seals to a recipient's public key, which is the
+ * wrong shape for notes to yourself on one device; the vault uses the
+ * symmetric half of the crypto package, under a key only this device holds.
+ * See vault-plan.md, *The encryption story, stated honestly*.
  */
 import {
   DOMAIN,

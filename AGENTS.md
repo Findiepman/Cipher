@@ -8,7 +8,7 @@ Subdirectories have their own more specific AGENTS.md: `client/AGENTS.md`, `serv
 
 ## What this project is
 
-A Discord-like chat app (DMs today, servers/channels later) where message content is end-to-end encrypted: encrypted on the sender's device, stored as ciphertext, decrypted only on the recipient's device. The backend and database must never see plaintext message content once phase 2 lands (see below).
+A Discord-like chat app (DMs today, servers/channels later) where direct messages are end-to-end encrypted: encrypted on the sender's device, stored as ciphertext, decrypted only on the recipient's device. The backend and database never see plaintext DM content. Servers and channels, when they come, are deliberately **not** end-to-end encrypted (see *Groups and servers* below).
 
 ## Repo layout
 
@@ -19,17 +19,26 @@ A Discord-like chat app (DMs today, servers/channels later) where message conten
 
 ## Build order: phase 1 (plaintext) → phase 2 (encrypted)
 
-We are deliberately building this in two phases. Check which phase the repo is in (there should be a note in this file or in `packages/crypto/AGENTS.md` saying so) before assuming encryption is live.
+This was deliberately built in two phases, and **phase 2 landed on 2026-09-11**. `packages/crypto/AGENTS.md` carries the current-phase line.
 
-- **Phase 1**: full app working end to end with plaintext messages, so the chat pipeline (auth, sockets, reconnect, channels/DMs, desktop packaging) gets debugged without a crypto layer in the way. Even in phase 1, every message read/write must go through `packages/crypto`'s `encryptMessage()` / `decryptMessage()` functions, which are no-ops for now. Do not bypass them "temporarily": that is the seam phase 2 plugs into.
-- **Phase 2**: real keypair generation, a public-key registry on the server, and real libsodium calls inside those same two functions. DMs first, group encryption after. See `packages/crypto/AGENTS.md` for the actual crypto design.
+- **Phase 1** (done): full app working end to end with plaintext messages, so the chat pipeline (auth, sockets, reconnect, DMs, desktop packaging) got debugged without a crypto layer in the way. Even then, every message read/write went through `packages/crypto`'s `encryptMessage()` / `decryptMessage()`, which were no-ops. That seam is what phase 2 plugged into, and it is still the only path: do not add a second one around it.
+- **Phase 2** (current): real libsodium `crypto_box` inside those same two functions, to the recipient's registry key, with the conversation bound into the box and other people's keys pinned on first sight. Messages written under phase 1 (`alg: 'none'`) still open. See `packages/crypto/AGENTS.md` for the design as built.
 
-Do not skip ahead to group encryption or multi-device support before 1:1 DMs are solid in phase 2. Both are known sources of complexity that stall projects like this one.
+Multi-device support is still deferred: it changes the key model significantly and is a known source of complexity that stalls projects like this one.
+
+## Groups and servers are not end-to-end encrypted
+
+Decided 2026-09-11, before any group code exists, so that nobody builds a group key model. Group chats, servers and channels will be ordinary server-side chat: the server can read them, and moderation is possible. Two reasons, both the maintainers' own:
+
+- The private product is the DM. Taking responsibility for the security of a server's members against each other and against the operator is not a job this app wants.
+- Spaces that nobody can read are where the worst material ends up, and the maintainers do not want to run unmoderatable rooms.
+
+Consequences for anyone working here: do not evaluate MLS, Megolm or a fan-out scheme for groups; do not extend the envelope model past DMs; when groups arrive, start from the conversation tables and a plaintext body column for group messages, kept clearly apart from the sealed DM path. The hard rule below about the server never seeing plaintext applies to direct messages.
 
 ## Cross-cutting rules for any agent working in this repo
 
 - TypeScript everywhere, strict mode on. No `any` used to paper over a type you haven't figured out yet.
-- The server is never allowed to receive, log, or store plaintext message content, a user's private key, or anything else that would let it read messages. If a change requires the server to see plaintext, stop and flag it instead of implementing it, because it likely means the design needs to change, not the server.
+- The server is never allowed to receive, log, or store plaintext direct-message content, a user's private key, or anything else that would let it read DMs. If a change requires the server to see DM plaintext, stop and flag it instead of implementing it, because it likely means the design needs to change, not the server. (Group and server messages are the documented exception, see above.)
 - Don't add a new crypto primitive or hand-roll encryption anywhere outside `packages/crypto`. If something doesn't fit `crypto_box`, raise it rather than working around it locally.
 - Prefer boring, mainstream libraries over clever or obscure ones. Both maintainers are relying on AI assistance, and AI-generated code quality tracks how well-documented and widely-used a library is.
 - Keep commits scoped to one of `client/`, `server/`, `packages/crypto/` or `desktop/` where possible; cross-cutting changes should say so explicitly in the commit message.

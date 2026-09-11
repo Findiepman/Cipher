@@ -57,19 +57,22 @@ need nothing.
 
 ## Where the encryption is at
 
-**Phase 1.** `encryptMessage()` and `decryptMessage()` are deliberately no-ops
-that base64 a body rather than sealing it, so the chat pipeline (auth, sockets,
-reconnect, offline queueing, desktop packaging) gets debugged without a crypto
-layer in the way. Every read and write already routes through those two
-functions, which is the seam phase 2 plugs into. Nothing in `client/` changes
-when it does.
+**Phase 2, since 2026-09-11.** Every direct message and every call's session
+description is sealed with libsodium's `crypto_box` (X25519 and
+XSalsa20-Poly1305) to the other person's key, one copy per participant, the
+sender included. The server stores and relays ciphertext it cannot open, and
+the conversation is bound into the box so a body cannot be moved to another.
+Other people's keys are pinned the first time they are seen; a different key
+for the same person stops the conversation until you accept it. Messages from
+before that date were stored base64-encoded under `alg: 'none'` and still open.
 
-Key custody, however, is real already: the account keypair is generated on the
+Key custody was real from the start: the account keypair is generated on the
 device, the private half is wrapped under Argon2id before it is stored, and
 neither it nor the password nor the recovery code is ever sent to the server.
-See [`packages/crypto/AGENTS.md`](packages/crypto/AGENTS.md) for what phase 2
-adds and [`client/AGENTS.md`](client/AGENTS.md) for the rules around the key on
-the device.
+See [`packages/crypto/AGENTS.md`](packages/crypto/AGENTS.md) for the design and
+[`client/AGENTS.md`](client/AGENTS.md) for the rules around the key on the
+device. Group chats and servers, when they come, will not be end-to-end
+encrypted by decision: see [`AGENTS.md`](AGENTS.md).
 
 ## Signing in
 
@@ -143,4 +146,4 @@ before anything depends on it.
   mode; the server never sets one, so the header is simply absent. Cross-site
   POSTs are currently blocked by same-origin serving plus `SameSite=Lax` and a
   CORS allowlist rather than by a token.
-- **Phase 2 encryption**, per `packages/crypto/AGENTS.md`.
+- **An out-of-band key verification screen.** Keys are pinned on first sight; comparing fingerprints in person is the step after that.

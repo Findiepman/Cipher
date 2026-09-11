@@ -24,7 +24,6 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
-import { fromBase64 } from '@cipher/crypto';
 import { callsApi } from '../lib/api';
 import { CallEngine } from '../lib/call/engine';
 import { createCallSealer } from '../lib/call/sealing';
@@ -110,7 +109,7 @@ export function CallProvider({
   keys?: KeyManager;
 }) {
   const { account } = useSession();
-  const { callSignalling, conversations, friends } = useChat();
+  const { callSignalling, resolvePeerKey } = useChat();
   const { settings } = useSettings();
   const supported = callsSupported();
 
@@ -120,23 +119,10 @@ export function CallProvider({
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 
-  // The other person's public key, for sealing descriptions to them. Read by
-  // the engine outside React's render cycle, so a ref rather than a closure
-  // over stale state. Conversations first: they carry the key of somebody who
-  // is no longer a friend, and their in-progress call still has to end cleanly.
-  const peerKeys = useRef<Map<string, string>>(new Map());
-  useEffect(() => {
-    const map = new Map<string, string>();
-    for (const friend of friends) {
-      if (friend.publicKey) map.set(friend.id, friend.publicKey);
-    }
-    for (const conversation of conversations) {
-      for (const participant of conversation.participants) {
-        if (participant.publicKey) map.set(participant.id, participant.publicKey);
-      }
-    }
-    peerKeys.current = map;
-  }, [friends, conversations]);
+  // The other person's public key, for sealing descriptions to them, comes
+  // from ChatProvider so that a call sees exactly the key a message would:
+  // pinned on first use, and refused while a change is waiting on the user.
+  // A refused key fails the call the way a missing one does.
 
   // One engine per identity and signalling channel, created and destroyed by
   // the same effect. Not a useMemo: StrictMode runs an effect's cleanup and
@@ -154,10 +140,7 @@ export function CallProvider({
       sealer: createCallSealer({
         privateKey: keys.requirePrivateKey(),
         publicKey: keys.requirePublicKey(),
-        resolvePeerKey: async (peerId) => {
-          const encoded = peerKeys.current.get(peerId);
-          return encoded ? fromBase64(encoded) : null;
-        },
+        resolvePeerKey,
       }),
       selfId: account.id,
       settings: settingsRef.current.voice,

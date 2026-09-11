@@ -42,12 +42,12 @@ with one participant, so it follows you to another browser.
 
 ## The encryption story, stated honestly
 
-**The vault is really encrypted today, and messages are not.** Phase 1 makes
-`encryptMessage()` a no-op, but the credential half of `packages/crypto`
-(Argon2id, `crypto_secretbox`) is real and always has been. The vault uses that
-half, so it gets genuine encryption now, the way voice already does over
-DTLS-SRTP. This is worth saying out loud because it inverts the usual
-assumption in this repo.
+**The vault was really encrypted before messages were.** Until 2026-09-11
+phase 1 made `encryptMessage()` a no-op, but the credential half of
+`packages/crypto` (Argon2id, `crypto_secretbox`) was real from the start. The
+vault uses that half, the way voice already did over DTLS-SRTP. Messages have
+since caught up (phase 2); the vault still uses the symmetric half, because
+notes to yourself have no recipient to seal to.
 
 That does not make the vault stronger than your passkey.
 

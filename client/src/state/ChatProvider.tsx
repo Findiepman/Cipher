@@ -37,6 +37,7 @@ import { ConnectionCurtain } from '../components/ConnectionCurtain';
 import type { ConnectionState } from '../lib/transport/types';
 import { createSecureStore } from '../lib/storage/secureStore';
 import { keyManager as defaultKeyManager, type KeyManager } from '../lib/session/keyManager';
+import { KeyChangedError, KeyPinStore, type KeyChange } from '../lib/session/keyPins';
 import type { Channel, Message, Presence, User } from '../types';
 import { ChatController, type Recipient } from './chatController';
 import { initialChatState, messagesForChannel, type ChatState } from './chatStore';
@@ -102,6 +103,20 @@ export interface ChatContextValue {
   setNickname: (userId: string, nickname: string) => Promise<void>;
 
   /**
+   * People whose key is not the one this device pinned, by user id. While
+   * somebody is in here nothing is sealed to them or opened from them, and
+   * the conversation shows a notice with the one way out: acceptKey.
+   */
+  keyChanges: ReadonlyMap<string, KeyChange>;
+  acceptKey: (userId: string) => Promise<void>;
+  /**
+   * Somebody's public key, once the pin store agrees it is theirs. Null when
+   * this device holds no key for them; throws KeyChangedError when it holds
+   * a different one. The call engine seals to what this returns.
+   */
+  resolvePeerKey: (userId: string) => Promise<Uint8Array | null>;
+
+  /**
    * Call signalling, over the same socket messages use. Read by CallProvider
    * and nothing else: components get their call state from useCall().
    */
@@ -140,12 +155,46 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
   // there would seal a message to the wrong set of keys.
   const conversationsRef = useRef<ConversationDto[]>([]);
   conversationsRef.current = conversations;
+  /// What the server says everyone's key is. Nothing seals to an entry in
+  /// here until the pin store has agreed with it, see trustedKey below.
   const keysByUser = useRef<Map<string, string>>(new Map());
+  const selfIdRef = useRef<string | null>(null);
+  selfIdRef.current = account?.id ?? null;
+
+  /// Trust on first use for everyone else's key (lib/session/keyPins.ts).
+  /// Created alongside the identity, since pins belong to an account.
+  const pinsRef = useRef<KeyPinStore | null>(null);
+  const [keyChanges, setKeyChanges] = useState<Map<string, KeyChange>>(new Map());
 
   const [controller] = useState(() => {
     const transport = new SocketTransport();
+
+    /// The key to seal to or open with for somebody, once the pin store has
+    /// agreed. Records a change for the UI before throwing it, so the notice
+    /// goes up on the first message that hits it.
+    async function trustedKey(userId: string): Promise<Uint8Array | null> {
+      const encoded = keysByUser.current.get(userId);
+      if (!encoded) return null;
+      const pins = pinsRef.current;
+      if (!pins) throw new Error('No identity to trust a key on behalf of.');
+      try {
+        return await fromBase64(await pins.trusted(userId, encoded));
+      } catch (error) {
+        if (error instanceof KeyChangedError) {
+          const { change } = error;
+          setKeyChanges((previous) => {
+            const known = previous.get(change.userId);
+            if (known && known.current === change.current) return previous;
+            return new Map(previous).set(change.userId, change);
+          });
+        }
+        throw error;
+      }
+    }
+
     return {
       transport,
+      trustedKey,
       chat: new ChatController({
         transport,
         outbox: new Outbox(new SecureOutboxStorage(createSecureStore())),
@@ -155,18 +204,16 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
 
           const resolved: Recipient[] = [];
           for (const participant of conversation.participants) {
-            if (!participant.publicKey) continue;
-            resolved.push({
-              userId: participant.id,
-              publicKey: await fromBase64(participant.publicKey),
-            });
+            // Our own copy is sealed to the key this device holds, never to
+            // what the server says our key is. The controller adds it.
+            if (participant.id === selfIdRef.current) continue;
+            const publicKey = await trustedKey(participant.id);
+            if (!publicKey) continue;
+            resolved.push({ userId: participant.id, publicKey });
           }
           return resolved;
         },
-        resolveAuthorKey: async (authorId) => {
-          const encoded = keysByUser.current.get(authorId);
-          return encoded ? fromBase64(encoded) : null;
-        },
+        resolveAuthorKey: trustedKey,
       }),
     };
   });
@@ -247,6 +294,7 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
         // The identity has to be in place before the controller opens anything:
         // a message that arrives before it would render as undecryptable and
         // stay that way, because nothing re-opens an already-merged message.
+        pinsRef.current = new KeyPinStore(createSecureStore(), account!.id);
         chat.setIdentity({
           userId: account!.id,
           privateKey: keys.requirePrivateKey(),
@@ -271,6 +319,8 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
       unsubscribeTyping();
       chat.stop();
       chat.setIdentity(null);
+      pinsRef.current = null;
+      setKeyChanges(new Map());
     };
   }, [account, controller, keys, reloadConversations, reloadFriends]);
 
@@ -288,6 +338,26 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
       }
     }
     keysByUser.current = map;
+
+    // Pin what is new and say what has changed as soon as the lists load,
+    // so a changed key is a notice on the conversation and not a surprise on
+    // the first message. Our own key is never pinned: it is whatever the
+    // unlocked identity says it is.
+    const pins = pinsRef.current;
+    if (!pins) return;
+    let live = true;
+    void (async () => {
+      const next = new Map<string, KeyChange>();
+      for (const [userId, key] of map) {
+        if (userId === selfIdRef.current) continue;
+        const change = await pins.observe(userId, key);
+        if (change) next.set(userId, change);
+      }
+      if (live) setKeyChanges(next);
+    })();
+    return () => {
+      live = false;
+    };
   }, [friends, conversations]);
 
   // A typing indicator that nobody refreshes has to expire on its own, or the
@@ -568,6 +638,30 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
     [reloadFriends],
   );
 
+  /// The user has looked at a changed key and said it is fine. Whatever
+  /// that person sent under it was refused and sits as a locked bubble; it
+  /// is readable now, so every conversation they are in gets another go.
+  const acceptKey = useCallback(
+    async (userId: string) => {
+      const pins = pinsRef.current;
+      const current = keysByUser.current.get(userId);
+      if (!pins || !current) return;
+      await pins.accept(userId, current);
+      setKeyChanges((previous) => {
+        if (!previous.has(userId)) return previous;
+        const next = new Map(previous);
+        next.delete(userId);
+        return next;
+      });
+      for (const conversation of conversationsRef.current) {
+        if (conversation.participants.some((participant) => participant.id === userId)) {
+          await controller.chat.reopen(conversation.id);
+        }
+      }
+    },
+    [controller],
+  );
+
   const messagesFor = useCallback(
     (channelId: string) => messagesForChannel(chatState, channelId),
     [chatState],
@@ -618,6 +712,9 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
       blockUser,
       unblockUser,
       setNickname,
+      keyChanges,
+      acceptKey,
+      resolvePeerKey: controller.trustedKey,
       callSignalling: controller.transport.calls,
     }),
     [
@@ -651,6 +748,8 @@ export function ChatProvider({ children, keys = defaultKeyManager }: ChatProvide
       blockUser,
       unblockUser,
       setNickname,
+      keyChanges,
+      acceptKey,
       controller,
     ],
   );

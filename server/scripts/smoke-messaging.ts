@@ -264,6 +264,9 @@ async function main(): Promise<void> {
   /* ------------------------------------------------------------ sending -- */
 
   const PLAINTEXT = 'the rail is done, the workspaces live in the top bar now';
+  // What the client seals under beside the keys (chatController.ts,
+  // messageContext): the conversation, so a body cannot be moved to another.
+  const CONTEXT = `conversation:${conversationId}`;
 
   // One sealed copy per participant, sender included. This is the client's
   // job, and it is what the server validates without being able to open.
@@ -271,13 +274,18 @@ async function main(): Promise<void> {
     {
       recipientUserId: bob.id,
       ciphertext: serializeCiphertext(
-        await encryptMessage(PLAINTEXT, bob.keyPair.publicKey, alice.keyPair.privateKey),
+        await encryptMessage(PLAINTEXT, bob.keyPair.publicKey, alice.keyPair.privateKey, CONTEXT),
       ),
     },
     {
       recipientUserId: alice.id,
       ciphertext: serializeCiphertext(
-        await encryptMessage(PLAINTEXT, alice.keyPair.publicKey, alice.keyPair.privateKey),
+        await encryptMessage(
+          PLAINTEXT,
+          alice.keyPair.publicKey,
+          alice.keyPair.privateKey,
+          CONTEXT,
+        ),
       ),
     },
   ];
@@ -308,6 +316,7 @@ async function main(): Promise<void> {
     parseCiphertext(delivered.ciphertext),
     alice.keyPair.publicKey,
     bob.keyPair.privateKey,
+    CONTEXT,
   );
   report('the recipient can open it', bobRead === PLAINTEXT, JSON.stringify(bobRead.slice(0, 40)));
 
@@ -336,6 +345,7 @@ async function main(): Promise<void> {
       parseCiphertext(aliceBacklog.body.messages[0].ciphertext),
       alice.keyPair.publicKey,
       alice.keyPair.privateKey,
+      CONTEXT,
     );
   } catch (error) {
     ownCopy = `failed: ${(error as Error).message}`;
@@ -346,16 +356,20 @@ async function main(): Promise<void> {
     ownCopy === PLAINTEXT ? 'own envelope opens' : ownCopy,
   );
 
-  // Deliberately not "the two blobs differ": phase 1's encryptMessage ignores
-  // the keys, so both copies are byte-identical today and that assertion would
-  // fail for the right reason. What holds in both phases is the shape - each
-  // caller is handed one ciphertext, never the set - which is the thing a
-  // careless `include: { envelopes: true }` would break.
+  // Each caller is handed one ciphertext, never the set, which is the thing a
+  // careless `include: { envelopes: true }` would break. And the two copies
+  // are different bytes, because each is a box to a different key: what Bob
+  // was handed is not what Alice was.
   const shape = bobBacklog.body.messages[0];
   report(
     'each side is handed one envelope, not the set',
     typeof shape.ciphertext === 'string' && !('envelopes' in shape),
     Object.keys(shape).join(', '),
+  );
+  report(
+    'and the two envelopes are different ciphertext',
+    shape.ciphertext !== aliceBacklog.body.messages[0].ciphertext,
+    shape.ciphertext === aliceBacklog.body.messages[0].ciphertext ? 'IDENTICAL' : 'differ',
   );
 
   const cursored = await call(
@@ -371,13 +385,17 @@ async function main(): Promise<void> {
 
   /* ------------------------------------------------------ what leaked -- */
 
+  // Neither the plaintext nor its base64 (which is what phase 1 put on the
+  // wire) appears anywhere in what was sent, and the envelope says which
+  // scheme sealed it.
+  const wire = JSON.stringify(envelopes);
+  const stored = String(shape.ciphertext);
   report(
-    'the composed string is not what travelled',
-    !JSON.stringify(envelopes).includes(PLAINTEXT),
-    // Phase 1 seals to base64 and says alg:"none", so the server *can* read
-    // this today. What the assertion pins down is that the plaintext string
-    // is not what crosses the wire; at phase 2 the same line holds for real.
-    'phase 1: base64 envelope, alg "none"',
+    'the composed string is not what travelled, nor its base64',
+    !wire.includes(PLAINTEXT) &&
+      !wire.includes(Buffer.from(PLAINTEXT, 'utf8').toString('base64')) &&
+      !stored.includes(PLAINTEXT),
+    `alg ${JSON.parse(stored).alg}, ${stored.length} bytes stored`,
   );
 
   // A third account would be the sharper test, but it costs three more /auth

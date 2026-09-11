@@ -10,7 +10,7 @@ Read the root `AGENTS.md` first. This file covers `server/`: the Node backend.
 
 ## Hard rule: the server is a dumb relay for message content
 
-Once phase 2 (real encryption) lands, the server's job for message bodies is: accept a ciphertext blob from the sender, store it, and hand it to the recipient. It never decrypts, never inspects, never transforms message content. Concretely:
+Since phase 2 (real encryption, 2026-09-11), the server's job for message bodies is: accept a ciphertext blob from the sender, store it, and hand it to the recipient. It never decrypts, never inspects, never transforms message content. Concretely:
 
 - Never add a feature that requires reading message content server-side (server-side search, moderation scanning of message text, link-preview generation from message content, etc.) without first raising it. The honest answer for most of these in an E2EE app is "do it client-side" or "it's not supported," not "make an exception."
 - Never log message bodies, even at debug level, even temporarily while chasing a bug.
@@ -23,11 +23,11 @@ Once phase 2 (real encryption) lands, the server's job for message bodies is: ac
 - Don't add a plaintext fallback column "just in case."
 - Message order is `seq` (autoincrement), not `sentAt`: several sends land in the same millisecond and a timestamp cannot break that tie. Cursors are message ids.
 - `users`/`devices`/`keys`: track public keys per user (and per device, if/when multi-device is supported, see root AGENTS.md on deferring that). Rotating or revoking a key should be possible without a schema change; don't hardcode "one key per user forever."
-- During phase 1, the body column holds plaintext (since `encryptMessage()` is a no-op upstream). Don't let that tempt you into building server-side features that read it. See above.
+- Envelopes written before 2026-09-11 (`alg: 'none'`) hold a base64 body; everything since is `crypto_box` ciphertext. Don't build anything that reads either. See above.
 
 ## Real-time delivery
 
-- Online recipients get pushed the (ciphertext, once phase 2 lands) message over their socket connection.
+- Online recipients get pushed the ciphertext over their socket connection.
 - Offline recipients just have it sitting in the `messages` table; on reconnect the client requests the backlog since its last-seen message/cursor.
 - Sends are idempotent on `(conversationId, clientId)`. The socket and the HTTP fallback both go through `postMessage()`, so a message that takes both paths is stored once.
 - A socket outlives its 15-minute access token, so the session behind it is re-checked before every send and on a periodic sweep (`realtime/index.ts`). Don't remove that: without it, logout would stop the HTTP API and leave the socket delivering.
@@ -47,5 +47,5 @@ The server never receives a password. This is the one thing to understand before
 
 ## Testing
 
-- API and socket tests can run fully against phase 1 plaintext bodies.
-- Add a test (once phase 2 lands) asserting that a raw request/response never contains anything that looks like a private key or a decrypted message body, as a guardrail against accidental regressions.
+- API and socket tests treat `ciphertext` as an opaque string and need no keys. `scripts/smoke-messaging.ts` is the one that seals for real, and it asserts that neither the plaintext nor its base64 ever crosses the wire.
+- Still to add: a unit test asserting that a raw request/response never contains anything that looks like a private key or a decrypted message body, as a guardrail against accidental regressions.

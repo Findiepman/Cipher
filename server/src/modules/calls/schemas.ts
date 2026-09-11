@@ -5,8 +5,8 @@
  * A session description is opaque here. The client seals it in the same
  * envelope a message body travels in (voice-plan.md, "The encryption story"),
  * so the server relays a string it cannot usefully inspect, and must not try
- * to: the day phase 2 lands, that string is ciphertext, and anything here that
- * had learned to read an SDP would break. The server never needed to.
+ * to: since phase 2 that string is ciphertext, and anything here that had
+ * learned to read an SDP would have broken. The server never needed to.
  */
 import { z } from 'zod';
 

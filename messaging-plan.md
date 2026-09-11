@@ -347,5 +347,6 @@ What stage 8 actually shipped, and where it differs from the sketch above:
 - **Migrations run from the server container's entrypoint**, not `deploy.sh`,
   so the schema is applied by the exact image about to serve it.
 
-Still true and still not done: phase 1 means the server stores readable message
-bodies, and the `pg_dump` backups contain them.
+No longer true since 2026-09-11: phase 2 seals every new message with
+`crypto_box`, so the server stores ciphertext. Bodies written before that date
+are still base64 in the table, and in any `pg_dump` taken since.

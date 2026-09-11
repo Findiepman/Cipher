@@ -317,7 +317,7 @@ export const nl: Catalogue<Key> = {
   'vault.setup.pointGate':
     'Bewust niet je accountwachtwoord. Het is een tweede slot, zodat een scherm dat iemand ontgrendeld aantreft nog steeds geen open kluis is.',
   'vault.setup.pointSealed':
-    'Nu al echt versleuteld. Berichten nog niet: dit is de enige plek in de app waarvan de inhoud verzegeld is in plaats van te wachten op fase 2.',
+    'Echt versleuteld, onder een sleutel die dit apparaat niet verlaat. Zonder de toegangscode of je accountwachtwoord gaat hij niet open, en met alleen je accountsleutel ook niet.',
   'vault.setup.pointDevice':
     'Alleen dit apparaat. Er gaat niets naar buiten, dus hij reist nog niet mee naar een andere browser.',
   'presence.online': 'Online',
@@ -808,6 +808,10 @@ export const nl: Catalogue<Key> = {
   'chat.lockedFailed': 'Dit bericht kon niet worden geopend.',
   'chat.lockedHere': 'Dit bericht is hier niet te lezen.',
   'chat.intro': 'Dit is het begin van je gesprek met {name}.',
+  'chat.keyChanged': 'De beveiligingssleutel van {name} is veranderd.',
+  'chat.keyChangedBody':
+    'Dat gebeurt na een wachtwoordreset zonder herstelcode, of op een nieuw apparaat. Klopt geen van beide, neem dan eerst op een andere manier contact op. Tot je akkoord gaat wordt er niets naar deze persoon gestuurd en niets nieuws van deze persoon geopend.',
+  'chat.keyChangedAccept': 'Nieuwe sleutel vertrouwen',
 
   'chat.newMessage': 'Nieuw bericht',
   'chat.sectionPinned': 'vastgezet',

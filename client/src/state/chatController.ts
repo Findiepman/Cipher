@@ -45,9 +45,10 @@ export interface ChatControllerOptions {
   outbox?: Outbox;
   /**
    * Everyone a message in this channel has to be sealed for, the sender
-   * included, or they lose their own history on the next device. Phase 1
-   * ignores the keys; phase 2 cannot seal without them, which is why the seam
-   * exists now.
+   * included, or they lose their own history on the next device. Nothing can
+   * be sealed without their keys, and a resolver that throws (a key that has
+   * changed and not been accepted, see lib/session/keyPins.ts) stops the
+   * send before anything is shown as sending.
    *
    * Defaults to "just me", which is what the tests and the mock transport want.
    */
@@ -55,8 +56,20 @@ export interface ChatControllerOptions {
   /**
    * The public key to open an incoming message against. Opening needs the
    * *author's* key, not the channel's, which is why this is keyed on author.
+   * Null means "no key for this person": history from before phase 2 still
+   * opens, anything sealed does not, and the bubble says so. A resolver that
+   * throws has the same effect with its own reason.
    */
   resolveAuthorKey?: (authorId: string) => Promise<Uint8Array | null>;
+}
+
+/**
+ * What a message is sealed under, beside the keys: the conversation it
+ * belongs to. Checked on opening, so a sealed body the server moved from one
+ * conversation to another is refused rather than shown in the wrong place.
+ */
+export function messageContext(channelId: string): string {
+  return `conversation:${channelId}`;
 }
 
 export class ChatController {
@@ -210,7 +223,12 @@ export class ChatController {
       recipients.map(async (recipient) => ({
         recipientUserId: recipient.userId,
         ciphertext: serializeCiphertext(
-          await encryptMessage(body, recipient.publicKey, identity.privateKey),
+          await encryptMessage(
+            body,
+            recipient.publicKey,
+            identity.privateKey,
+            messageContext(channelId),
+          ),
         ),
       })),
     );
@@ -261,7 +279,12 @@ export class ChatController {
       recipients.map(async (recipient) => ({
         recipientUserId: recipient.userId,
         ciphertext: serializeCiphertext(
-          await encryptMessage(message.body ?? '', recipient.publicKey, identity.privateKey),
+          await encryptMessage(
+            message.body ?? '',
+            recipient.publicKey,
+            identity.privateKey,
+            messageContext(message.channelId),
+          ),
         ),
       })),
     );
@@ -350,6 +373,35 @@ export class ChatController {
     if (this.state.focusedChannelId === channelId) await this.reportRead(channelId);
   }
 
+  /**
+   * Tries again on every message in a channel that could not be opened.
+   *
+   * Nothing else re-opens a message once it has been merged, which is right
+   * for the ordinary case: the key it needed is the key it needs. The one
+   * time that changes is when the user accepts somebody's new key, and the
+   * messages sealed under it, refused a moment ago, are now readable.
+   */
+  async reopen(channelId: string): Promise<void> {
+    const failed = this.state.messages.filter(
+      (message) => message.channelId === channelId && message.state === 'failed',
+    );
+    if (failed.length === 0) return;
+
+    const reopened = await Promise.all(
+      failed.map((message) =>
+        this.open({
+          id: message.id,
+          clientId: message.clientId,
+          channelId: message.channelId,
+          authorId: message.authorId,
+          sentAt: message.sentAt,
+          ciphertext: message.ciphertext,
+        }),
+      ),
+    );
+    this.dispatch({ type: 'backlog', channelId, messages: reopened });
+  }
+
   private async ingest(incoming: IncomingMessage): Promise<void> {
     this.dispatch({ type: 'received', message: await this.open(incoming) });
     // Arriving in the conversation somebody is looking at means it has been
@@ -385,8 +437,13 @@ export class ChatController {
       const authorKey =
         incoming.authorId === this.identity.userId
           ? this.identity.publicKey
-          : ((await this.resolveAuthorKey(incoming.authorId)) ?? this.identity.publicKey);
-      const body = await decryptMessage(ciphertext, authorKey, this.identity.privateKey);
+          : await this.resolveAuthorKey(incoming.authorId);
+      const body = await decryptMessage(
+        ciphertext,
+        authorKey,
+        this.identity.privateKey,
+        messageContext(incoming.channelId),
+      );
       return { ...base, state: 'decrypted', body };
     } catch (error) {
       return {

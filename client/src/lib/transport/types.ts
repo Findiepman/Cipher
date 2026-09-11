@@ -23,8 +23,9 @@ export type ConnectionState = 'idle' | 'connecting' | 'online' | 'offline';
  * talking to cannot be opened by you. Without a copy addressed to yourself, a
  * sender signing in on a fresh device would find their own history unreadable.
  *
- * Phase 1 puts the same `alg: 'none'` blob in every envelope, so this costs a
- * row per participant today and saves a migration when phase 2 lands.
+ * Since phase 2 each copy is a real `crypto_box` to that participant's key.
+ * Phase 1 put the same `alg: 'none'` blob in every one, which is why the flip
+ * needed no migration.
  */
 export interface Envelope {
   recipientUserId: string;

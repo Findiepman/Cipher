@@ -306,7 +306,7 @@ export const en = {
   'vault.setup.pointGate':
     'Not your account password, on purpose. It is a second gate, so a screen somebody finds unlocked is still not an open vault.',
   'vault.setup.pointSealed':
-    'Really encrypted, today. Messages are not yet: this is the one place in the app whose contents are sealed rather than waiting on phase 2.',
+    'Really encrypted, under a key that stays on this device. Without the passkey or your account password it does not open, and your account key alone cannot open it either.',
   'vault.setup.pointDevice':
     'This device only. Nothing here is sent anywhere, so it does not follow you to another browser yet.',
   'presence.online': 'Online',
@@ -787,6 +787,10 @@ export const en = {
   'chat.lockedFailed': 'This message could not be opened.',
   'chat.lockedHere': 'This message cannot be read here.',
   'chat.intro': 'This is the beginning of your conversation with {name}.',
+  'chat.keyChanged': 'The security key for {name} has changed.',
+  'chat.keyChangedBody':
+    'That happens after a password reset without the recovery code, or on a new device. If neither sounds right, check with them some other way first. Until you accept, nothing is sent to them and nothing new from them is opened.',
+  'chat.keyChangedAccept': 'Trust the new key',
 
   'chat.newMessage': 'New message',
   'chat.sectionPinned': 'pinned',

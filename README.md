@@ -29,7 +29,7 @@ and it works on a phone.
   answers takes the call.
 - Mute, a voice gate that opens on speech, and push to talk (Ctrl+Space).
 - Audio goes directly between the two browsers, relayed through TURN only when
-  the networks need it. Eight ringtones, and earpiece or loudspeaker on a phone.
+  the networks need it. Earpiece or loudspeaker on a phone.
 
 ### Encryption
 

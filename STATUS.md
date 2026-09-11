@@ -148,7 +148,7 @@ account-work axis (`backend-plan.md`).
 | Desktop app: the client bundled, session kept across restarts, tray, notifications, badge, call attention, single instance, autostart | `desktop/src-tauri/src/`, `client/src/lib/platform/` |
 | Desktop auto-update: checked at start and every four hours, announced by a banner, installed on request, signed | `desktop/src-tauri/src/updater.rs`, `client/src/components/UpdateBanner.tsx` |
 | Release notes from `desktop/CHANGELOG.md`, shown in the app beside the update, and a release refused without them | `.github/workflows/desktop.yml`, `desktop/release.ps1` |
-| The box deploys itself when `production` moves (scripts written, not yet installed on the box) | `deploy/autodeploy.sh`, `deploy/setup-autodeploy.sh` |
+| The box deploys itself when `production` moves | `deploy/autodeploy.sh`, `deploy/setup-autodeploy.sh` |
 | Desktop settings section: version, check for updates, close to tray, start with the computer | `client/src/screens/settings/DesktopSection.tsx` |
 | Bearer-mode session survives a restart | `client/src/lib/storage/refreshTokenStore.ts` |
 | CORS admits the desktop origins, HTTP and socket | `server/src/lib/origins.ts` |
@@ -776,10 +776,11 @@ Two end-to-end proofs, both against a running server over real HTTP:
   live box since the flip, made a call, or reset a password without the
   recovery code to see the key-change notice appear on the other side.
 - **The desktop app has shipped, and the updater feed is live.** Version
-  **1.0.1** is published at `desktop-v1.0.1` with installers and signatures for
-  Windows, macOS (both architectures) and Linux, plus `latest.json`. That
-  manifest resolves and advertises 1.0.1, which is the first time
-  `releases/latest/download/latest.json` has been anything but a 404. The
+  **1.0.2** is published at `desktop-v1.0.2` (2026-09-11, the phase 2
+  client) with installers and signatures for Windows, macOS (both
+  architectures) and Linux, plus `latest.json`, and its release body is the
+  changelog entry. 1.0.1 before it was the first time
+  `releases/latest/download/latest.json` was anything but a 404. The
   macOS and Linux jobs that failed on 2026-09-08 for want of a `DATABASE_URL`
   are fixed and proven: all four jobs are green.
   What is still unwalked is the app itself against the deployed server:
@@ -1139,9 +1140,7 @@ Added 2026-09-11: `deploy/autodeploy.sh` is a cron poller that fetches
 and `deploy/setup-autodeploy.sh` installs it (`DEPLOY.md` step 7). It watches
 `production` rather than `main` because every deploy drops the sockets for a
 few seconds, and it polls rather than listens because the box has no inbound
-ports. **`setup-autodeploy.sh` has not been run on the box yet**, and the
-`production` branch does not exist on GitHub yet: until both happen, deploying
-is still `deploy.sh` by hand, from a clone on `main`.
+ports. Installed on the box on 2026-09-11, and `production` exists.
 
 Secrets live only in `deploy/.env` on the box (gitignored, and no `.env` has
 ever been committed, and the repository is public). Migrations are applied by the
@@ -1542,14 +1541,12 @@ Pick one; they are roughly independent.
    way, a call, and a password reset without the recovery code so the other
    side sees the key-change notice and accepts it. Then the verification
    screen (*What is not built*), which is the last piece of the trust story.
-   Desktop 1.0.2 carries the client half of phase 2 and is ready to release:
-   the version is bumped and `desktop/CHANGELOG.md` has its entry, so
-   `release.ps1` is the whole act. Until it ships, the installed 1.0.1 shows
-   every new message as "could not be opened", which is the old client
-   refusing an envelope it does not know rather than a bug.
-   Also still to do on the box: `git push origin main:production` from a
-   machine with main, then `deploy/setup-autodeploy.sh` there, after which
-   the web deploys on that push (*Where it runs*).
+   Desktop 1.0.2, which carries the client half of phase 2, **shipped on
+   2026-09-11** at `desktop-v1.0.2` with all twelve installers, and the
+   updater feed advertises it. An installed 1.0.1 shows every new message
+   as "could not be opened" until it takes the update, which is the old
+   client refusing an envelope it does not know rather than a bug. The
+   web deploys on `git push origin main:production` since the same day.
 5. **Fix the release script's run-finder, then walk the desktop app through.**
    Shipping happened on 2026-09-09: 1.0.1 is live for three platforms and the
    updater feed resolves. Two things are left. `release.ps1` still finds its

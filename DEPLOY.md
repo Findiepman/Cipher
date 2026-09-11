@@ -433,6 +433,38 @@ bad migration, a dropped table, and a container that eats itself.
 deletes dumps older than 14 days. `deploy.sh` also calls it before every deploy,
 so a migration that goes wrong has something to go back to.
 
+## Step 7: Deploy on push
+
+One command on the box, after the `production` branch exists on GitHub:
+
+```bash
+git push origin main:production        # once, from a machine that has main
+cd ~/cipher/deploy && ./setup-autodeploy.sh
+```
+
+It puts the clone on `production`, runs `autodeploy.sh` once by hand, and
+installs a crontab entry that runs it every two minutes. From then on the box
+fetches `origin/production`, and when it has moved, runs `deploy.sh`.
+Deploying becomes:
+
+```bash
+git push origin main:production
+```
+
+and the site is on the new build within a couple of minutes. `deploy.sh` by
+hand still works and does the same thing sooner.
+
+It watches `production` and not `main` on purpose. Every deploy restarts the
+containers, which drops every open socket for a few seconds, and a push to
+`main` happens all day. Promoting is a second, deliberate push. And it is a
+poller rather than a webhook because the box has no inbound ports: nothing on
+the internet can make it deploy, it only ever asks.
+
+What it refuses: a dirty working tree (someone is editing on the box), a clone
+that is not on `production`, a `production` branch that was force-pushed (only
+fast-forwards deploy), and running twice at once. Refusals and deploys go to
+`~/cipher-autodeploy.log`; quiet ticks write nothing.
+
 ### Reading a backup back
 
 ```bash
@@ -502,8 +534,10 @@ header, so a broken value is only ever visible on the deployed site.
 ```bash
 cd ~/cipher
 
-./deploy/deploy.sh                                            # pull, build, restart
+git push origin main:production                               # deploy (the box polls, Step 7)
+./deploy/deploy.sh                                            # pull, build, restart, by hand
 ./deploy/deploy.sh --no-pull                                  # deploy the working tree
+tail -f ~/cipher-autodeploy.log                               # what the poller did
 
 docker compose -f deploy/docker-compose.prod.yml logs -f server
 docker compose -f deploy/docker-compose.prod.yml restart server

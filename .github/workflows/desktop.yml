@@ -142,6 +142,28 @@ jobs:
         working-directory: desktop
         run: npm ci
 
+      # The release body is the changelog section for this version
+      # (desktop/CHANGELOG.md). The app quotes it in the update banner, so a
+      # dispatch with no entry fails here rather than shipping a release that
+      # says nothing. A push build has no release and skips the check.
+      - name: Read the changelog entry
+        id: notes
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -eu
+          version="$(sed -n 's/.*"version": "\([0-9][0-9.]*\)".*/\1/p' desktop/src-tauri/tauri.conf.json | head -1)"
+          body="$(awk -v v="$version" '/^## /{p = ($2 == v)} p && !/^## /' desktop/CHANGELOG.md | sed -e '1{/^$/d}' -e '${/^$/d}')"
+          if [ -z "$body" ]; then
+            echo "desktop/CHANGELOG.md has no '## $version' section. Write one, then dispatch again." >&2
+            exit 1
+          fi
+          {
+            echo 'body<<CHANGELOG_EOF'
+            echo "$body"
+            echo 'CHANGELOG_EOF'
+          } >> "$GITHUB_OUTPUT"
+
       # `tauri build` runs beforeBuildCommand from tauri.conf.json first,
       # which is the client build in desktop mode, then bundles it.
       - name: Build
@@ -156,7 +178,7 @@ jobs:
           # An empty tagName means "build only": no release is touched.
           tagName: ${{ github.event_name == 'workflow_dispatch' && 'desktop-v__VERSION__' || '' }}
           releaseName: 'Cipher desktop v__VERSION__'
-          releaseBody: 'Installers for Windows, macOS and Linux. They are not code signed yet: see desktop/README.md for what that means on each OS.'
+          releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: true
           prerelease: false
           uploadUpdaterJson: true

@@ -12,8 +12,13 @@ change under `client/` reaches desktop users. The web gets it from
 ## The short version
 
 1. Bump `version` in `src-tauri/tauri.conf.json` (and match it in
-   `src-tauri/Cargo.toml` and `package.json`). Commit and push.
-2. GitHub, Actions, `desktop`, Run workflow.
+   `src-tauri/Cargo.toml`, `Cargo.lock` and `package.json`), and write a
+   `## <version>` section in [`CHANGELOG.md`](CHANGELOG.md): that text is
+   the release body and what the app shows beside the update banner. Commit
+   and push.
+2. GitHub, Actions, `desktop`, Run workflow. Or `release.ps1` /
+   `release.sh`, which do steps 2 and 3 and refuse to start without the
+   changelog entry.
 3. When it finishes, open Releases, find the draft `desktop-v<version>`,
    check it, Publish.
 4. Every installed copy hears about it within four hours, or at its next
@@ -93,8 +98,9 @@ platform jobs into one file, so you never edit it by hand:
 }
 ```
 
-The `notes` field is what the banner and the settings screen quote, so the
-release body is worth a sentence people would want to read.
+The `notes` field is what the banner and the settings screen quote. The
+release body comes from the version's section in `CHANGELOG.md`, so that is
+where to write the sentence people will read.
 
 The `.deb` gap: the updater has no Linux install path except the AppImage,
 so someone on the `.deb` who accepts the banner gets a failed install. That
@@ -152,6 +158,8 @@ override that downwards.
    for a feature. The updater only offers a strictly greater version, so a
    release with the same number as the last one updates nobody. A client
    change with no shell change is still a bump: the pages are in the binary.
+   Write the `## <version> (<date>)` section in `CHANGELOG.md` at the same
+   time; the workflow and both release scripts refuse a version without one.
 2. **Commit and push to `main`.** That push builds all four jobs and keeps
    the installers as workflow artifacts for seven days (Actions, the run,
    Artifacts). No release is made. If a job fails here, fix it before going

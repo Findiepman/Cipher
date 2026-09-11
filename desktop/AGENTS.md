@@ -48,6 +48,7 @@ Built, with `tauri-plugin-updater`, signature verification on, the public key in
 - The manifest is `latest.json` on the newest published GitHub release; `tauri-action` writes it. Publishing a draft release is the act of shipping an update. UPDATES.md has the release checklist, the `releases/latest` caveat and the key rotation procedure.
 - Do not add a second endpoint, a fallback without signature checking or `dangerousInsecureTransportProtocol`. An update mechanism that a compromised server could use to push arbitrary code with access to the stored key is the exact failure this rule exists to prevent.
 - There are no OS code-signing certificates. README says plainly what that means on macOS and Windows. Do not paper over it in the docs or the release notes.
+- A version bump comes with a `CHANGELOG.md` section for that version, written for the person about to press "Restart to update". The workflow makes it the release body, the app shows it beside the banner, and the release scripts refuse a bump without one. Do not bump without writing it, and do not write it for developers.
 
 ## Packaging
 

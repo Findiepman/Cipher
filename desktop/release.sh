@@ -36,6 +36,17 @@ fi
 
 echo "==> desktop release v${VERSION}  (tag ${TAG})"
 
+# The changelog entry is the release body and what the app shows beside the
+# update banner, so a version without one does not ship. The workflow checks
+# this too; checking here saves a twenty-minute build to find out.
+NOTES="$(awk -v v="$VERSION" '/^## /{p = ($2 == v)} p && !/^## /' desktop/CHANGELOG.md | sed -e '1{/^$/d}' -e '${/^$/d}')"
+if [ -z "$NOTES" ]; then
+  echo "desktop/CHANGELOG.md has no '## ${VERSION}' section. Write one, commit it, then run this again." >&2
+  exit 1
+fi
+echo "==> release notes:"
+printf '%s\n' "$NOTES" | sed 's/^/    /'
+
 # The GitHub CLI does the GitHub half. Everything below is one of its commands.
 # It installs to a fixed place that a terminal opened before the install does
 # not have on PATH, so add it here rather than making you reopen anything.

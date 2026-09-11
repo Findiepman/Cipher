@@ -33,6 +33,26 @@ if ([string]::IsNullOrWhiteSpace($version)) {
 
 Write-Host "==> desktop release v$version  (tag $tag)"
 
+# The changelog entry is the release body and what the app shows beside the
+# update banner, so a version without one does not ship. The workflow checks
+# this too; checking here saves a twenty-minute build to find out.
+$notes = @()
+$inSection = $false
+foreach ($line in Get-Content 'desktop/CHANGELOG.md') {
+  if ($line -match '^## ') {
+    $inSection = ($line -split ' ')[1] -eq $version
+    continue
+  }
+  if ($inSection) { $notes += $line }
+}
+$notesText = ($notes -join "`n").Trim()
+if ([string]::IsNullOrWhiteSpace($notesText)) {
+  Write-Host "desktop/CHANGELOG.md has no '## $version' section. Write one, commit it, then run this again."
+  exit 1
+}
+Write-Host '==> release notes:'
+$notesText -split "`n" | ForEach-Object { Write-Host "    $_" }
+
 # The GitHub CLI does the GitHub half. Everything below is one of its commands.
 # It installs to a fixed place that a window opened before the install does not
 # have on PATH, so add it here rather than making you reopen anything.

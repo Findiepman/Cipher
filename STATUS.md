@@ -147,6 +147,8 @@ account-work axis (`backend-plan.md`).
 | Deployed: 4 containers, no host ports, Cloudflare Tunnel | `deploy/` |
 | Desktop app: the client bundled, session kept across restarts, tray, notifications, badge, call attention, single instance, autostart | `desktop/src-tauri/src/`, `client/src/lib/platform/` |
 | Desktop auto-update: checked at start and every four hours, announced by a banner, installed on request, signed | `desktop/src-tauri/src/updater.rs`, `client/src/components/UpdateBanner.tsx` |
+| Release notes from `desktop/CHANGELOG.md`, shown in the app beside the update, and a release refused without them | `.github/workflows/desktop.yml`, `desktop/release.ps1` |
+| The box deploys itself when `production` moves (scripts written, not yet installed on the box) | `deploy/autodeploy.sh`, `deploy/setup-autodeploy.sh` |
 | Desktop settings section: version, check for updates, close to tray, start with the computer | `client/src/screens/settings/DesktopSection.tsx` |
 | Bearer-mode session survives a restart | `client/src/lib/storage/refreshTokenStore.ts` |
 | CORS admits the desktop origins, HTTP and socket | `server/src/lib/origins.ts` |
@@ -1072,6 +1074,14 @@ worse for this specific app.
     sealed DM path, and the fan-out and shared-key designs (MLS, Megolm) that
     `packages/crypto/AGENTS.md` used to flag for evaluation are off the table.
     The root `AGENTS.md` has the rule.
+35. **A version bump ships with a changelog entry, and the release body is
+    that entry.** `desktop/CHANGELOG.md` has a `## <version>` section per
+    release; the workflow reads the one matching `tauri.conf.json` and makes
+    it the GitHub release body, which the app then quotes beside the update
+    banner. The workflow and both release scripts refuse a version with no
+    section, so the text cannot be forgotten, and it is written for the
+    person about to press "Restart to update" rather than for a developer,
+    because that is who reads it. Added 2026-09-11.
 24. **The reset context endpoint is a POST, and it does not spend the token.**
     A GET would put a live credential in a query string, which is the part of
     a request that reliably reaches access logs and browser history. Not
@@ -1116,9 +1126,20 @@ built client and proxies the API prefixes and `/socket.io` to Fastify on one
 hostname, which is what keeps the auth cookies first-party.
 
 ```bash
-cd ~/cipher && ./deploy/deploy.sh          # pull, build, migrate, restart
+git push origin main:production            # deploy: the box polls and runs deploy.sh
+cd ~/cipher && ./deploy/deploy.sh          # the same by hand, sooner
 docker compose -f deploy/docker-compose.prod.yml logs -f server
 ```
+
+**Deploys are a push to `production`, once the box has been set up for it.**
+Added 2026-09-11: `deploy/autodeploy.sh` is a cron poller that fetches
+`origin/production` every two minutes and runs `deploy.sh` when it has moved,
+and `deploy/setup-autodeploy.sh` installs it (`DEPLOY.md` step 7). It watches
+`production` rather than `main` because every deploy drops the sockets for a
+few seconds, and it polls rather than listens because the box has no inbound
+ports. **`setup-autodeploy.sh` has not been run on the box yet**, and the
+`production` branch does not exist on GitHub yet: until both happen, deploying
+is still `deploy.sh` by hand, from a clone on `main`.
 
 Secrets live only in `deploy/.env` on the box (gitignored, and no `.env` has
 ever been committed, and the repository is public). Migrations are applied by the
@@ -1519,6 +1540,14 @@ Pick one; they are roughly independent.
    way, a call, and a password reset without the recovery code so the other
    side sees the key-change notice and accepts it. Then the verification
    screen (*What is not built*), which is the last piece of the trust story.
+   Desktop 1.0.2 carries the client half of phase 2 and is ready to release:
+   the version is bumped and `desktop/CHANGELOG.md` has its entry, so
+   `release.ps1` is the whole act. Until it ships, the installed 1.0.1 shows
+   every new message as "could not be opened", which is the old client
+   refusing an envelope it does not know rather than a bug.
+   Also still to do on the box: `git push origin main:production` from a
+   machine with main, then `deploy/setup-autodeploy.sh` there, after which
+   the web deploys on that push (*Where it runs*).
 5. **Fix the release script's run-finder, then walk the desktop app through.**
    Shipping happened on 2026-09-09: 1.0.1 is live for three platforms and the
    updater feed resolves. Two things are left. `release.ps1` still finds its

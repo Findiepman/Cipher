@@ -104,6 +104,21 @@ if ((Invoke-GhProbe release view $staleTag) -eq 0) {
 
 # 2. Build and draft-release, all platforms. The only thing that makes
 #    installers; a release made by hand never will.
+# The newest dispatch run *before* ours, so the wait below can tell a run
+# that just started from the one that ran last time. Without this the script
+# latched onto the previous run whenever one existed, and once watched a
+# failed build from an hour earlier while the real one was still going.
+function Get-LatestDispatchRunId {
+  $previous = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    return (gh run list --workflow=desktop.yml --event=workflow_dispatch -L 1 --json databaseId -q '.[0].databaseId' 2>$null)
+  } finally {
+    $ErrorActionPreference = $previous
+  }
+}
+$beforeId = Get-LatestDispatchRunId
+
 Write-Host '==> dispatching the build (three OSes, this takes a while)'
 gh workflow run desktop.yml --ref main
 if ($LASTEXITCODE -ne 0) { Write-Host 'Could not dispatch the workflow.'; exit 1 }
@@ -113,14 +128,11 @@ if ($LASTEXITCODE -ne 0) { Write-Host 'Could not dispatch the workflow.'; exit 1
 Write-Host '==> waiting for the build to register'
 $runId = ''
 for ($i = 0; $i -lt 20; $i++) {
-  $previous = $ErrorActionPreference
-  $ErrorActionPreference = 'Continue'
-  try {
-    $runId = (gh run list --workflow=desktop.yml --event=workflow_dispatch -L 1 --json databaseId -q '.[0].databaseId' 2>$null)
-  } finally {
-    $ErrorActionPreference = $previous
+  $candidate = Get-LatestDispatchRunId
+  if (-not [string]::IsNullOrWhiteSpace($candidate) -and $candidate -ne $beforeId) {
+    $runId = $candidate
+    break
   }
-  if (-not [string]::IsNullOrWhiteSpace($runId)) { break }
   Start-Sleep -Seconds 3
 }
 

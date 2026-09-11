@@ -796,8 +796,10 @@ Two end-to-end proofs, both against a running server over real HTTP:
   landed; the build it actually started then succeeded with nowhere to put its
   output, because the tag existed and the release was published. 1.0.1 was cut
   by hand instead, dispatching and then checking the run's event and head sha
-  before watching it. The fix is to match the run id from the dispatch output,
-  or filter by a creation time newer than the dispatch. Still unfixed.
+  before watching it. It bit a second time on 2026-09-11, the other way round:
+  it watched the previous, failed 1.0.2 run while the real one was building.
+  Fixed the same day: both scripts note the newest dispatch run *before*
+  dispatching and wait for an id that differs from it.
   Its other 5.1 bug is fixed: three `gh` probes now run with
   `$ErrorActionPreference` relaxed, because Windows PowerShell wraps a native
   command's stderr in an ErrorRecord and the script's own `Stop` preference
@@ -1551,8 +1553,9 @@ Pick one; they are roughly independent.
 5. **Fix the release script's run-finder, then walk the desktop app through.**
    Shipping happened on 2026-09-09: 1.0.1 is live for three platforms and the
    updater feed resolves. Two things are left. `release.ps1` still finds its
-   run with `-L 1` and will publish a stale build whenever a previous dispatch
-   exists, which is now always; it should match the run id the dispatch prints.
+   run with `-L 1` and would publish a stale build whenever a previous
+   dispatch existed. Fixed 2026-09-11 after it did exactly that: both scripts
+   now note the newest run before dispatching and wait for a different id.
    And the app itself has never been driven against the deployed server:
    signing in, the tray, notifications, the badge and the update banner are
    tested in logic and unproven in wiring. Installing 1.0.1 over an older

@@ -81,6 +81,13 @@ fi
 
 # 2. Build and draft-release, all platforms. This is the only thing that
 #    produces installers; a release made by hand never will.
+# The newest dispatch run *before* ours, so the wait below can tell a run
+# that just started from the one that ran last time. Without this the script
+# latched onto the previous run whenever one existed, and once watched a
+# failed build from an hour earlier while the real one was still going.
+BEFORE_ID="$(gh run list --workflow=desktop.yml --event=workflow_dispatch -L 1 \
+  --json databaseId -q '.[0].databaseId' 2>/dev/null || true)"
+
 echo "==> dispatching the build (three OSes, this takes a while)"
 gh workflow run desktop.yml --ref main
 
@@ -91,7 +98,8 @@ RUN_ID=""
 for _ in $(seq 1 20); do
   RUN_ID="$(gh run list --workflow=desktop.yml --event=workflow_dispatch -L 1 \
     --json databaseId -q '.[0].databaseId' 2>/dev/null || true)"
-  [ -n "$RUN_ID" ] && break
+  if [ -n "$RUN_ID" ] && [ "$RUN_ID" != "$BEFORE_ID" ]; then break; fi
+  RUN_ID=""
   sleep 3
 done
 

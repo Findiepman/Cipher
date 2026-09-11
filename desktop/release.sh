@@ -39,7 +39,12 @@ echo "==> desktop release v${VERSION}  (tag ${TAG})"
 # The changelog entry is the release body and what the app shows beside the
 # update banner, so a version without one does not ship. The workflow checks
 # this too; checking here saves a twenty-minute build to find out.
-NOTES="$(awk -v v="$VERSION" '/^## /{p = ($2 == v)} p && !/^## /' desktop/CHANGELOG.md | sed -e '1{/^$/d}' -e '${/^$/d}')"
+# The section under the matching heading, without the blank lines
+# around it. Trimmed in bash rather than sed: BSD sed on macOS rejects
+# the GNU address form and the macOS builders run this step too.
+NOTES="$(awk -v v="$VERSION" '/^## /{p = ($2 == v); next} p' desktop/CHANGELOG.md)"
+NOTES="${NOTES#"${NOTES%%[![:space:]]*}"}"
+NOTES="${NOTES%"${NOTES##*[![:space:]]}"}"
 if [ -z "$NOTES" ]; then
   echo "desktop/CHANGELOG.md has no '## ${VERSION}' section. Write one, commit it, then run this again." >&2
   exit 1

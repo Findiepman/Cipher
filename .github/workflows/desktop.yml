@@ -153,7 +153,12 @@ jobs:
         run: |
           set -eu
           version="$(sed -n 's/.*"version": "\([0-9][0-9.]*\)".*/\1/p' desktop/src-tauri/tauri.conf.json | head -1)"
-          body="$(awk -v v="$version" '/^## /{p = ($2 == v)} p && !/^## /' desktop/CHANGELOG.md | sed -e '1{/^$/d}' -e '${/^$/d}')"
+          # The section under the matching heading, without the blank lines
+          # around it. Trimmed in bash rather than sed: BSD sed on macOS rejects
+          # the GNU address form and the macOS builders run this step too.
+          body="$(awk -v v="$version" '/^## /{p = ($2 == v); next} p' desktop/CHANGELOG.md)"
+          body="${body#"${body%%[![:space:]]*}"}"
+          body="${body%"${body##*[![:space:]]}"}"
           if [ -z "$body" ]; then
             echo "desktop/CHANGELOG.md has no '## $version' section. Write one, then dispatch again." >&2
             exit 1

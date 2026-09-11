@@ -1,149 +1,113 @@
-# private messenger
+# Cipher
 
-A Discord-like chat app where message content is end-to-end encrypted: sealed on
-the sender's device, stored as ciphertext, opened only on the recipient's.
+A private messenger. Direct messages are sealed on your device with the other
+person's key, and the server stores and relays something it cannot read.
+Voice calls run browser to browser. There is a web app at
+<https://cipher.findiepman.dev>, a desktop app for Windows, macOS and Linux,
+and it works on a phone.
 
-One npm workspace, four packages:
+## What it does
 
-| Path | What it is |
-|---|---|
-| `client/` | The React + Vite app. One UI codebase, built twice: as the web app and again in desktop mode for the desktop app. |
-| `server/` | Fastify API, Socket.io, Postgres via Prisma. Accounts and auth ([`backend-plan.md`](backend-plan.md)) plus friends and DMs ([`messaging-plan.md`](messaging-plan.md)). |
-| `packages/crypto/` | `@cipher/crypto`. The only place in the repo that calls libsodium. |
-| `desktop/` | The Tauri desktop app: `client/` bundled, plus a tray, notifications and signed auto-updates. See [`desktop/README.md`](desktop/README.md). |
+### Messaging
 
-Read [`AGENTS.md`](AGENTS.md) before changing anything, then
-[`STATUS.md`](STATUS.md) for where the project actually is (what works, what is
-missing and the decisions worth not undoing), then the `AGENTS.md` in the
-directory you are working in. [`stack.md`](stack.md) records why the stack is
-what it is, and [`DEPLOY.md`](DEPLOY.md) is the runbook for putting it on a
-server.
+- Direct messages with live delivery, typing indicators and presence.
+- Messages typed with no connection queue on the device and go out when it is
+  back. Anything missed while away is pulled on reconnect.
+- Unread counts that clear when you actually look at the conversation, and
+  "seen" on your own messages when the other person has read receipts on.
+- Links you can click, inline code, and code blocks with a copy button and
+  colouring. Spoilers.
+- Pin people to the top of the list. Mute a conversation.
+- Friends by exact username: send, accept, decline or take back a request,
+  unfriend, block and unblock. Give a friend a nickname only you see.
+- A profile your friends can see: picture, banner, display name, accent colour
+  and a paragraph about you. Keep several under a name and switch between them.
 
-## Getting it running
+### Voice calls
 
-Install once from the repo root: the workspaces share a single lockfile, so
-running `npm install` inside `client/` or `server/` is not what you want:
+- Ring, answer, decline, busy, hang up. Every open tab rings; the one that
+  answers takes the call.
+- Mute, a voice gate that opens on speech, and push to talk (Ctrl+Space).
+- Audio goes directly between the two browsers, relayed through TURN only when
+  the networks need it. Eight ringtones, and earpiece or loudspeaker on a phone.
 
-```bash
-npm install
-```
+### Encryption
 
-You need both halves running to sign in. Start the server first, because it needs
-Postgres and a `.env`, both covered in [`server/README.md`](server/README.md):
+- Every message and every call's setup is sealed on the sender's device with
+  the recipient's key, one copy per participant. The server never holds a
+  readable message or a private key.
+- Keys are pinned the first time they are seen. If somebody's key ever changes,
+  the conversation pauses with a notice until you say it is fine.
+- Your private key is generated on your device and never leaves it. The
+  password never leaves it either: the server only ever sees a hash derived
+  from it.
+- Losing your password does not lose your account. A recovery code, shown once
+  at sign-up, rebuilds it with your identity and history intact. Without the
+  code you can still reset, knowingly starting a fresh identity.
+- Lock the app and the key is gone from memory until you unlock. A plain
+  reload stays unlocked for up to 30 days of use.
 
-```bash
-npm run dev:server     # http://localhost:3000
-npm run dev            # http://localhost:5173
-```
+### The vault
 
-Open http://localhost:5173 and create an account. With `MAIL_TRANSPORT=file`,
-the verification email lands as a file in `server/.mail/`. Open the
-`/verify-email?token=…` link inside it.
+A private space behind a passkey, for notes to yourself: a number you keep
+forgetting, the thing you did not want in a chat. Sealed under a key only your
+device holds, and separate from your account password on purpose, so a screen
+someone finds unlocked is still not an open vault.
 
-To work on the UI without a server at all, copy `client/.env.example` to
-`client/.env` and set `VITE_BACKEND=mock`. That skips auth entirely and renders
-the chat off local fixtures; nothing signs in.
+### Notifications
 
-## Checks
+- A system notification when a message lands and the window is not in front,
+  a popup in the corner when it is, and an unread count on the icon and in
+  the title.
+- Eight synthesised message sounds and seven ringtones, none of them shipped
+  as files, and a different sound per person so you know who it is without
+  looking.
+- Choose whether a notification shows the message text.
 
-```bash
-npm test               # every workspace
-npm run typecheck      # every workspace
-npm run build          # every workspace that has a build
-```
+### Looks and language
 
-The server suite needs a `messenger_test` database; the client and crypto suites
-need nothing.
+- Five palettes, each in light and dark, or write your own from two colours.
+- A wallpaper behind everything, dimmed and blurred to taste.
+- The activity bar docks to any edge. Compact or comfortable spacing.
+- English and Dutch, with dates, times and numbers to match.
+- Every setting follows your account to the next device you sign in on.
 
-## Where the encryption is at
+### The desktop app
 
-**Phase 2, since 2026-09-11.** Every direct message and every call's session
-description is sealed with libsodium's `crypto_box` (X25519 and
-XSalsa20-Poly1305) to the other person's key, one copy per participant, the
-sender included. The server stores and relays ciphertext it cannot open, and
-the conversation is bound into the box so a body cannot be moved to another.
-Other people's keys are pinned the first time they are seen; a different key
-for the same person stops the conversation until you accept it. Messages from
-before that date were stored base64-encoded under `alg: 'none'` and still open.
+- Windows, macOS and Linux. The same app as the web, in a window of its own.
+- A tray icon, native notifications, an unread badge, a taskbar flash for an
+  incoming call, close to tray, start with the computer, one instance.
+- Signed auto-updates: a banner appears in the app with what changed, and one
+  button installs it.
 
-Key custody was real from the start: the account keypair is generated on the
-device, the private half is wrapped under Argon2id before it is stored, and
-neither it nor the password nor the recovery code is ever sent to the server.
-See [`packages/crypto/AGENTS.md`](packages/crypto/AGENTS.md) for the design and
-[`client/AGENTS.md`](client/AGENTS.md) for the rules around the key on the
-device. Group chats and servers, when they come, will not be end-to-end
-encrypted by decision: see [`AGENTS.md`](AGENTS.md).
+## What it does not do
 
-## Signing in
+- **Group chats and servers.** Not yet, and when they come they will not be
+  end-to-end encrypted, by decision: the private product is the DM, and the
+  maintainers do not want to run rooms nobody can moderate.
+- **Attachments, editing, deleting, search.** Not yet.
+- **Notifications with the app fully closed.** The app has to be open, in a
+  tab or behind another window. On a phone that means the browser has to be
+  open too.
+- **Video and screen sharing.** Voice only for now.
+- **Call history.** A missed call is a short notice, then nothing.
+- **More than one device per key.** Your key lives on the device you signed up
+  on; another device gets in through the wrapped copy the server holds, not
+  through a second key.
+- **Code-signed installers.** The desktop installers trip Gatekeeper and
+  SmartScreen until certificates are bought.
 
-The client and server speak one protocol, and the password is not part of it.
+## For developers
 
-1. **Create account.** A keypair is generated on the device. The password is
-   stretched into an `authHash` (which goes to the server) and, separately, into
-   a key that wraps the private key (which does not). The wrapped key is
-   uploaded twice: once under the password, once under a recovery code shown
-   on screen exactly once.
-2. **Verify email.** The link is `/verify-email?token=…`. Running locally with
-   `MAIL_TRANSPORT=file`, the email is a file in `server/.mail/`.
-3. **Sign in.** The server compares the `authHash` and hands back the wrapped
-   key, which is opened locally with the password.
-4. **Unlock.** The private key lives in memory, never on the server, so there
-   is a state where you are signed in but *locked* and cannot read anything.
-   That screen is the visible form of "the server cannot read your messages".
-   A reload does not normally land there: the key is also sealed under a
-   non-extractable key held by this browser profile, so it can be reopened
-   without the password for 30 days of use. **Lock** destroys that and brings
-   the prompt back.
+Read [`AGENTS.md`](AGENTS.md) for the rules, then [`STATUS.md`](STATUS.md)
+for where the project actually is: what works, what is missing and the
+decisions worth not undoing. [`server/README.md`](server/README.md) covers
+running it locally, [`DEPLOY.md`](DEPLOY.md) is the runbook for the box,
+[`desktop/README.md`](desktop/README.md) and [`desktop/UPDATES.md`](desktop/UPDATES.md)
+cover building and releasing the desktop app, and
+[`packages/crypto/AGENTS.md`](packages/crypto/AGENTS.md) is the encryption
+design.
 
-What the server stores: an argon2id hash of the `authHash`, the SHA-256 of the
-recovery code, a public key, and two opaque blobs it cannot open. What it never
-receives: the password, the recovery code, or the private key.
-
-One consequence worth knowing: **password strength is enforced client-side
-only**, in `client/src/lib/session/passwordPolicy.ts`. The server cannot judge a
-password it never sees, so a hostile client can register a weak one.
-
-### Checking it end to end
-
-With Postgres up and the server running:
-
-```bash
-cd server && npm run smoke
-```
-
-That drives register → verify → login → refresh → reuse-detection over real
-HTTP, using the same `@cipher/crypto` calls the browser makes, and asserts the
-private key it generated comes back out of the server's blob unchanged.
-
-## Deploying it
-
-[`DEPLOY.md`](DEPLOY.md) is the runbook: Docker Compose on an Ubuntu box,
-Caddy serving the client and proxying the API on one hostname, a Cloudflare
-Tunnel for ingress, Resend for SMTP, and nightly `pg_dump`.
-
-```bash
-cp deploy/.env.example deploy/.env    # fill it in
-./deploy/deploy.sh
-```
-
-**Mail is a hard prerequisite, not polish.** Verification is required before
-login, so if mail does not send, nobody can create an account, including you.
-`cd server && npm run mail:test -- you@example.com` proves the relay works
-before anything depends on it.
-
-## Still to build
-
-- **Group servers and channels.** DMs only. The message tables are generic
-  enough for groups, but the key model is not chosen, see
-  `packages/crypto/AGENTS.md`.
-- **Message editing, deletion, read receipts, attachments, search.** None of
-  it, and nothing is ever marked read.
-- **Account flows the client already implements but the server does not**:
-  password reset, the recovery-code reset path, email change, the session list,
-  recovery-code rotation, account deletion, and the admin API.
-  `client/src/lib/api/endpoints.ts` calls all of them; they 404 today.
-- **CSRF.** The client sends `x-csrf-token` from a `csrf_token` cookie in cookie
-  mode; the server never sets one, so the header is simply absent. Cross-site
-  POSTs are currently blocked by same-origin serving plus `SameSite=Lax` and a
-  CORS allowlist rather than by a token.
-- **An out-of-band key verification screen.** Keys are pinned on first sight; comparing fingerprints in person is the step after that.
+One npm workspace: `client/` (React, built for web and desktop), `server/`
+(Fastify, Socket.io, Postgres), `packages/crypto/` (the only caller of
+libsodium) and `desktop/` (Tauri).
